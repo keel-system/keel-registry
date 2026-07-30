@@ -1,0 +1,81 @@
+name: Compatibilidad con la herramienta
+
+# El canario. `ci.yml` valida contra una versión **pineada** de la herramienta para
+# que un cambio incompatible allí no tumbe los PR de la comunidad aquí. El precio
+# de ese pin es que la incompatibilidad se descubriría tarde, al intentar subirlo.
+#
+# Este workflow paga ese precio: corre lo mismo contra `main` de la herramienta, en
+# frío y sin bloquear a nadie. Si se pone rojo, el registry sigue funcionando: lo
+# que dice es que subir el pin todavía requiere trabajo.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # lunes por la mañana
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Ref de keel-system/keel a probar
+        default: main
+        required: false
+
+jobs:
+  canario:
+    name: Validar contra ${{ inputs.ref || 'main' }} de la herramienta
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del registry
+        uses: actions/checkout@v4
+
+      - name: Checkout de la herramienta (sin pinear)
+        uses: actions/checkout@v4
+        with:
+          repository: keel-system/keel
+          ref: ${{ inputs.ref || 'main' }}
+          path: .keel-tool
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar la CLI
+        working-directory: .keel-tool
+        run: |
+          npm install
+          npm link --workspace packages/keel-core
+
+      - name: Qué versión estamos probando
+        run: |
+          echo "keel-core: $(keel --version)" >> "$GITHUB_STEP_SUMMARY"
+          echo "ref: $(git -C .keel-tool rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validar diseños, índice y payload
+        id: validar
+        continue-on-error: true
+        run: |
+          fallos=""
+          for manifiesto in specs/*/service.keel.yaml; do
+            diseno="$(dirname "$manifiesto")"
+            keel validate "$diseno" || fallos="$fallos $diseno"
+          done
+          keel index --check || fallos="$fallos index"
+          keel init --check || fallos="$fallos payload"
+          if [ -n "$fallos" ]; then
+            echo "fallos=$fallos" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Resumen
+        run: |
+          if [ "${{ steps.validar.outcome }}" = "success" ]; then
+            echo "✅ El registry es compatible con la herramienta sin pinear: el pin de \`ci.yml\` se puede subir." >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "⚠️ La herramienta sin pinear **no** es compatible con este registry."
+              echo ""
+              echo "Falló: \`${{ steps.validar.outputs.fallos }}\`"
+              echo ""
+              echo "Los PR de la comunidad **no están afectados**: \`ci.yml\` sigue usando la versión pineada."
+              echo "Antes de subir el pin (\`KEEL_TOOL_REF\` o el valor por defecto de \`ci.yml\`) hay que resolver esto:"
+              echo "si el cambio es del DSL, puede requerir \`keel init --force\` y reindexar; si es de la CLI, corregirlo allí."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

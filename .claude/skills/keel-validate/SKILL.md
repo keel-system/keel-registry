@@ -1,0 +1,60 @@
+---
+name: keel-validate
+description: Valida un servicio Keel multi-artefacto (schemas por capa + referencias cruzadas vía CLI) y ejecuta la revisión semántica de calidad del diseño. Usar antes de generar código o docs.
+argument-hint: "<specs/servicio>"
+---
+
+# /keel-validate — validación estructural, cruzada y semántica
+
+Valida el servicio indicado (directorio `specs/<servicio>/`) en tres niveles. No modifiques los artefactos sin confirmar cada corrección con el usuario, salvo errores triviales de formato.
+
+## Niveles 1 y 2 — Schema por capa + referencias cruzadas (CLI)
+
+```bash
+keel validate specs/<servicio>
+```
+
+La CLI valida el manifiesto y cada capa contra su schema (`schema/<capa>.schema.json`), la coherencia `layers` ↔ archivos, y las referencias cruzadas mecánicas (tipos, entidades, operaciones, eventos, roles y permisos referenciados existen; agregados bien formados: raíz y miembros existentes, sin entidades en dos agregados, `per-aggregate` solo con agregados declarados; operaciones huérfanas como warning). Además detecta **diseño incompleto**: capas que siguen siendo la plantilla (sin operaciones, entidades, eventos o clientes) y `service.description` placeholder (empieza por `TODO` o es el texto de la plantilla).
+
+Durante una sesión de diseño usa `keel validate --wip specs/<servicio>`: los pendientes de diseño incompleto (los `emits`/`cache.invalidatedBy` hacia una capa messaging aún no diseñada, y los campos `file` cuyo bucket aún no existe en una capa storage aún no diseñada) se reportan como avisos y el veredicto es "Diseño en progreso". El veredicto ✅ **Válido** solo existe sin `--wip`; nunca se genera ni documenta desde un "Diseño en progreso".
+
+Si falla, traduce cada error a lenguaje del DSL (ej. "`use-cases: createProduct.emits`: el evento 'ProductCreated' no está en messaging" → "la operación emite un evento que aún no definiste en la capa messaging") y propón la corrección.
+
+Fallback si el comando `keel` no está disponible: valida cada `<capa>.keel.yaml` con ajv-cli (`--spec=draft2020 -r schema/common.schema.json -s schema/<capa>.schema.json`) y haz las cross-refs leyendo los artefactos.
+
+## Nivel 3 — Semántica (lo que ni el schema ni las cross-refs pueden expresar)
+
+Lee los artefactos y verifica esta checklist. Reporta cada hallazgo con severidad **error** (bloquea generación) o **aviso** (mejorable):
+
+**Consistencia del modelo (error):**
+- Cada entidad tiene exactamente un campo con `id: true`.
+- Ningún campo `generated: true` o `computed` aparece en el input de una operación.
+- `default` de un campo enum pertenece a `values` (inline o del enum nominal).
+- Operaciones `query` no tienen `emits`; `cache` solo en queries.
+- Ningún campo `sensitive: true` aparece en un output `{ fields }` o payload de evento sin justificación explícita del diseño.
+- Los `path` de endpoints con parámetros (`{x}`) usan nombres presentes en el input de la operación.
+- Si `messaging` declara `reliability: outbox`, existe capa `persistence` (el outbox necesita una transacción que confirmar); si no, error.
+- Ninguna invariante de una entidad depende de campos de entidades de **otro** agregado (la consistencia entre agregados es eventual, vía eventos).
+
+**Calidad por capa (aviso, salvo indicación):**
+- *domain*: invariantes ambiguas o no verificables (cítalas); entidades sin ninguna operación que las use; entidad con campo de estado enum pero sin `lifecycle` (¿las transiciones son realmente libres?); invariantes de texto que en realidad son transiciones y deberían migrar a `lifecycle`; reglas `computed` no derivables de los campos existentes; agregado con muchas entidades internas (¿frontera demasiado grande?); relación `one-to-many` hacia la raíz de otro agregado (¿composición encubierta?); entidad interna con `lifecycle` propio no gobernado por su raíz (cuestiónalo).
+- *use-cases*: todo `command` declara al menos un error; commands disparados por subscription con `retry.maxAttempts > 1` sin `idempotency` (**error**); `cache.invalidatedBy` no cubre todos los eventos que mutan lo cacheado; command que muta entidades de **dos** agregados en una operación (sugerir evento + consistencia eventual).
+- *api*: output `paginated: true` sin `pagination` declarada.
+- *security*: mutaciones con `level: public` (cuestiónalas); roles con permisos que ninguna regla usa (exceso de privilegio); permisos huérfanos; serviceClients con más scopes de los que sus llamadas necesitan (mínimo privilegio también para máquinas); endpoints M2M sin `validateAudience` cuando el servicio convive con otros que comparten servidor de autenticación (un token emitido para otro servicio valdría aquí).
+- *messaging*: eventos publicados que ninguna operación emite (huérfanos); subscriptions sin `onFailure`; suscripción sobre un canal `external: true` sin `contract` (**aviso fuerte**: el generador supondría la envoltura de Keel sobre un mensaje ajeno); suscripción con `retry.maxAttempts > 1` sin `contract.messageId` y sin `idempotency` en la operación disparada (**error**: reentrega sin clave de deduplicación); `envelope: keel` sobre un canal `external` (cuestiónalo: solo vale si la fuente también es un servicio Keel); `contract` con `format` avro/protobuf sin `schemaRef` (¿cómo se resuelve el schema?); eventos/suscripciones sin `channel` cuando el servicio se integra con otros (el canal es el contrato de integración y su nombre lógico debe mantenerse estable); nombres de `channel` que filtran tecnología (`kafka`, `queue`, `topic`…) en vez de ser lógicos.
+- *http-clients*: `circuitBreaker` sin `fallback`; llamadas sin `timeoutMs`.
+- *dependencies*: `replica` cuyo `fedBy` no cubre la **baja o retirada** del recurso en el proveedor (**aviso fuerte**: la copia se queda rancia para siempre y nadie se entera); `onMiss.action: degrade` cuyo `degradedTo` produce datos plausibles pero falsos, indistinguibles para el cliente de una respuesta normal (mismo criterio que el `fallback` de http-clients); `need` con `strategy: on-demand` usado por un `command` transaccional (un timeout deja la transacción abierta); réplica que copia campos que ninguna operación de `usedBy` lee; réplica que se expone tal cual en la salida de una operación o a la que el diseño atribuye invariantes de negocio (**aviso fuerte**: una copia no es fuente de verdad); `contract.version` ausente cuando el proveedor sí publica `INTEGRATION.md`; dependencia cuyo nombre coincide con el del propio servicio (**error**). Y la coherencia entre capas que `keel validate` ya marca en rojo pero conviene traducir a lenguaje de diseño: **si hay una réplica, tiene que haber capa `persistence`**.
+- *persistence*: entidades de domain no mencionadas (¿se persisten o no?); campos `unique` o de queries frecuentes sin índice; `per-operation` habiendo agregados declarados cuyas operaciones tocan raíz + internas (¿debería ser `per-aggregate`?).
+- *storage*: buckets sin `maxSizeMb` (¿subida sin límite de tamaño?); bucket con datos personales o documentos privados marcado `public` (**cuestiónalo**); bucket declarado que ningún campo `file` referencia (huérfano); operación que sube a un bucket sin declarar los errores de subida esperados (`FILE_TOO_LARGE`, `UNSUPPORTED_CONTENT_TYPE`) en use-cases.
+
+**Escenarios de validación (`validation-scenarios.md`):**
+- Existe `specs/<servicio>/validation-scenarios.md` (formato: `docs/validation-scenarios.md`); si falta, **error**: el diseño no está cerrado y el generador no puede validar el servidor.
+- Su matriz de cobertura incluye toda operación de use-cases, y cada `error` declarado aparece en algún flujo o caso borde con su `code` exacto (huecos: **error**).
+- Rutas, payloads, estados y eventos de los escenarios coinciden con los artefactos; si el spec cambió después del archivo (discrepancias o versión distinta en su cabecera), márcalo como desactualizado (**error**) y propón regenerarlo con `/keel-design`.
+- El archivo es el **contrato de equivalencia** entre implementaciones: lo que no fija, cada generador lo decide por su cuenta. Comprueba contra `docs/validation-scenarios.md § Determinación observable` (el criterio vive allí, no lo dupliques aquí) y marca como **error** los tres fallos que lo vacían de contenido: `Then` que solo verifica el status en vez del cuerpo completo de la respuesta; error cubierto sin su status HTTP; flujo cuyo `Given` depende de la ejecución de otro flujo (tras el reset previo a cada flujo, ese estado no existe). Como **aviso**: colección devuelta sin orden declarado, estado del `lifecycle` que ningún flujo alcanza, y `cache.invalidatedBy` con vías no ejercitadas.
+
+## Salida
+
+Termina con un veredicto claro:
+- ✅ **Válido** — listo para `keel-<tech> build specs/<servicio>` (que genera el proyecto; el código se completa después con `/keel-generate-<tech>` dentro de él) y para `/keel-docs`.
+- ❌ **Inválido** — lista numerada de errores (y avisos aparte), cada uno con el artefacto afectado y su corrección propuesta. Ofrece aplicarlas.

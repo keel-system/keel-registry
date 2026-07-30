@@ -1,0 +1,48 @@
+# Capa http-clients — integraciones HTTP salientes con terceros u otros servicios.
+# La resiliencia (timeout, retry, circuit breaker, fallback) se declara aquí, por llamada:
+# es política del canal, reutilizada por todos los casos de uso que la usen.
+# La autenticación saliente se declara por cliente (auth); las credenciales JAMÁS van
+# en el diseño — llegan por configuración/variables de entorno del servicio generado.
+# Recuerda declarar la capa en service.keel.yaml → layers.http-clients.
+
+clients:
+  # pricing-service:
+  #   purpose: Obtener el precio vigente de un producto.
+  #   auth:
+  #     type: api-key              # none | api-key | bearer-static | basic | oauth2-client-credentials
+  #     headerName: X-Api-Key
+  #   calls:
+  #     getPrice:
+  #       contract: Precio vigente de un SKU con su moneda.
+  #       method: GET              # opcional junto a path/request/response: con ellos el
+  #       path: /prices/{sku}      # generador produce tipos reales; sin ellos, el contract
+  #       request:                 # en prosa es lo único que guía al agente.
+  #         pathParams:
+  #           sku: { type: string, required: true }
+  #         queryParams:
+  #           currency: { type: string }
+  #         headers:               # cabeceras propias de la llamada (nunca credenciales: eso es auth).
+  #                                # El nombre va en camelCase como todo campo del DSL; el nombre real
+  #                                # de la cabecera se declara con wireName.
+  #           tenantId: { type: string, required: true, wireName: X-Tenant-Id }
+  #       response:
+  #         fields:
+  #           amount: { type: decimal, required: true }
+  #           currency: { type: string, required: true }
+  #       timeoutMs: 2000
+  #       retry: { maxAttempts: 3, backoff: exponential, initialDelayMs: 200, maxDelayMs: 5000, retryOn: [timeout, 5xx] }
+  #       circuitBreaker: { failureRateThreshold: 50, slidingWindowSize: 20, waitDurationMs: 30000 }
+  #       fallback: Devolver el último precio conocido en caché; si no existe, error PRICE_UNAVAILABLE.
+  #     quotePrices:
+  #       contract: Cotiza en lote los SKU indicados.
+  #       method: POST
+  #       path: /prices/quote
+  #       request:
+  #         body:                  # solo en POST/PUT/PATCH (un GET/DELETE con body es error de schema)
+  #           skus:        { type: string, list: true, required: true, constraints: { maxItems: 100 } }
+  #           requestedAt: { type: timestamp, required: true, wireName: requested_at }
+  #                                # wireName: el nombre real del cable cuando no es el nuestro
+  #       response:
+  #         fields:
+  #           quotes: { type: json, required: true }
+  #       timeoutMs: 4000

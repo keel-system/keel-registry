@@ -1,0 +1,26 @@
+# Ownership por diseño: quien mantiene un diseño revisa los PR que lo tocan.
+# Un repo único con CODEOWNERS da el mismo control que un repo por diseño, sin
+# multiplicar CI, licencias ni copias del payload del DSL.
+#
+# Sintaxis: <patrón> <@usuario|@org/equipo>. El último patrón que casa manda.
+
+# Por defecto, los mantenedores del registry.
+*                       @keel-system
+
+# Infraestructura del repo: índice generado, CI y las reglas de contribución.
+/index.json             @keel-system
+/README.md              @keel-system
+/CONTRIBUTING.md        @keel-system
+/MAINTAINERS.md         @keel-system
+/.github/               @keel-system
+
+# Payload de la CLI (se refresca con `keel init --force`, no se edita a mano).
+/schema/                @keel-system
+/templates/             @keel-system
+/docs/dsl/              @keel-system
+/.claude/               @keel-system
+
+# Un diseño por bloque. Al aceptar un diseño de la comunidad, añade aquí sus dos
+# rutas (spec y derivados) con el usuario que lo mantiene.
+/specs/catalog/         @keel-system
+/docs/catalog/          @keel-system

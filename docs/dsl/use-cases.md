@@ -1,0 +1,90 @@
+# Capa `use-cases` — casos de uso (obligatoria)
+
+Archivo: `specs/<servicio>/use-cases.keel.yaml` · Schema: [`schema/use-cases.schema.json`](../../schema/use-cases.schema.json)
+
+Cada operación es un caso de uso completo: qué recibe, qué devuelve, qué reglas aplica, qué puede fallar y qué eventos emite. Aquí viven también las políticas que son **semántica del caso de uso** — idempotencia, caché y schedule — porque valen igual lo invoque REST o un evento.
+
+```yaml
+operations:
+  createProduct:
+    description: Da de alta un producto en estado draft.
+    kind: command
+    input:
+      fields:
+        sku:       { type: SKU, required: true }
+        name:      { type: string, required: true }
+        price:     { type: Money, required: true }
+        catalogId: { type: uuid }
+    output: { entity: Product }
+    idempotency: { keySource: client-key, ttlSeconds: 86400 }
+    rules:
+      - El sku se normaliza a mayúsculas antes de validar unicidad.
+      - Si se indica catalogId, el catálogo debe existir.
+    errors:
+      - { code: SKU_ALREADY_EXISTS, when: Ya existe un producto con ese sku., http: 409 }
+      - { code: CATALOG_NOT_FOUND, when: El catalogId indicado no existe., http: 422 }
+    emits: [ProductCreated]
+
+  getProduct:
+    description: Recupera un producto por su id.
+    kind: query
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Product }
+    cache: { ttlSeconds: 300, keyFields: [id], invalidatedBy: [ProductRetired] }
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe producto con ese id., http: 404 }
+
+  getProductsByIds:
+    description: Resuelve varios productos por sus identificadores en una sola llamada.
+    kind: query
+    input:
+      fields:
+        ids: { type: uuid, list: true, required: true, constraints: { minItems: 1, maxItems: 100 } }
+    output: { entity: Product, list: true }
+    rules:
+      - Los identificadores inexistentes se omiten del resultado, en el mismo orden que la petición.
+
+  reconcilePrices:
+    description: Reconcilia precios contra el servicio de pricing cada noche.
+    kind: command
+    input: "void"
+    output: "void"
+    schedule: { cron: "0 3 * * *" }
+```
+
+## Campos
+
+- `kind`: `command` (muta estado) o `query` (solo lee). Default `command`.
+- `input`/`output` admiten tres formas: `"void"`, `{ fields: {...} }`, o `{ entity: Product }` con opcionales `list`, `paginated`, `exclude: [...]`, `embed: [...]`.
+- Un campo de un payload `{ fields: {...} }` puede ser una **colección** con `list: true`, y acotarla con `constraints: { minItems, maxItems }` (la cardinalidad de la colección, no del elemento). Es la forma correcta de declarar una entrada por lotes — nunca `type: json` con la cota escrita en prosa. `required: true` sobre un campo `list` significa "presente y no vacío".
+- **Una cota se declara en un solo sitio.** Lo que va en `constraints` (o en `required`) lo hace cumplir la validación de forma del generador, que responde con un error genérico de petición mal formada, **sin** `code` de negocio. Si el diseño quiere que esa cota falle con un `code` propio y estable —`EMPTY_ID_LIST`, `TOO_MANY_IDS`—, la cota va como `preconditions` en prosa y **no** como `constraints`: declarar las dos cosas deja el `code` inalcanzable, porque la validación de forma corre antes.
+- En un `input` con forma `{ entity: X }`, los campos `generated` y `computed` de la entidad quedan implícitamente fuera: nunca los envía el cliente.
+- En los outputs y eventos, los campos `sensitive` de la entidad quedan excluidos por defecto; `exclude` recorta además campos concretos de esa operación (`keel validate` comprueba que existen en la entidad). Para exponer un campo sensible hay que declararlo explícitamente con la forma `{ fields: {...} }`.
+- `exclude` admite **dot-paths** para no exponer un campo de una **entidad hija** o de un **value object** anidado (`output: { entity: Order, exclude: [internalNote, lines.costPrice, address.zip] }`). Cada segmento intermedio debe ser una relación (entidad hija) o un value object compuesto; el último, un campo o relación de la entidad/tipo alcanzado. Un dot-path que cruza a otro agregado (relación serializada por id, sin anidamiento) es un warning: no hay nada anidado que excluir.
+- `embed` (solo en `output`) proyecta una relación hacia **otro agregado** como objeto anidado en vez de como `<relación>Id`: `output: { entity: Product, embed: [category] }` devuelve `"category": { … }` en lugar de `"categoryId": "…"`. Es la forma de declarar que el consumidor necesita la referencia resuelta y no un id que le obligue a una segunda llamada. Reglas: el destino debe ser la **raíz** de un agregado (una entidad hija ya se proyecta anidada por defecto) y la relación `many-to-one`/`one-to-one`; la auto-referencia es válida (`Category.parent → Category`: apunta a otra instancia, que es su propio agregado). El objeto embebido lleva los campos propios del agregado referenciado **sin sus relaciones**: la proyección se corta a profundidad 1 y no encadena agregado tras agregado.
+- `preconditions` son sobre el estado del mundo; `rules` describen el comportamiento en orden.
+- Cada `error` tiene un `code` estable (contrato con integradores), su condición `when` y opcionalmente el status `http`.
+- `emits`: eventos publicados — deben existir en `messaging: publishing.events`. Es la única referencia hacia delante permitida: mientras la capa messaging no esté diseñada, `keel validate --wip` la reporta como pendiente (aviso); sin `--wip` es error.
+
+## Políticas del caso de uso
+
+- `idempotency: { keySource: client-key | payload-hash, ttlSeconds }` — la operación puede repetirse sin efectos duplicados. Obligatoria de considerar en commands disparados por subscriptions con reintentos.
+- `cache: { ttlSeconds, keyFields, invalidatedBy: [Evento, ...] }` — solo para queries; `invalidatedBy` referencia eventos de messaging.
+- `schedule: { cron }` — trigger temporal, único trigger que se declara aquí.
+
+`idempotency` y `cache` son **decisiones estructurales**: fijan lo que el servicio garantiza (qué se puede repetir sin daño, qué puede llegar rancio), así que las decide el diseñador y no el agente. El agente recomienda con su porqué y pregunta; nunca las escribe en silencio. Ejes de decisión, consecuencias observables y trampas: `.claude/skills/keel-design/references/structural-decisions.md` §3.2 y §3.3.
+
+## Triggers: quién activa cada operación
+
+La capa que expone la operación la referencia por nombre:
+
+| Trigger | Se declara en |
+|---------|---------------|
+| Petición HTTP del cliente | `api` → `endpoints` (o `auto: true`) |
+| Evento del broker | `messaging` → `subscriptions.<Evento>.triggers` |
+| Temporal | aquí, con `schedule` |
+| Solo interna | aquí, con `internal: true` |
+
+Una operación sin ninguno de los cuatro es **huérfana**: `keel validate` la reporta como warning.

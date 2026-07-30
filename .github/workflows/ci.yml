@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validar:
+    name: Validar diseños e índice
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del registry
+        uses: actions/checkout@v4
+
+      # keel-core todavía no está publicado en npm, así que la CLI se instala
+      # desde el repo de la herramienta. Cuando se publique, esto se reduce a
+      # `npm i -g keel-core@<versión>`.
+      #
+      # El ref va **pineado**: sin él, este workflow seguiría la rama por defecto
+      # de la herramienta y un cambio incompatible allí pondría en rojo los PR de
+      # la comunidad aquí, sin que nadie haya tocado un diseño. Subir el pin es un
+      # cambio deliberado: la variable de repo KEEL_TOOL_REF permite probarlo sin
+      # tocar el workflow. La incompatibilidad futura la descubre compat.yml.
+      - name: Checkout de la herramienta
+        uses: actions/checkout@v4
+        with:
+          repository: keel-system/keel
+          ref: ${{ vars.KEEL_TOOL_REF || 'v0.3.0' }}
+          path: .keel-tool
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar la CLI
+        working-directory: .keel-tool
+        run: |
+          npm install
+          npm link --workspace packages/keel-core
+
+      - name: Versión del DSL soportada
+        run: keel --version
+
+      # Un diseño publicado tiene que estar cerrado: se valida sin --wip, así que
+      # capas en plantilla o descriptions con TODO fallan aquí.
+      - name: Validar cada diseño
+        run: |
+          fallos=0
+          for manifiesto in specs/*/service.keel.yaml; do
+            diseno="$(dirname "$manifiesto")"
+            echo "::group::$diseno"
+            keel validate "$diseno" || fallos=$((fallos + 1))
+            echo "::endgroup::"
+          done
+          if [ "$fallos" -gt 0 ]; then
+            echo "::error::$fallos diseño(s) no validan."
+            exit 1
+          fi
+
+      # El índice es generado: si el PR cambió un diseño sin reindexar, aquí se cae.
+      # Compara el contenido, no la procedencia: un `generatedBy` de otra versión
+      # de keel-core no cuenta como desactualizado.
+      - name: Comprobar que el índice está al día
+        run: keel index --check
+
+      # Los schema/, templates/ y docs/dsl/ de este repo son copias del payload de
+      # la CLI. No afectan a la validación (que usa los schemas del paquete), pero
+      # sí a lo que leen las personas y el editor, así que no deben quedarse atrás.
+      - name: Comprobar que el payload del workspace está al día
+        run: keel init --check

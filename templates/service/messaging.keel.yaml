@@ -1,0 +1,52 @@
+# Capa messaging — integración con el broker de mensajería.
+# channels: canales lógicos por los que fluyen los eventos (→ topic Kafka / cola RabbitMQ al generar).
+# publishing: eventos que este servicio emite (referenciados desde use-cases → emits).
+# subscriptions: eventos externos que consume y qué operación disparan.
+# El broker concreto (Kafka, RabbitMQ...) se decide al generar.
+# Recuerda declarar la capa en service.keel.yaml → layers.messaging.
+
+# channels:
+#   productEvents:
+#     description: Canal propio con el ciclo de vida del producto.
+#   inventoryEvents:
+#     description: Canal de inventory-service que este servicio consume.
+#     external: true                      # el canal lo posee otro sistema
+
+publishing:
+  # outbox: ningún evento se pierde si la transacción confirma (el generador implementa el mecanismo).
+  reliability: outbox     # outbox | best-effort
+  events:
+    # ProductCreated:
+    #   description: Se publica al dar de alta un producto.
+    #   channel: productEvents          # canal lógico (debe existir en channels)
+    #   payload:
+    #     productId: { type: uuid, required: true }
+    #     sku:       { type: SKU, required: true }
+
+# subscriptions:
+#   StockDepleted:
+#     source: inventory-service
+#     channel: inventoryEvents          # canal lógico del que se consume
+#     contract:                         # forma real del mensaje que emite la fuente
+#       envelope: wrapped               # keel | wrapped | none
+#       payloadPath: data               # dónde vive el payload (solo con wrapped)
+#       format: json                    # json | avro | protobuf | xml
+#       discriminator:                  # cómo se reconoce este evento en el canal
+#         location: header              # header | field
+#         name: eventType
+#         value: stock.depleted
+#       messageId:                      # clave de deduplicación ante reentregas
+#         location: header
+#         name: messageId
+#       unknownFields: ignore           # ignore | fail
+#       schemaRef: schemas/stock-depleted-v2.avsc
+#                                       # puntero al schema que publica la fuente (informativo:
+#                                       # ni keel validate ni los generadores lo resuelven)
+#     payload:
+#       productId: { type: uuid, required: true, wireName: product_id }
+#     triggers: retireProduct
+#     input:                            # campo del input de la operación → campo del payload
+#       productId: productId
+#     onFailure:
+#       retry: { maxAttempts: 5, backoff: exponential, initialDelayMs: 1000, maxDelayMs: 30000 }
+#       deadLetter: true

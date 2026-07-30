@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keel.dev/schema/2.0/messaging.schema.json",
+  "title": "Keel Messaging Layer",
+  "description": "Integración con el broker de mensajería: eventos que el servicio publica y suscripciones que consume.",
+  "type": "object",
+  "additionalProperties": false,
+  "anyOf": [
+    { "required": ["publishing"] },
+    { "required": ["subscriptions"] }
+  ],
+  "properties": {
+    "channels": {
+      "type": "object",
+      "description": "Canales lógicos por los que fluyen los eventos. Agnósticos del broker: cada canal se materializa en un topic (Kafka), una cola/exchange (RabbitMQ)… al generar. Los eventos y suscripciones los referencian por nombre.",
+      "propertyNames": { "pattern": "^[a-z][A-Za-z0-9]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "description": { "type": "string" },
+          "external": {
+            "type": "boolean",
+            "default": false,
+            "description": "El canal lo posee otro sistema: el generador no lo crea ni asume la envoltura de eventos de Keel sobre él, y su nombre físico se resuelve como parámetro de despliegue."
+          }
+        }
+      }
+    },
+    "publishing": {
+      "type": "object",
+      "required": ["events"],
+      "additionalProperties": false,
+      "properties": {
+        "reliability": {
+          "type": "string",
+          "enum": ["outbox", "best-effort"],
+          "default": "best-effort",
+          "description": "outbox: ningún evento se pierde si la transacción confirma. La implementación es cosa del generador."
+        },
+        "events": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[A-Z][A-Za-z0-9]*$" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["payload"],
+            "additionalProperties": false,
+            "properties": {
+              "description": { "type": "string" },
+              "channel": {
+                "type": "string",
+                "pattern": "^[a-z][A-Za-z0-9]*$",
+                "description": "Canal lógico donde se publica (debe existir en channels)."
+              },
+              "payload": { "$ref": "https://keel.dev/schema/2.0/common.schema.json#/$defs/fieldMap" }
+            }
+          }
+        }
+      }
+    },
+    "subscriptions": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[A-Z][A-Za-z0-9]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["source", "payload", "triggers"],
+        "additionalProperties": false,
+        "properties": {
+          "description": { "type": "string" },
+          "source": {
+            "type": "string",
+            "description": "Servicio o sistema que origina el evento."
+          },
+          "channel": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9]*$",
+            "description": "Canal lógico del que se consume (debe existir en channels)."
+          },
+          "contract": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Forma real del mensaje que emite la fuente: cómo llega envuelto, en qué formato, cómo se reconoce y cómo se identifica para no procesarlo dos veces.",
+            "properties": {
+              "envelope": {
+                "type": "string",
+                "enum": ["keel", "wrapped", "none"],
+                "description": "keel: la fuente es otro servicio Keel y usa la envoltura estándar (metadata + data). wrapped: envoltura propia de la fuente, el payload vive en payloadPath. none: el mensaje es el payload. Por defecto keel si el canal no es external, none si lo es."
+              },
+              "payloadPath": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Ruta (dot-path) al payload dentro de la envoltura de la fuente. Obligatorio y exclusivo de envelope: wrapped."
+              },
+              "format": {
+                "type": "string",
+                "enum": ["json", "avro", "protobuf", "xml"],
+                "default": "json",
+                "description": "Formato de serialización que emite la fuente. Es un dato del emisor, no una elección de generación."
+              },
+              "schemaRef": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Identificador del schema del mensaje en el registro de la fuente (relevante con avro/protobuf)."
+              },
+              "discriminator": {
+                "$ref": "https://keel.dev/schema/2.0/common.schema.json#/$defs/messageRef",
+                "description": "Cómo se reconoce este evento cuando el canal transporta varios tipos. Requiere value."
+              },
+              "messageId": {
+                "$ref": "https://keel.dev/schema/2.0/common.schema.json#/$defs/messageRef",
+                "description": "Dato que identifica unívocamente el mensaje; es la clave de deduplicación ante reentregas."
+              },
+              "unknownFields": {
+                "type": "string",
+                "enum": ["ignore", "fail"],
+                "default": "ignore",
+                "description": "Qué hacer con campos que la fuente envía y el diseño no declara."
+              }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "envelope": { "const": "wrapped" } }, "required": ["envelope"] },
+                "then": { "required": ["payloadPath"] },
+                "else": { "not": { "required": ["payloadPath"] } }
+              },
+              {
+                "if": { "required": ["discriminator"] },
+                "then": { "properties": { "discriminator": { "required": ["value"] } } }
+              },
+              {
+                "if": { "required": ["messageId"] },
+                "then": { "properties": { "messageId": { "not": { "required": ["value"] } } } }
+              }
+            ]
+          },
+          "payload": { "$ref": "https://keel.dev/schema/2.0/common.schema.json#/$defs/fieldMap" },
+          "triggers": {
+            "$ref": "https://keel.dev/schema/2.0/common.schema.json#/$defs/operationName",
+            "description": "Operación de este servicio que se ejecuta al recibir el evento."
+          },
+          "input": {
+            "type": "object",
+            "minProperties": 1,
+            "description": "Mapeo campo del input de la operación disparada → campo del payload de la suscripción. Si se omite, se asume identidad por nombre.",
+            "propertyNames": { "pattern": "^[a-z][A-Za-z0-9]*$" },
+            "additionalProperties": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*$" }
+          },
+          "onFailure": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "retry": { "$ref": "https://keel.dev/schema/2.0/common.schema.json#/$defs/retryPolicy" },
+              "deadLetter": {
+                "type": "boolean",
+                "default": false,
+                "description": "Tras agotar reintentos, el mensaje va a una cola de mensajes muertos."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
