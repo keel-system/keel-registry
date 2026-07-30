@@ -102,7 +102,8 @@
         "docs/catalog/asyncapi.html",
         "docs/catalog/postman/catalog-collection.json",
         "docs/catalog/overview.html",
-        "docs/catalog/INTEGRATION.md"
+        "docs/catalog/INTEGRATION.md",
+        "docs/catalog/postman/auth-collection.json"
       ]
     }
   ],
