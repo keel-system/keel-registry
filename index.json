@@ -72,17 +72,17 @@
         "errors": 0
       },
       "derivatives": {
-        "fresh": 2,
+        "fresh": 9,
         "stale": 0,
         "unstamped": 0,
-        "missing": 7,
+        "missing": 0,
         "orphan": 0,
         "notApplicable": 0
       },
       "docs": {
         "design": "docs/catalog/DESIGN.md",
-        "overview": null,
-        "integration": null
+        "overview": "docs/catalog/overview.html",
+        "integration": "docs/catalog/INTEGRATION.md"
       },
       "files": [
         "specs/catalog/service.keel.yaml",
@@ -95,7 +95,14 @@
         "specs/catalog/storage.keel.yaml",
         "specs/catalog/design.yaml",
         "specs/catalog/validation-scenarios.md",
-        "docs/catalog/DESIGN.md"
+        "docs/catalog/DESIGN.md",
+        "docs/catalog/openapi.yaml",
+        "docs/catalog/openapi.html",
+        "docs/catalog/asyncapi.yaml",
+        "docs/catalog/asyncapi.html",
+        "docs/catalog/postman/catalog-collection.json",
+        "docs/catalog/overview.html",
+        "docs/catalog/INTEGRATION.md"
       ]
     }
   ],

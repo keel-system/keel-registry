@@ -45,7 +45,7 @@ con varias variantes remiten a una subtabla que las compara.
 <!-- keel:servicios:start -->
 | Diseño | Dominio | Madurez | Resumen | Capas | Documentación |
 |---|---|---|---|---|---|
-| [`catalog`](specs/catalog/) | commerce | borrador | Catálogo comercial de productos con su marca y su categoría: gestión interna con publicación y retirada, catálogo público de solo lectura, y superficie servidor-a-servidor (ficha por id y por lote) más eventos de alta, cambio y baja para que otros servidores mantengan su copia al día. | `domain`, `use-cases`, `api`, `security`, `messaging`, `persistence`, `storage` | [diseño](docs/catalog/DESIGN.md) |
+| [`catalog`](specs/catalog/) | commerce | borrador | Catálogo comercial de productos con su marca y su categoría: gestión interna con publicación y retirada, catálogo público de solo lectura, y superficie servidor-a-servidor (ficha por id y por lote) más eventos de alta, cambio y baja para que otros servidores mantengan su copia al día. | `domain`, `use-cases`, `api`, `security`, `messaging`, `persistence`, `storage` | [diseño](docs/catalog/DESIGN.md) · [panel](docs/catalog/overview.html) · [integración](docs/catalog/INTEGRATION.md) |
 <!-- keel:servicios:end -->
 
 **Madurez**: `referencia` = diseño ejemplar, mantenido como muestra de la metodología · `estable` = usable
