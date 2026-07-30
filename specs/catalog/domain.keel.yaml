@@ -1,0 +1,133 @@
+# Capa domain — modelado del dominio: value types, entidades, relaciones, ciclo de vida e invariantes.
+# Cero tecnología: nada de tablas, ORMs ni frameworks.
+
+types:
+  SKU:
+    description: Referencia comercial única del producto.
+    base: string
+    constraints: { pattern: "^[A-Z0-9][A-Z0-9-]{3,19}$" }
+
+  Slug:
+    description: Identificador legible derivado del nombre, apto para URLs.
+    base: string
+    constraints: { pattern: "^[a-z0-9]+(-[a-z0-9]+)*$", maxLength: 140 }
+
+  Money:
+    description: Importe con su moneda.
+    fields:
+      amount:   { type: decimal, required: true, constraints: { min: 0, scale: 2 } }
+      currency: { type: string, required: true, constraints: { pattern: "^[A-Z]{3}$" } }
+
+  ProductStatus:
+    description: Situación del producto en el catálogo.
+    values: [draft, active, retired]
+
+  ActivationStatus:
+    description: Si una marca o una categoría sigue admitiendo productos nuevos.
+    values: [active, inactive]
+
+entities:
+  Brand:
+    description: Marca comercial a la que pertenece un producto.
+    fields:
+      id:          { type: uuid, id: true, generated: true }
+      name:        { type: string, required: true, unique: true, constraints: { maxLength: 120 } }
+      slug:        { type: Slug, unique: true, computed: Se deriva del name normalizado a kebab-case. }
+      description: { type: string, constraints: { maxLength: 1000 } }
+      status:      { type: ActivationStatus, default: active }
+      createdAt:   { type: timestamp, generated: true }
+      updatedAt:   { type: timestamp, generated: true }
+    lifecycle:
+      field: status
+      transitions:
+        active:   [inactive]
+        inactive: [active]
+    invariants:
+      - Una marca nunca se elimina; se desactiva, y así ningún producto queda con una referencia colgante.
+      - Una marca inactive no admite productos nuevos, pero los que ya la referencian siguen siendo válidos.
+      - El name de una marca es único en todo el catálogo, comparado sin distinguir mayúsculas, minúsculas ni acentos.
+      - El slug es único en todo el catálogo; dos names distintos que produzcan el mismo slug colisionan.
+
+  Category:
+    description: Familia comercial en la que se clasifica un producto. El catálogo es plano, sin jerarquía.
+    fields:
+      id:          { type: uuid, id: true, generated: true }
+      name:        { type: string, required: true, unique: true, constraints: { maxLength: 120 } }
+      slug:        { type: Slug, unique: true, computed: Se deriva del name normalizado a kebab-case. }
+      description: { type: string, constraints: { maxLength: 1000 } }
+      status:      { type: ActivationStatus, default: active }
+      createdAt:   { type: timestamp, generated: true }
+      updatedAt:   { type: timestamp, generated: true }
+    lifecycle:
+      field: status
+      transitions:
+        active:   [inactive]
+        inactive: [active]
+    invariants:
+      - Una categoría nunca se elimina; se desactiva, y así ningún producto queda con una referencia colgante.
+      - Una categoría inactive no admite productos nuevos, pero los que ya la referencian siguen siendo válidos.
+      - El name de una categoría es único en todo el catálogo, comparado sin distinguir mayúsculas, minúsculas ni acentos.
+      - El slug es único en todo el catálogo; dos names distintos que produzcan el mismo slug colisionan.
+
+  Product:
+    description: Artículo del catálogo, siempre adscrito a una marca y a una categoría.
+    fields:
+      id:          { type: uuid, id: true, generated: true }
+      sku:         { type: SKU, required: true, unique: true }
+      name:        { type: string, required: true, constraints: { maxLength: 200 } }
+      description: { type: string, constraints: { maxLength: 2000 } }
+      price:       { type: Money, required: true }
+      status:      { type: ProductStatus, default: draft }
+      tags:        { type: string, list: true, constraints: { maxItems: 10 }, description: "Etiquetas libres de búsqueda, sin identidad propia." }
+      createdAt:   { type: timestamp, generated: true }
+      updatedAt:   { type: timestamp, generated: true }
+    relations:
+      brand:    { entity: Brand, cardinality: many-to-one, required: true, description: Marca a la que pertenece el producto. }
+      category: { entity: Category, cardinality: many-to-one, required: true, description: Categoría en la que se clasifica el producto. }
+      images:   { entity: ProductImage, cardinality: one-to-many, description: "Galería del producto, ordenada por posición." }
+    lifecycle:
+      field: status
+      transitions:
+        draft:   [active, retired]
+        active:  [retired]
+        retired: []
+    invariants:
+      - Un producto active siempre tiene price.amount mayor que cero.
+      - Un producto active tiene al menos una imagen.
+      - Un producto retired no admite cambios en su ficha ni vuelve a un estado anterior.
+      - El sku se normaliza a mayúsculas antes de comprobar su unicidad.
+      - El sku es único entre todos los productos, incluidos los retirados; un sku retirado nunca se reutiliza.
+      - Todo producto referencia una marca y una categoría existentes, en cualquiera de sus estados; como
+        ninguna de las dos se elimina jamás, la referencia nunca queda colgante.
+      - Un producto solo puede crearse o reasignarse hacia una marca y una categoría active.
+      - Un producto tiene como mucho ocho imágenes.
+      - Las posiciones de las imágenes de un producto son consecutivas desde 1 y sin repetir; la de posición 1 es la principal.
+
+  ProductImage:
+    description: Fotografía de un producto dentro de su galería. Existe solo como parte del producto.
+    fields:
+      id:        { type: uuid, id: true, generated: true }
+      file:      { type: file, bucket: productImages, required: true, description: Archivo de imagen almacenado en el bucket. }
+      position:  { type: int, computed: "Es la última posición libre de la galería al añadir la imagen; se recompacta al borrar y se reasigna al reordenar. La posición 1 es la principal." }
+      altText:   { type: string, constraints: { maxLength: 200 }, description: Texto alternativo para accesibilidad. }
+      createdAt: { type: timestamp, generated: true }
+    relations:
+      product: { entity: Product, cardinality: many-to-one, required: true, description: Producto al que pertenece la imagen. }
+    invariants:
+      - Una imagen pertenece a un solo producto y no se mueve entre productos.
+      - Dos imágenes del mismo producto nunca comparten position.
+
+# Fronteras de consistencia: Brand y Category cambian solas, y Product cambia junto con su galería.
+# Ninguna operación toca dos agregados a la vez. Entre agregados la referencia va por el id de la
+# raíz (Product.brand, Product.category), nunca hacia una entidad interna.
+aggregates:
+  Brand:
+    description: Una marca cambia sola, sin arrastrar a los productos que la referencian.
+    root: Brand
+  Category:
+    description: Una categoría cambia sola, sin arrastrar a los productos que la referencian.
+    root: Category
+  Product:
+    description: Un producto y su galería de imágenes cambian siempre juntos, en la misma transacción.
+    root: Product
+    entities: [ProductImage]

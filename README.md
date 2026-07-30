@@ -43,7 +43,9 @@ Cada fila enlaza el diseño (`specs/`) y, cuando existen, su **ficha de decision
 con varias variantes remiten a una subtabla que las compara.
 
 <!-- keel:servicios:start -->
-_Aún no hay servicios diseñados. Cierra un diseño con `/keel-design specs/<servicio>` para poblar esta tabla._
+| Diseño | Dominio | Madurez | Resumen | Capas | Documentación |
+|---|---|---|---|---|---|
+| [`catalog`](specs/catalog/) | commerce | borrador | Catálogo comercial de productos con su marca y su categoría: gestión interna con publicación y retirada, catálogo público de solo lectura, y superficie servidor-a-servidor (ficha por id y por lote) más eventos de alta, cambio y baja para que otros servidores mantengan su copia al día. | `domain`, `use-cases`, `api`, `security`, `messaging`, `persistence`, `storage` | [diseño](docs/catalog/DESIGN.md) |
 <!-- keel:servicios:end -->
 
 **Madurez**: `referencia` = diseño ejemplar, mantenido como muestra de la metodología · `estable` = usable

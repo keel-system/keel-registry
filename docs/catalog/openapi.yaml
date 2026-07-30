@@ -1,0 +1,1002 @@
+openapi: 3.1.0
+info:
+  title: catalog
+  version: 0.3.0
+  description: >
+    Mantiene el catálogo comercial —productos, con su marca y su categoría— como fuente de verdad
+    para el resto del sistema: lo administra un equipo interno, lo consulta el público y lo consumen
+    otros servidores por HTTP y por eventos.
+servers:
+  - url: /api/v1
+paths:
+  /brands:
+    post:
+      operationId: createBrand
+      summary: Da de alta una marca comercial.
+      tags: [Brands]
+      security: [{ oidc: [brand:write] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBrandInput' }
+      responses:
+        '201':
+          description: Marca creada.
+          headers:
+            Location: { schema: { type: string }, description: Ruta de la marca creada. }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Brand' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: BRAND_NAME_ALREADY_EXISTS o SLUG_ALREADY_EXISTS.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      operationId: listBrands
+      summary: Lista las marcas del catálogo de forma paginada.
+      tags: [Brands]
+      security: [{ oidc: [brand:read] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 120 }, description: Filtro por coincidencia parcial en el name. }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ActivationStatus' }, description: Filtra por estado; sin él se devuelven todas. }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: Página de marcas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BrandPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /brands/{id}:
+    get:
+      operationId: getBrand
+      summary: Recupera una marca por su id.
+      tags: [Brands]
+      security: [{ oidc: [brand:read] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Marca encontrada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Brand' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: BRAND_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    put:
+      operationId: updateBrand
+      summary: Cambia el name o la descripción de una marca.
+      tags: [Brands]
+      security: [{ oidc: [brand:write] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateBrandInput' }
+      responses:
+        '200':
+          description: Marca actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Brand' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: BRAND_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: BRAND_NAME_ALREADY_EXISTS, SLUG_ALREADY_EXISTS o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /brands/{id}/deactivate:
+    post:
+      operationId: deactivateBrand
+      summary: Desactiva una marca, que deja de admitir productos nuevos.
+      tags: [Brands]
+      security: [{ oidc: [brand:write] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Marca desactivada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Brand' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: BRAND_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: ILLEGAL_STATUS_TRANSITION o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /brands/{id}/activate:
+    post:
+      operationId: activateBrand
+      summary: Reactiva una marca desactivada, que vuelve a admitir productos nuevos.
+      tags: [Brands]
+      security: [{ oidc: [brand:write] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Marca reactivada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Brand' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: BRAND_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: ILLEGAL_STATUS_TRANSITION o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /categories:
+    post:
+      operationId: createCategory
+      summary: Da de alta una categoría del catálogo.
+      tags: [Categories]
+      security: [{ oidc: [category:write] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCategoryInput' }
+      responses:
+        '201':
+          description: Categoría creada.
+          headers:
+            Location: { schema: { type: string }, description: Ruta de la categoría creada. }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: CATEGORY_NAME_ALREADY_EXISTS o SLUG_ALREADY_EXISTS.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      operationId: listCategories
+      summary: Lista las categorías del catálogo de forma paginada.
+      tags: [Categories]
+      security: [{ oidc: [category:read] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 120 }, description: Filtro por coincidencia parcial en el name. }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ActivationStatus' }, description: Filtra por estado; sin él se devuelven todas. }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: Página de categorías.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CategoryPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /categories/{id}:
+    get:
+      operationId: getCategory
+      summary: Recupera una categoría por su id.
+      tags: [Categories]
+      security: [{ oidc: [category:read] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Categoría encontrada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: CATEGORY_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    put:
+      operationId: updateCategory
+      summary: Cambia el name o la descripción de una categoría.
+      tags: [Categories]
+      security: [{ oidc: [category:write] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCategoryInput' }
+      responses:
+        '200':
+          description: Categoría actualizada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: CATEGORY_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: CATEGORY_NAME_ALREADY_EXISTS, SLUG_ALREADY_EXISTS o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /categories/{id}/deactivate:
+    post:
+      operationId: deactivateCategory
+      summary: Desactiva una categoría, que deja de admitir productos nuevos.
+      tags: [Categories]
+      security: [{ oidc: [category:write] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Categoría desactivada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: CATEGORY_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: ILLEGAL_STATUS_TRANSITION o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /categories/{id}/activate:
+    post:
+      operationId: activateCategory
+      summary: Reactiva una categoría desactivada, que vuelve a admitir productos nuevos.
+      tags: [Categories]
+      security: [{ oidc: [category:write] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Categoría reactivada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: CATEGORY_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: ILLEGAL_STATUS_TRANSITION o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /products:
+    post:
+      operationId: createProduct
+      summary: Da de alta un producto en estado draft, adscrito a una marca y a una categoría.
+      tags: [Products]
+      security: [{ oidc: [product:write] }]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: false, schema: { type: string }, description: "Clave de idempotencia; retención de 24 h." }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProductInput' }
+      responses:
+        '201':
+          description: Producto creado.
+          headers:
+            Location: { schema: { type: string }, description: Ruta del producto creado. }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: SKU_ALREADY_EXISTS o IDEMPOTENCY_KEY_REUSED.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: BRAND_NOT_FOUND, CATEGORY_NOT_FOUND, BRAND_INACTIVE o CATEGORY_INACTIVE.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    get:
+      operationId: listProducts
+      summary: Lista los productos del catálogo en cualquier estado, para su gestión interna.
+      tags: [Products]
+      security: [{ oidc: [product:read] }]
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ProductStatus' }, description: Filtra por estado; sin él se devuelven todos. }
+        - { name: brandId, in: query, schema: { type: string, format: uuid } }
+        - { name: categoryId, in: query, schema: { type: string, format: uuid } }
+        - { name: q, in: query, schema: { type: string, maxLength: 200 }, description: Filtro por coincidencia parcial en name o sku. }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: Página de productos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /products/{productId}:
+    get:
+      operationId: getProduct
+      summary: Recupera la ficha completa de un producto en cualquier estado, para su gestión interna.
+      tags: [Products]
+      security: [{ oidc: [product:read] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Producto encontrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: PRODUCT_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    put:
+      operationId: updateProduct
+      summary: Actualiza la ficha comercial de un producto que no esté retirado.
+      tags: [Products]
+      security: [{ oidc: [product:write] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProductInput' }
+      responses:
+        '200':
+          description: Producto actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: PRODUCT_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: PRODUCT_RETIRED o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: BRAND_NOT_FOUND, CATEGORY_NOT_FOUND, BRAND_INACTIVE, CATEGORY_INACTIVE o PRICE_MUST_BE_POSITIVE.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /products/{productId}/publish:
+    post:
+      operationId: publishProduct
+      summary: Publica un producto draft, que pasa a estar disponible en el catálogo.
+      tags: [Products]
+      security: [{ oidc: [product:publish] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Producto publicado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: PRODUCT_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: ILLEGAL_STATUS_TRANSITION o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: PRICE_MUST_BE_POSITIVE o IMAGE_REQUIRED.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /products/{productId}/retire:
+    post:
+      operationId: retireProduct
+      summary: Retira un producto del catálogo de forma definitiva.
+      tags: [Products]
+      security: [{ oidc: [product:publish] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Producto retirado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: PRODUCT_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: ILLEGAL_STATUS_TRANSITION o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /products/{productId}/images:
+    post:
+      operationId: addProductImage
+      summary: Añade una fotografía al final de la galería de un producto.
+      tags: [Products]
+      security: [{ oidc: [product:write] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, format: binary, description: "Archivo de imagen; bucket productImages (png, jpeg, webp; máx. 5 MB)." }
+                altText: { type: string, maxLength: 200 }
+      responses:
+        '201':
+          description: Imagen añadida.
+          headers:
+            Location: { schema: { type: string }, description: Ruta del producto. }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: PRODUCT_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: PRODUCT_RETIRED, MAX_IMAGES_REACHED o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '413':
+          description: FILE_TOO_LARGE.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '415':
+          description: UNSUPPORTED_CONTENT_TYPE.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /products/{productId}/images/{imageId}:
+    delete:
+      operationId: removeProductImage
+      summary: Elimina una fotografía de la galería de un producto.
+      tags: [Products]
+      security: [{ oidc: [product:write] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: imageId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Imagen eliminada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: PRODUCT_NOT_FOUND o IMAGE_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: PRODUCT_RETIRED, LAST_IMAGE_OF_ACTIVE_PRODUCT o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /products/{productId}/images/order:
+    put:
+      operationId: reorderProductImages
+      summary: Reordena la galería de un producto según la secuencia de imágenes indicada.
+      tags: [Products]
+      security: [{ oidc: [product:write] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReorderProductImagesInput' }
+      responses:
+        '200':
+          description: Galería reordenada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: PRODUCT_NOT_FOUND o IMAGE_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: PRODUCT_RETIRED o CONCURRENT_MODIFICATION.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: INCOMPLETE_IMAGE_ORDER.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /catalog/products/{productId}:
+    get:
+      operationId: getPublishedProduct
+      summary: Recupera la ficha de un producto publicado, tal como la ve el visitante del catálogo.
+      tags: [Public catalog]
+      security: []
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Producto publicado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '404':
+          description: PRODUCT_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /catalog/products:
+    get:
+      operationId: listPublishedProducts
+      summary: Lista los productos publicados del catálogo, con filtros de marca, categoría y texto.
+      tags: [Public catalog]
+      security: []
+      parameters:
+        - { name: brandId, in: query, schema: { type: string, format: uuid } }
+        - { name: categoryId, in: query, schema: { type: string, format: uuid } }
+        - { name: q, in: query, schema: { type: string, maxLength: 200 }, description: Filtro por coincidencia parcial en name o tags. }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: Página de productos publicados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPage' }
+  /catalog/brands:
+    get:
+      operationId: listPublishedBrands
+      summary: Lista las marcas que la tienda puede ofrecer, para construir su navegación.
+      tags: [Public catalog]
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: Página de marcas publicadas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublishedBrandPage' }
+  /catalog/categories:
+    get:
+      operationId: listPublishedCategories
+      summary: Lista las categorías que la tienda puede ofrecer, para construir su navegación.
+      tags: [Public catalog]
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: Página de categorías publicadas.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublishedCategoryPage' }
+
+  /internal/products/{productId}:
+    get:
+      operationId: getProductForServices
+      summary: Resuelve un producto por su id para otro servidor, con su marca y su categoría incorporadas.
+      tags: [Server-to-server]
+      security: [{ oauth2ClientCredentials: [product:read] }]
+      parameters:
+        - { name: productId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Producto encontrado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: PRODUCT_NOT_FOUND.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /internal/products/batch:
+    post:
+      operationId: getProductsByIds
+      summary: Resuelve varios productos por sus identificadores en una sola llamada, para otro servidor.
+      tags: [Server-to-server]
+      security: [{ oauth2ClientCredentials: [product:read] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GetProductsByIdsInput' }
+      responses:
+        '200':
+          description: Lista de productos resueltos, en el orden pedido; los inexistentes se omiten.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  parameters:
+    page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+      description: Número de página, base 0.
+    size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      description: "Tamaño de página; un valor mayor que maxSize (100) se recorta, no da error."
+
+  responses:
+    BadRequest:
+      description: Error de validación de la petición.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Sin credencial válida.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Autenticado sin el permiso o scope requerido.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  securitySchemes:
+    oidc:
+      type: openIdConnect
+      openIdConnectUrl: https://issuer.example.com/.well-known/openid-configuration
+      description: OIDC; el emisor concreto es configuración de despliegue.
+    oauth2ClientCredentials:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://issuer.example.com/oauth/token
+          scopes:
+            product:read: Leer productos en cualquier estado.
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+
+    ActivationStatus:
+      type: string
+      enum: [active, inactive]
+
+    ProductStatus:
+      type: string
+      enum: [draft, active, retired]
+
+    SKU:
+      type: string
+      pattern: "^[A-Z0-9][A-Z0-9-]{3,19}$"
+
+    Slug:
+      type: string
+      pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+      maxLength: 140
+
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: number, minimum: 0, description: "Escala 2 (dos decimales)." }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+
+    Brand:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 120 }
+        slug: { $ref: '#/components/schemas/Slug' }
+        description: { type: string, maxLength: 1000 }
+        status: { $ref: '#/components/schemas/ActivationStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    PublishedBrand:
+      type: object
+      description: Proyección pública de una marca; excluye createdAt y updatedAt.
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 120 }
+        slug: { $ref: '#/components/schemas/Slug' }
+        description: { type: string, maxLength: 1000 }
+
+    Category:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 120 }
+        slug: { $ref: '#/components/schemas/Slug' }
+        description: { type: string, maxLength: 1000 }
+        status: { $ref: '#/components/schemas/ActivationStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    PublishedCategory:
+      type: object
+      description: Proyección pública de una categoría; excluye createdAt y updatedAt.
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 120 }
+        slug: { $ref: '#/components/schemas/Slug' }
+        description: { type: string, maxLength: 1000 }
+
+    ProductImage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        file: { type: string, format: uri, description: "URL absoluta de lectura del objeto en el bucket productImages (público)." }
+        position: { type: integer, minimum: 1 }
+        altText: { type: string, maxLength: 200 }
+        createdAt: { type: string, format: date-time }
+
+    BrandRef:
+      type: object
+      description: Marca embebida, sin sus propias relaciones (profundidad 1).
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { $ref: '#/components/schemas/Slug' }
+
+    CategoryRef:
+      type: object
+      description: Categoría embebida, sin sus propias relaciones (profundidad 1).
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { $ref: '#/components/schemas/Slug' }
+
+    Product:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sku: { $ref: '#/components/schemas/SKU' }
+        name: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        price: { $ref: '#/components/schemas/Money' }
+        status: { $ref: '#/components/schemas/ProductStatus' }
+        tags:
+          type: array
+          items: { type: string }
+          maxItems: 10
+        brand: { $ref: '#/components/schemas/BrandRef' }
+        category: { $ref: '#/components/schemas/CategoryRef' }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ProductImage' }
+          maxItems: 8
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    BrandPage:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Brand' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer }
+        totalPages: { type: integer }
+
+    CategoryPage:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Category' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer }
+        totalPages: { type: integer }
+
+    ProductPage:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Product' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer }
+        totalPages: { type: integer }
+
+    PublishedBrandPage:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PublishedBrand' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer }
+        totalPages: { type: integer }
+
+    PublishedCategoryPage:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PublishedCategory' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer }
+        totalPages: { type: integer }
+
+    CreateBrandInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 120 }
+        description: { type: string, maxLength: 1000 }
+
+    UpdateBrandInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 120 }
+        description: { type: string, maxLength: 1000 }
+
+    CreateCategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 120 }
+        description: { type: string, maxLength: 1000 }
+
+    UpdateCategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 120 }
+        description: { type: string, maxLength: 1000 }
+
+    CreateProductInput:
+      type: object
+      required: [sku, name, price, brandId, categoryId]
+      properties:
+        sku: { $ref: '#/components/schemas/SKU' }
+        name: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        price: { $ref: '#/components/schemas/Money' }
+        brandId: { type: string, format: uuid }
+        categoryId: { type: string, format: uuid }
+        tags:
+          type: array
+          items: { type: string }
+          maxItems: 10
+
+    UpdateProductInput:
+      type: object
+      required: [name, price, brandId, categoryId]
+      properties:
+        name: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        price: { $ref: '#/components/schemas/Money' }
+        brandId: { type: string, format: uuid }
+        categoryId: { type: string, format: uuid }
+        tags:
+          type: array
+          items: { type: string }
+          maxItems: 10
+
+    ReorderProductImagesInput:
+      type: object
+      required: [imageIds]
+      properties:
+        imageIds:
+          type: array
+          items: { type: string, format: uuid }
+          minItems: 1
+          maxItems: 8
+
+    GetProductsByIdsInput:
+      type: object
+      required: [productIds]
+      properties:
+        productIds:
+          type: array
+          items: { type: string, format: uuid }
+          minItems: 1
+          maxItems: 100

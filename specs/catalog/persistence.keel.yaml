@@ -1,0 +1,39 @@
+# Capa persistence — cómo se persisten las entidades del dominio.
+# Agnóstica del motor: se declara el modelo de almacenamiento, nunca el producto.
+
+default:
+  model: relational
+
+entities:
+  Brand:
+    persisted: true
+    naturalKey: [slug]
+    indexes: [[status, name]]
+
+  Category:
+    persisted: true
+    naturalKey: [slug]
+    indexes: [[status, name]]
+
+  Product:
+    persisted: true
+    naturalKey: [sku]
+    indexes:
+      - [status, name]                # catálogo público sin filtro: orden por nombre
+      - [categoryId, status, name]    # catálogo público filtrado por categoría, con su orden
+      - [brandId, status, name]       # catálogo público filtrado por marca, con su orden
+      - [status, updatedAt]           # listado de gestión, ordenado por última modificación
+
+  ProductImage:
+    persisted: true
+    naturalKey: [productId, position]
+    indexes: [[productId, position]]
+
+consistency:
+  # Decisión del diseñador: cada transacción abarca como máximo un agregado de los tres declarados
+  # en domain (Brand, Category, Product). Ninguna operación toca dos, así que no hay ningún cambio
+  # que pueda confirmar a medias.
+  transactionalBoundary: per-aggregate
+  # Decisión del diseñador: dos escrituras concurrentes sobre el mismo producto no se pisan en
+  # silencio; la segunda recibe CONCURRENT_MODIFICATION (409) y decide si reintenta.
+  optimisticLocking: all

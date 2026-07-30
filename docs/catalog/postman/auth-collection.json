@@ -1,0 +1,108 @@
+{
+  "info": {
+    "name": "catalog — Auth",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Token — catalog-admin",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "password" },
+            { "key": "client_id", "value": "{{clientId}}" },
+            { "key": "client_secret", "value": "{{clientSecret}}" },
+            { "key": "username", "value": "{{username_catalog-admin}}" },
+            { "key": "password", "value": "{{password_catalog-admin}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_catalog-admin', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — catalog-editor",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "password" },
+            { "key": "client_id", "value": "{{clientId}}" },
+            { "key": "client_secret", "value": "{{clientSecret}}" },
+            { "key": "username", "value": "{{username_catalog-editor}}" },
+            { "key": "password", "value": "{{password_catalog-editor}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_catalog-editor', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token (client_credentials) — order-service",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "client_credentials" },
+            { "key": "client_id", "value": "{{clientId_order-service}}" },
+            { "key": "client_secret", "value": "{{clientSecret_order-service}}" },
+            { "key": "scope", "value": "product:read" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_order-service', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "tokenUrl", "value": "" },
+    { "key": "clientId", "value": "" },
+    { "key": "clientSecret", "value": "" },
+    { "key": "username_catalog-admin", "value": "" },
+    { "key": "password_catalog-admin", "value": "" },
+    { "key": "username_catalog-editor", "value": "" },
+    { "key": "password_catalog-editor", "value": "" },
+    { "key": "clientId_order-service", "value": "" },
+    { "key": "clientSecret_order-service", "value": "" }
+  ]
+}

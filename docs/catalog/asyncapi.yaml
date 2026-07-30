@@ -1,0 +1,189 @@
+asyncapi: 3.0.0
+info:
+  title: catalog
+  version: 0.3.0
+  description: |
+    Mantiene el catálogo comercial —productos, con su marca y su categoría— como fuente de verdad
+    para el resto del sistema: lo administra un equipo interno, lo consulta el público y lo consumen
+    otros servidores por HTTP y por eventos.
+
+    Contrato asíncrono derivado del diseño Keel (capa messaging). El broker concreto y los
+    nombres físicos de topic/cola se deciden al generar, no aquí.
+defaultContentType: application/json
+
+channels:
+  productEvents:
+    address: productEvents
+    title: productEvents
+    description: >-
+      Ciclo de vida del producto que publica este servicio para que otros mantengan su copia al día.
+      Nombre lógico: el topic/cola físico que lo respalda es parámetro de despliegue.
+    messages:
+      ProductCreated: { $ref: '#/components/messages/ProductCreated' }
+      ProductUpdated: { $ref: '#/components/messages/ProductUpdated' }
+      ProductRetired: { $ref: '#/components/messages/ProductRetired' }
+
+operations:
+  publishProductCreated:
+    action: send
+    channel: { $ref: '#/channels/productEvents' }
+    summary: Se dio de alta un producto, siempre en estado draft.
+    messages:
+      - $ref: '#/channels/productEvents/messages/ProductCreated'
+    x-keel-emitted-by: [createProduct]
+
+  publishProductUpdated:
+    action: send
+    channel: { $ref: '#/channels/productEvents' }
+    summary: Cambió la ficha de un producto. Cubre también la publicación, que llega como status active.
+    messages:
+      - $ref: '#/channels/productEvents/messages/ProductUpdated'
+    x-keel-emitted-by: [updateProduct, publishProduct, addProductImage, removeProductImage, reorderProductImages]
+
+  publishProductRetired:
+    action: send
+    channel: { $ref: '#/channels/productEvents' }
+    summary: Un producto se retiró del catálogo de forma definitiva.
+    messages:
+      - $ref: '#/channels/productEvents/messages/ProductRetired'
+    x-keel-emitted-by: [retireProduct]
+
+components:
+  messages:
+    ProductCreated:
+      name: ProductCreated
+      title: ProductCreated
+      contentType: application/json
+      summary: Se dio de alta un producto, siempre en estado draft.
+      correlationId: { $ref: '#/components/correlationIds/keelCorrelationId' }
+      payload:
+        type: object
+        required: [metadata, data]
+        properties:
+          metadata: { $ref: '#/components/schemas/KeelEventMetadata' }
+          data:     { $ref: '#/components/schemas/ProductCreatedPayload' }
+
+    ProductUpdated:
+      name: ProductUpdated
+      title: ProductUpdated
+      contentType: application/json
+      summary: Cambió la ficha de un producto. Cubre también la publicación, que llega como status active.
+      correlationId: { $ref: '#/components/correlationIds/keelCorrelationId' }
+      payload:
+        type: object
+        required: [metadata, data]
+        properties:
+          metadata: { $ref: '#/components/schemas/KeelEventMetadata' }
+          data:     { $ref: '#/components/schemas/ProductUpdatedPayload' }
+
+    ProductRetired:
+      name: ProductRetired
+      title: ProductRetired
+      contentType: application/json
+      summary: Un producto se retiró del catálogo de forma definitiva. Es la vía de baja de toda copia local.
+      correlationId: { $ref: '#/components/correlationIds/keelCorrelationId' }
+      payload:
+        type: object
+        required: [metadata, data]
+        properties:
+          metadata: { $ref: '#/components/schemas/KeelEventMetadata' }
+          data:     { $ref: '#/components/schemas/ProductRetiredPayload' }
+
+  schemas:
+    KeelEventMetadata:
+      type: object
+      description: Metadata transversal de la envoltura Keel; la estampa el servicio al emitir.
+      required: [eventId, eventType, eventVersion, occurredAt, source]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Id único de esta ocurrencia; clave de deduplicación del consumidor.
+        eventType:
+          type: string
+          description: Nombre del evento en el diseño; discriminador cuando el canal lleva varios tipos.
+        eventVersion:
+          type: integer
+          minimum: 1
+          description: Versión del contrato del payload.
+        occurredAt:
+          type: string
+          format: date-time
+          description: Instante UTC en que ocurrió el hecho en el dominio, no el del envío.
+        source:
+          type: string
+          description: Nombre del servicio emisor.
+        correlationId:
+          type: [string, "null"]
+          description: Correlación de la petición que originó el hecho; null si no hubo contexto.
+
+    SKU:
+      type: string
+      pattern: "^[A-Z0-9][A-Z0-9-]{3,19}$"
+
+    ProductStatus:
+      type: string
+      enum: [draft, active, retired]
+
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: number, minimum: 0 }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+
+    ProductCreatedPayload:
+      type: object
+      required: [productId, sku, name, price, status, brandId, categoryId, createdAt]
+      properties:
+        productId:   { type: string, format: uuid }
+        sku:         { $ref: '#/components/schemas/SKU' }
+        name:        { type: string }
+        description: { type: string }
+        price:       { $ref: '#/components/schemas/Money' }
+        status:      { $ref: '#/components/schemas/ProductStatus' }
+        brandId:     { type: string, format: uuid }
+        categoryId:  { type: string, format: uuid }
+        tags:
+          type: array
+          items: { type: string }
+          maxItems: 10
+        createdAt:   { type: string, format: date-time }
+
+    ProductUpdatedPayload:
+      type: object
+      required: [productId, sku, name, price, status, brandId, categoryId, updatedAt]
+      properties:
+        productId:   { type: string, format: uuid }
+        sku:         { $ref: '#/components/schemas/SKU' }
+        name:        { type: string }
+        description: { type: string }
+        price:       { $ref: '#/components/schemas/Money' }
+        status:      { $ref: '#/components/schemas/ProductStatus' }
+        brandId:     { type: string, format: uuid }
+        categoryId:  { type: string, format: uuid }
+        tags:
+          type: array
+          items: { type: string }
+          maxItems: 10
+        imageUrls:
+          type: array
+          items: { type: string, format: uri }
+          maxItems: 8
+          description: >-
+            URLs públicas de la galería, ordenadas por posición; la primera es la principal.
+            Ausente si el producto no tiene imágenes.
+        updatedAt:   { type: string, format: date-time }
+
+    ProductRetiredPayload:
+      type: object
+      required: [productId, sku, retiredAt]
+      properties:
+        productId: { type: string, format: uuid }
+        sku:       { $ref: '#/components/schemas/SKU' }
+        retiredAt: { type: string, format: date-time }
+
+  correlationIds:
+    keelCorrelationId:
+      description: Correlación end-to-end estampada en la envoltura Keel.
+      location: '$message.payload#/metadata/correlationId'
