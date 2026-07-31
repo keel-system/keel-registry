@@ -1,7 +1,7 @@
 # Keel Registry
 
-**Diseños de servidores listos para reutilizar.** Elige uno, descárgalo, ajústalo y genera tu
-implementación en la tecnología que quieras.
+**Diseños de servidores listos para reutilizar.** Elige uno, tráetelo —tal cual o ajustándolo— y genera
+tu implementación en la tecnología que quieras.
 
 Cada entrada de este repositorio es un **diseño Keel** completo: un directorio `specs/<diseño>/` con un
 artefacto YAML declarativo por capa —dominio, casos de uso, API, seguridad, mensajería, persistencia,
@@ -14,25 +14,64 @@ ni lenguaje: eso se decide al generar.
 
 ## Cómo reutilizar un diseño
 
+Primero **descubrir**, contra este repo y sin clonarlo:
+
 ```bash
-# 1. Descubrir (contra este repo, sin clonarlo)
 keel registry                       # todos los diseños, agrupados por familia
 keel registry search notifications  # filtra por nombre, tags, dominio o descripción
 keel registry show catalog          # la ficha completa de uno
+```
 
-# 2. Derivarlo dentro de tu propio workspace Keel
+Después hay **dos formas de traértelo**, y la diferencia no es de comodidad sino de intención: si el
+diseño te sirve tal cual, no hay nada que rediseñar.
+
+### ¿Te sirve tal cual? Adóptalo
+
+```bash
+keel registry get catalog
+```
+
+Trae el diseño **sin tocarlo** —mismo nombre, misma versión, misma `description`— y sus derivados
+publicados en `docs/catalog/`: la ficha de decisiones, los contratos OpenAPI/AsyncAPI, las colecciones
+Postman y el panel. Como nacen con la misma versión que documentan, `keel describe catalog` los ve al día
+y puedes ir directo a generar:
+
+```bash
+keel-spring build specs/catalog     # y después, dentro del proyecto, /keel-generate-spring
+```
+
+No se copia `specs/<diseño>/design.yaml`: son los metadatos con los que el diseño se publica **aquí**
+(autor, licencia, madurez), y en tu workspace te presentarían como su publicador. Sí se estampa
+`service.basedOn` aunque el nombre y la versión coincidan, para que quede constancia de que ese diseño
+*es* `catalog@0.3.0`. Si más adelante necesitas cambiarlo, no es una derivación: es una evolución normal,
+y entra por `/keel-evolve`.
+
+### ¿Hay que cambiarlo? Derívalo
+
+```bash
 keel new mi-catalogo --from registry:catalog
 ```
 
-`keel new --from` clona las capas y estampa el linaje en `service.basedOn`, deja la `description` marcada
-como pendiente de revisar y **renombra el servicio al nombre que tú elijas**: el slug del registry no llega
-a tu código. A partir de ahí, `/keel-design` arranca en modo derivación y entrevista solo sobre lo que
-cambia.
+Clona **solo el spec** —las capas y `validation-scenarios.md`—, estampa el linaje en `service.basedOn`,
+deja la `description` marcada como pendiente de revisar y **renombra el servicio al nombre que tú elijas**:
+el slug del registry no llega a tu código. Los derivados de `docs/` no se traen, porque describen al
+servicio de origen y se regeneran al cerrar tu diseño. A partir de ahí, `/keel-design` arranca en modo
+derivación y entrevista solo sobre lo que cambia.
 
-Sin la CLI a mano, el camino manual es equivalente:
+### Sin la CLI a mano
+
+El camino manual es equivalente. Para adoptar, copiar las dos carpetas:
 
 ```bash
 git clone https://github.com/keel-system/keel-registry
+cp -r keel-registry/specs/catalog specs/ && rm specs/catalog/design.yaml
+cp -r keel-registry/docs/catalog  docs/
+keel index
+```
+
+Para derivar, la CLI resuelve el origen por ruta:
+
+```bash
 keel new mi-catalogo --from ../keel-registry/specs/catalog
 ```
 
