@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.3.0 -->
+<!-- keel:version 0.4.0 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,7 +188,7 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Mantiene el catálogo comercial —productos, con su marca y su categoría— como fuente de verdad para el resto del sistema: lo administra un equipo interno, lo consulta el público y lo consumen otros servidores por HTTP y por eventos.",
     "domain": "commerce",
     "generatedAt": "2026-07-30"
@@ -1684,6 +1684,7 @@ const KEEL = {
       },
       "rules": [
         "El resultado se ordena por updatedAt descendente y, a igualdad, por id ascendente.",
+        "Cada elemento trae su marca y su categoría resueltas, para que la rejilla de gestión se pinte sin una segunda llamada por producto.",
         "El filtro q compara sin distinguir mayúsculas, minúsculas ni acentos.",
         "Un filtro que referencia una marca o una categoría inexistente devuelve una página vacía, no un error."
       ],
@@ -1847,6 +1848,7 @@ const KEEL = {
       },
       "rules": [
         "Solo se listan productos en estado active.",
+        "Cada elemento trae su marca y su categoría resueltas, para que la tarjeta del escaparate se pinte sin una segunda llamada por producto.",
         "El resultado se ordena por name ascendente y, a igualdad, por id ascendente.",
         "El filtro q compara sin distinguir mayúsculas, minúsculas ni acentos.",
         "Un filtro que referencia una marca o una categoría inexistente devuelve una página vacía, no un error."

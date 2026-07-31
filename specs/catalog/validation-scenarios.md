@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.3.0. Contrato de validación para la fase de generación.
+> specs/catalog v0.4.0. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -354,7 +354,8 @@ No existe ningún producto.
    `price: { "amount": 89.90, "currency": "EUR" }`, `status: "draft"`,
    `tags: ["running", "neutra"]`, `createdAt` y `updatedAt`.
 4. El cuerpo trae `brand` como objeto anidado con `id: b1`, `name: "Acme"` y `slug: "acme"`, **no**
-   `brandId`; e igual `category` con `id: c1` y `name: "Calzado"`, **no** `categoryId`.
+   `brandId`; e igual `category` con `id: c1` y `name: "Calzado"`, **no** `categoryId`. Ambos con la
+   forma completa de «Forma de la referencia embebida» (al pie).
 5. El objeto `brand` **no** trae relaciones anidadas propias (profundidad 1).
 6. El cuerpo trae `images` como lista **vacía**: el producto nace con la galería sin poblar.
 7. Se publica `ProductCreated` en el canal `productEvents`, con `data.productId` (el id devuelto),
@@ -654,7 +655,9 @@ productos: `p1` (`draft`, `b1`/`c1`), `p2` (`active`, `b1`/`c1`), `p3` (`active`
 2. `items` en orden `p4`, `p3`, `p2`, `p1` — descendente por `updatedAt`, el inverso del orden de
    modificación.
 3. El listado incluye los tres estados: `draft`, `active` y `retired`.
-4. Cada elemento trae `brand` y `category` como objetos anidados, nunca `brandId`/`categoryId`.
+4. Cada elemento trae `brand` y `category` como objetos anidados, nunca `brandId`/`categoryId`,
+   con la misma forma que en cualquier otra lectura del servicio (ver «Forma de la referencia
+   embebida» al pie de este documento).
 
 **Escenarios encadenados**:
 - `?status=active` → `items` con `p3` y `p2`, en ese orden; `totalElements: 2`.
@@ -688,7 +691,8 @@ retira. Ninguna llamada de este flujo envía credencial.
 3. `items` en orden `Alfa`, `Beta` — ascendente por `name`.
 4. `items` **no** contiene `pd` (`draft`) ni `pr` (`retired`).
 5. Cada elemento trae `status: "active"`, `brand` y `category` anidados, e `images` como lista
-   ordenada por `position`.
+   ordenada por `position`. La referencia embebida tiene la misma forma que en el resto del
+   servicio: el catálogo público no recibe una proyección propia.
 
 **Escenarios encadenados**:
 - `getPublishedProduct` sobre `pa` sin credencial → `200` con el cuerpo completo de `pa`.
@@ -778,8 +782,10 @@ La categoría `cC` y ningún producto la referencian.
 5. `GET /api/v1/catalog/brands?size=500` devuelve `size: 100` en el sobre, recortado a `maxSize`.
 6. **Marca desactivada**: `deactivateBrand` sobre `bA` da `200`; `listPublishedBrands` deja de
    incluirla y baja a `totalElements: 1`, **pero** `listPublishedProducts` sigue devolviendo `p1` y
-   `getPublishedProduct` sobre `p1` sigue respondiendo `200` con su `brand` embebido (`status`
-   `inactive`). Desactivar una marca la retira de la navegación, no del catálogo.
+   `getPublishedProduct` sobre `p1` sigue respondiendo `200`, ambos con su `brand` embebido y
+   `brand.status: "inactive"`. Desactivar una marca la retira de la navegación, no del catálogo;
+   que su estado sea visible en la referencia embebida es consecuencia aceptada de que la
+   proyección embebida es uniforme.
 7. Lo mismo con `deactivateCategory` sobre `cA` y `listPublishedCategories`.
 
 **Notas de determinación**: la aserción 3 del escenario encadenado es la que distingue "sin caché" de
@@ -804,7 +810,8 @@ cliente `order-service`.
    `status: "active"`, `tags`, `images` (lista ordenada por `position`, con `id`, `position`,
    `altText` y `file` en cada elemento), `createdAt` y `updatedAt`.
 3. El cuerpo trae `brand` anidado (`id`, `name: "Acme"`, `slug`) y `category` anidado
-   (`id`, `name: "Calzado"`, `slug`), **no** `brandId` ni `categoryId`.
+   (`id`, `name: "Calzado"`, `slug`), **no** `brandId` ni `categoryId`, ambos con la forma completa
+   de «Forma de la referencia embebida» (al pie).
 4. Los objetos anidados no traen a su vez relaciones (profundidad 1).
 5. El cuerpo es el contrato que documenta `INTEGRATION.md` para este endpoint.
 
@@ -907,3 +914,32 @@ este flujo con credencial de `catalog-admin`.
 
 **Notas de determinación**: `403` es "autenticado sin permiso" y `401` "sin credencial válida"; la
 distinción es contrato y ningún escenario la intercambia.
+
+---
+
+## Convenciones de equivalencia
+
+### Forma de la referencia embebida
+
+Toda operación que devuelve `Product` resuelve `brand` y `category` con `embed`, y **las trece lo
+hacen igual**: no hay proyección propia de gestión, de escaparate ni de máquina. El objeto embebido
+lleva los campos propios del agregado referenciado, **sin sus relaciones** (profundidad 1):
+
+```json
+"brand":    { "id": "…", "name": "…", "slug": "…", "description": "…",
+              "status": "active", "createdAt": "…", "updatedAt": "…" },
+"category": { "id": "…", "name": "…", "slug": "…", "description": "…",
+              "status": "active", "createdAt": "…", "updatedAt": "…" }
+```
+
+Los escenarios que enumeran solo `id`, `name` y `slug` lo hacen porque son los campos que asertan;
+esa enumeración **no es exhaustiva** y no autoriza a un generador a recortar el resto.
+
+No es configurable: DSL 2.3 dejó fuera a propósito elegir los campos del objeto embebido, por ser
+"una proyección arbitraria, no un hecho del dominio". Un generador que devuelva una forma más
+estrecha —o distinta según la audiencia— **no es equivalente**, aunque los escenarios que asertan
+`id`/`name`/`slug` pasen en verde.
+
+Consecuencia aceptada: `listPublishedProducts` y `getPublishedProduct` son públicos, así que
+`brand.status` y `category.status` son visibles sin credencial. El razonamiento está en la sección 6
+de `docs/catalog/DESIGN.md`.

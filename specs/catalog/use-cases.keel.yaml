@@ -372,9 +372,10 @@ operations:
         brandId:    { type: uuid }
         categoryId: { type: uuid }
         q:          { type: string, constraints: { maxLength: 200 }, description: Filtro por coincidencia parcial en name o sku. }
-    output: { entity: Product, paginated: true }
+    output: { entity: Product, paginated: true, embed: [brand, category] }
     rules:
       - El resultado se ordena por updatedAt descendente y, a igualdad, por id ascendente.
+      - Cada elemento trae su marca y su categoría resueltas, para que la rejilla de gestión se pinte sin una segunda llamada por producto.
       - El filtro q compara sin distinguir mayúsculas, minúsculas ni acentos.
       - Un filtro que referencia una marca o una categoría inexistente devuelve una página vacía, no un error.
 
@@ -422,9 +423,10 @@ operations:
         brandId:    { type: uuid }
         categoryId: { type: uuid }
         q:          { type: string, constraints: { maxLength: 200 }, description: Filtro por coincidencia parcial en name o tags. }
-    output: { entity: Product, paginated: true }
+    output: { entity: Product, paginated: true, embed: [brand, category] }
     rules:
       - Solo se listan productos en estado active.
+      - Cada elemento trae su marca y su categoría resueltas, para que la tarjeta del escaparate se pinte sin una segunda llamada por producto.
       - El resultado se ordena por name ascendente y, a igualdad, por id ascendente.
       - El filtro q compara sin distinguir mayúsculas, minúsculas ni acentos.
       - Un filtro que referencia una marca o una categoría inexistente devuelve una página vacía, no un error.

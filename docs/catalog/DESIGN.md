@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.3.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.4.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -82,15 +82,18 @@ y se **desactivan o reactivan** (`deactivateBrand`/`activateBrand` y sus homólo
 hay operación de borrado: es lo que garantiza que ningún producto quede apuntando al vacío. Los productos se manejan con operaciones **nombradas por su intención**, no
 como updates genéricos: `createProduct`, `updateProduct`, `publishProduct`, `retireProduct`,
 `addProductImage`, `removeProductImage`, `reorderProductImages`, más `getProduct` y `listProducts`,
-que ven el catálogo en **cualquier** estado.
+que ven el catálogo en **cualquier** estado. Todas las lecturas devuelven `brand` y `category`
+**resueltas como objetos anidados** —nunca un `brandId` suelto—, con la misma forma en las trece.
 
 `createProduct` es **idempotente** por clave de cliente (`Idempotency-Key`, 24 h).
 
 **Catálogo público (sin credencial).** Cuatro operaciones, que son toda la superficie de la tienda:
 
 - `getPublishedProduct` y `listPublishedProducts` ven **solo** productos `active`; un producto en
-  `draft` o `retired` responde `404`, no `403`. Ambas se sirven de una **caché de 300 s** invalidada
-  por `ProductUpdated` y `ProductRetired`.
+  `draft` o `retired` responde `404`, no `403`. Ambas traen `brand` y `category` anidadas para que la
+  tienda pinte la tarjeta sin una segunda llamada por producto. `getPublishedProduct` se sirve de una
+  **caché de 300 s** invalidada por `ProductUpdated` y `ProductRetired`; `listPublishedProducts` no
+  lleva caché.
 - `listPublishedBrands` y `listPublishedCategories` alimentan la **navegación**: devuelven únicamente
   las marcas y categorías **`active`** con al menos un producto `active`, sin `createdAt`/`updatedAt`
   y **sin caché**. Sin ellas la tienda podría filtrar por `brandId`/`categoryId` pero no descubrirlos.
@@ -160,6 +163,9 @@ concretos son despliegue, no diseño.
 | **Colisión de slug** | Error propio `SLUG_ALREADY_EXISTS` (`409`) | Es un fallo distinto del de nombre y se arregla distinto: cambiando el nombre | Desambiguar con sufijo (`acme-2`); reusar el error de nombre |
 | **`retired` sin vuelta atrás** | *Aceptado* | Se aceptó no añadir `reactivateProduct`: una retirada por error obliga a crear otro producto, y su sku ya no se puede reusar | Operación de reactivación `retired → draft` |
 | **Retención de retirados** | *Aceptado* | Se aceptó que los productos retirados se acumulen sin purga: todo listado de gestión los arrastra indefinidamente | Operación programada de purga a los N meses |
+| **Proyección de `brand`/`category`** (v0.4.0) | **Uniforme**: las 13 operaciones que devuelven `Product` la resuelven con `embed` | Hasta v0.3.0 los dos listados devolvían `brandId`/`categoryId` planos mientras las otras once embebían. No era una decisión: `validation-scenarios.md` ya exigía los objetos anidados en ambos listados, así que el spec contradecía a su propio contrato de validación, y el desfase no habría salido hasta fallar la suite de integración. Un listado con id obliga al cliente a N+1 llamadas por página, justo donde más caro sale | Dejar los listados con `brandId`/`categoryId` planos y embeber solo en el detalle: es la única forma de aligerar un listado que el DSL admite, y cuesta N+1 llamadas por página al cliente |
+| **Forma de la referencia embebida** (v0.4.0) | **No se elige**: el objeto embebido lleva los campos propios del agregado sin sus relaciones, igual en las trece operaciones | DSL 2.3 dejó fuera a propósito elegir los campos del objeto embebido, por ser "una proyección arbitraria, no un hecho del dominio", así que el diseño no tiene palanca — y el workspace no dobla el DSL para acomodar a un diseño. Al descubrirlo se vio que los derivados de v0.3.0 se contradecían: `openapi.yaml` documentaba `{id, name, slug}` y un escenario público asertaba `brand.status`. La ambigüedad se cerró a favor de la semántica del DSL y quedó fijada como convención de equivalencia en `validation-scenarios.md` | Recortar con `exclude` de dot-path (consigue el efecto, pero por la puerta de atrás de una decisión que el DSL tomó a propósito); pedir un primitivo de proyección al DSL |
+| **`brand.status` visible sin credencial** (v0.4.0) | *Aceptado* | `listPublishedProducts` y `getPublishedProduct` son públicos y la proyección embebida no se puede recortar, así que el visitante puede ver que la marca de un producto publicado está `inactive`. Son datos comerciales sin sensibilidad, y el listado no expone nada que el detalle público no expusiera ya desde v0.3.0 | Volver a `brandId`/`categoryId` planos en el listado público: evitaría la exposición, a costa de reintroducir el N+1 por página en el escaparate |
 | **Versionado del contrato M2M** | *Aceptado* | Se aceptó no comprometer una política de solape ante un cambio incompatible; el consumidor no sabe de antemano cuánto aviso tendrá | Declarar en `INTEGRATION.md` el compromiso de `/api/v2` con N meses de solape |
 
 ## 7. Ficha de reutilización: evolucionar o derivar
@@ -191,6 +197,10 @@ error, un evento, un endpoint o un campo del payload.
   `many-to-one`) la convierte en árbol, con sus invariantes de ciclo y profundidad.
 - **Capas ausentes**: `dependencies` y `http-clients`. Un derivado que necesite enriquecer la ficha
   desde un PIM o un proveedor de precios las añade sin tocar lo existente.
+- **Proyección de la referencia embebida**: hoy la fija el DSL y no se puede estrechar. Un derivado
+  que necesite una cara pública más magra tiene dos vías, ninguna dentro de `embed`: quitar el
+  `embed` de las operaciones públicas y asumir el N+1, o esperar a que el DSL incorpore un primitivo
+  de proyección. Cambiar el generador para que recorte **no** vale: dejaría de ser equivalente.
 - **Piezas reutilizables en otro servicio**: los value types `SKU`, `Slug` y `Money`; el patrón
   galería (entidad hija con `position` recompactada); el par lectura pública filtrada por estado +
   lectura M2M sin filtrar; y el par `get` + `getByIds` como superficie de resincronización.

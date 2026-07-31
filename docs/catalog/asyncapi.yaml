@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: catalog
-  version: 0.3.0
+  version: 0.4.0
   description: |
     Mantiene el catálogo comercial —productos, con su marca y su categoría— como fuente de verdad
     para el resto del sistema: lo administra un equipo interno, lo consulta el público y lo consumen

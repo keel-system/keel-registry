@@ -1,6 +1,6 @@
 ---
 service: catalog
-version: 0.3.0
+version: 0.4.0
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -87,8 +87,8 @@ por `ProductUpdated` y `ProductRetired`.
 | price.currency | string | requerido; ISO-4217 en mayúsculas |
 | status | ProductStatus | requerido; `draft` \| `active` \| `retired` |
 | tags | string[] | opcional; hasta 10 |
-| brand | objeto | requerido; `{ id, name, slug }`, sin relaciones propias (profundidad 1) |
-| category | objeto | requerido; `{ id, name, slug }`, sin relaciones propias (profundidad 1) |
+| brand | objeto | requerido; `{ id, name, slug, description, status, createdAt, updatedAt }` — los campos propios del agregado Brand, sin relaciones (profundidad 1). La forma no es configurable por operación |
+| category | objeto | requerido; `{ id, name, slug, description, status, createdAt, updatedAt }` — idem sobre Category |
 | images | objeto[] | galería ordenada por `position`; cada elemento `{ id, position, altText, file, createdAt }` |
 | images[].file | string (uri) | URL absoluta de lectura del objeto en el bucket público `productImages` |
 | createdAt | timestamp | requerido |
@@ -103,8 +103,8 @@ por `ProductUpdated` y `ProductRetired`.
   "price": { "amount": 89.90, "currency": "EUR" },
   "status": "active",
   "tags": ["running", "neutra"],
-  "brand": { "id": "b1", "name": "Acme", "slug": "acme" },
-  "category": { "id": "c1", "name": "Calzado", "slug": "calzado" },
+  "brand": { "id": "b1", "name": "Acme", "slug": "acme", "description": "Material deportivo", "status": "active", "createdAt": "2026-03-01T08:00:00.000Z", "updatedAt": "2026-03-01T08:00:00.000Z" },
+  "category": { "id": "c1", "name": "Calzado", "slug": "calzado", "description": "Calzado deportivo", "status": "active", "createdAt": "2026-03-01T08:05:00.000Z", "updatedAt": "2026-03-01T08:05:00.000Z" },
   "images": [
     { "id": "i1", "position": 1, "altText": "Vista lateral", "file": "https://cdn.example.com/product-images/i1.jpg", "createdAt": "2026-03-14T09:21:07.482Z" }
   ],
@@ -141,8 +141,8 @@ hueco en la lista; un identificador repetido en la petición se resuelve una sol
 
 ```json
 [
-  { "id": "p3", "sku": "ACME-RET-01", "name": "...", "status": "retired", "brand": { "id": "b1", "name": "Acme", "slug": "acme" }, "category": { "id": "c1", "name": "Calzado", "slug": "calzado" }, "images": [], "createdAt": "...", "updatedAt": "..." },
-  { "id": "p1", "sku": "ACME-RUN-01", "name": "Zapatilla Run", "status": "active", "brand": { "id": "b1", "name": "Acme", "slug": "acme" }, "category": { "id": "c1", "name": "Calzado", "slug": "calzado" }, "images": [], "createdAt": "...", "updatedAt": "..." }
+  { "id": "p3", "sku": "ACME-RET-01", "name": "...", "status": "retired", "brand": { "id": "b1", "name": "Acme", "slug": "acme", "description": "Material deportivo", "status": "active", "createdAt": "2026-03-01T08:00:00.000Z", "updatedAt": "2026-03-01T08:00:00.000Z" }, "category": { "id": "c1", "name": "Calzado", "slug": "calzado", "description": "Calzado deportivo", "status": "active", "createdAt": "2026-03-01T08:05:00.000Z", "updatedAt": "2026-03-01T08:05:00.000Z" }, "images": [], "createdAt": "...", "updatedAt": "..." },
+  { "id": "p1", "sku": "ACME-RUN-01", "name": "Zapatilla Run", "status": "active", "brand": { "id": "b1", "name": "Acme", "slug": "acme", "description": "Material deportivo", "status": "active", "createdAt": "2026-03-01T08:00:00.000Z", "updatedAt": "2026-03-01T08:00:00.000Z" }, "category": { "id": "c1", "name": "Calzado", "slug": "calzado", "description": "Calzado deportivo", "status": "active", "createdAt": "2026-03-01T08:05:00.000Z", "updatedAt": "2026-03-01T08:05:00.000Z" }, "images": [], "createdAt": "...", "updatedAt": "..." }
 ]
 ```
 

@@ -5,16 +5,15 @@ keel: "2.3"
 
 service:
   name: catalog
-  version: 0.3.0
+  version: 0.4.0
   description: >
-    Mantiene el catálogo comercial —productos, con su marca y su categoría— como fuente de verdad
-    para el resto del sistema: lo administra un equipo interno, lo consulta el público y lo consumen
-    otros servidores por HTTP y por eventos.
+    Mantiene el catálogo comercial —productos, con su marca y su categoría— como fuente de verdad para el resto del sistema: lo administra un equipo interno, lo consulta el público y lo consumen otros servidores por HTTP y por eventos.
   domain: commerce
+  basedOn: catalog@0.3.0
 
 layers:
-  domain: domain.keel.yaml         # obligatoria
-  use-cases: use-cases.keel.yaml   # obligatoria
+  domain: domain.keel.yaml # obligatoria
+  use-cases: use-cases.keel.yaml # obligatoria
   api: api.keel.yaml
   security: security.keel.yaml
   messaging: messaging.keel.yaml

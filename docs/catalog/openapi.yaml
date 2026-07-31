@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: catalog
-  version: 0.3.0
+  version: 0.4.0
   description: >
     Mantiene el catálogo comercial —productos, con su marca y su categoría— como fuente de verdad
     para el resto del sistema: lo administra un equipo interno, lo consulta el público y lo consumen
@@ -828,19 +828,31 @@ components:
 
     BrandRef:
       type: object
-      description: Marca embebida, sin sus propias relaciones (profundidad 1).
+      description: >-
+        Marca embebida por embed: los campos propios del agregado Brand, sin sus relaciones
+        (profundidad 1). La forma no es configurable por operacion.
       properties:
         id: { type: string, format: uuid }
-        name: { type: string }
+        name: { type: string, maxLength: 120 }
         slug: { $ref: '#/components/schemas/Slug' }
+        description: { type: string, maxLength: 1000 }
+        status: { $ref: '#/components/schemas/ActivationStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
 
     CategoryRef:
       type: object
-      description: Categoría embebida, sin sus propias relaciones (profundidad 1).
+      description: >-
+        Categoria embebida por embed: los campos propios del agregado Category, sin sus
+        relaciones (profundidad 1). La forma no es configurable por operacion.
       properties:
         id: { type: string, format: uuid }
-        name: { type: string }
+        name: { type: string, maxLength: 120 }
         slug: { $ref: '#/components/schemas/Slug' }
+        description: { type: string, maxLength: 1000 }
+        status: { $ref: '#/components/schemas/ActivationStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
 
     Product:
       type: object
