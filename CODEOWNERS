@@ -19,8 +19,12 @@
 /templates/             @keel-system
 /docs/dsl/              @keel-system
 /.claude/               @keel-system
+/.opencode/             @keel-system
 
 # Un diseño por bloque. Al aceptar un diseño de la comunidad, añade aquí sus dos
-# rutas (spec y derivados) con el usuario que lo mantiene.
-/specs/catalog/         @keel-system
-/docs/catalog/          @keel-system
+# rutas (spec y derivados) con el usuario que lo mantiene:
+#
+#   /specs/<diseño>/      @quien-lo-mantiene
+#   /docs/<diseño>/       @quien-lo-mantiene
+#
+# Todavía no hay ningún diseño publicado.

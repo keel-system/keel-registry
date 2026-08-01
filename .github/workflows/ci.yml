@@ -17,16 +17,20 @@ jobs:
       # desde el repo de la herramienta. Cuando se publique, esto se reduce a
       # `npm i -g keel-core@<versión>`.
       #
-      # El ref va **pineado**: sin él, este workflow seguiría la rama por defecto
-      # de la herramienta y un cambio incompatible allí pondría en rojo los PR de
-      # la comunidad aquí, sin que nadie haya tocado un diseño. Subir el pin es un
-      # cambio deliberado: la variable de repo KEEL_TOOL_REF permite probarlo sin
-      # tocar el workflow. La incompatibilidad futura la descubre compat.yml.
+      # El ref debería ir **pineado**: sin pin, este workflow sigue la rama por
+      # defecto de la herramienta y un cambio incompatible allí pone en rojo los PR
+      # de la comunidad aquí, sin que nadie haya tocado un diseño.
+      #
+      # De momento no hay pin posible: la herramienta todavía no publica ninguna
+      # etiqueta, así que el default es `main`. En cuanto exista la primera versión
+      # etiquetada, este valor pasa a ser esa etiqueta y compat.yml recupera su
+      # función de canario. Mientras tanto, la variable de repo KEEL_TOOL_REF
+      # permite fijar un ref concreto sin tocar el workflow.
       - name: Checkout de la herramienta
         uses: actions/checkout@v4
         with:
           repository: keel-system/keel
-          ref: ${{ vars.KEEL_TOOL_REF || 'v0.3.0' }}
+          ref: ${{ vars.KEEL_TOOL_REF || 'main' }}
           path: .keel-tool
 
       - uses: actions/setup-node@v4
@@ -44,8 +48,12 @@ jobs:
 
       # Un diseño publicado tiene que estar cerrado: se valida sin --wip, así que
       # capas en plantilla o descriptions con TODO fallan aquí.
+      #
+      # nullglob: mientras el registry no tenga ningún diseño publicado, el patrón
+      # no expande y sin esto el bucle correría una vez con el literal `specs/*`.
       - name: Validar cada diseño
         run: |
+          shopt -s nullglob
           fallos=0
           for manifiesto in specs/*/service.keel.yaml; do
             diseno="$(dirname "$manifiesto")"

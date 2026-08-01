@@ -22,6 +22,12 @@ cuando se quiere adoptar algo nuevo de la herramienta).
 Hay una sola excepción a la dirección de la dependencia, y va al revés — ver
 [El formato del índice](#el-formato-del-índice).
 
+> **Estado actual: sin pin.** La herramienta todavía no publica ninguna etiqueta, así que el valor por
+> defecto de `ci.yml` es `main`. Todo lo de arriba describe el régimen al que se vuelve en cuanto exista la
+> primera versión etiquetada; mientras tanto, un cambio incompatible en la herramienta **sí** puede poner en
+> rojo un PR aquí, y `compat.yml` avisa de lo mismo que ya bloquea. La primera tarea de mantenimiento
+> pendiente es, precisamente, pinear: etiquetar la herramienta y poner ese tag como default del workflow.
+
 ## Subir el pin de la herramienta
 
 Es la tarea principal, y es **un solo PR**: el pin y el payload se mueven juntos, porque el payload tiene que
@@ -50,10 +56,16 @@ cd <registry>
 keel init --force
 ```
 
-`--force` **conserva** `README.md`, `CLAUDE.md`, `.gitignore`, `.gitattributes` y `contracts/README.md` (los
-lista como *«es tuyo, no se sobrescribe»*), y no toca `specs/` ni `docs/<slug>/`, que no son payload. Revisa
-el diff igualmente: debe limitarse a `schema/`, `templates/`, `docs/dsl/`, los `docs/*.md` del método y
-`.claude/skills/`.
+`--force` **conserva** `README.md`, `AGENTS.md`, `CLAUDE.md`, `.gitignore`, `.gitattributes` y
+`contracts/README.md` (los lista como *«es tuyo, no se sobrescribe»*), y no toca `specs/` ni `docs/<slug>/`,
+que no son payload. Revisa el diff igualmente: debe limitarse a `schema/`, `templates/`, `docs/dsl/`, los
+`docs/*.md` del método y las skills de `.claude/` y `.opencode/`.
+
+Dos cosas que `--force` **no** hace y hay que mirar a mano: no borra huérfanos (una skill retirada en la
+herramienta se queda aquí, y `keel init --check` tampoco la reporta — se detecta leyendo el `git status` y
+comparando con las skills del payload), y no actualiza `AGENTS.md`, que es customizable: si la plantilla de
+la herramienta cambió, el texto propio de este repo (la sección *«Este workspace es el registry»*) se
+conserva y el resto se reconcilia a mano contra `assets/core/AGENTS.md`.
 
 **5. Actualiza el pin** en `.github/workflows/ci.yml` (o la variable de repo `KEEL_TOOL_REF` si es una prueba
 que no quieres commitear).
@@ -133,7 +145,7 @@ Un cambio de madurez es un cambio del sidecar, así que hay que reindexar (`keel
 - **La región del `README.md` entre `<!-- keel:servicios:start -->` y `<!-- keel:servicios:end -->`** e
   `index.json`: los escribe `keel index`, que es su único escritor. El resto del `README.md` sí es prosa
   propia del repo.
-- **`schema/`, `templates/`, `docs/dsl/` y `.claude/`**: son copias del payload de la herramienta. Se
+- **`schema/`, `templates/`, `docs/dsl/`, `.claude/` y `.opencode/`**: son copias del payload de la herramienta. Se
   refrescan con `keel init --force` y nada más. Un arreglo que haga falta ahí se hace en la herramienta.
 - **Un spec publicado**: se cambia con `/keel-evolve specs/<slug>`, que versiona el contrato y regenera los
   derivados en cascada. Editarlo a mano deja derivados que mienten, y `keel describe <slug>` lo delata.

@@ -109,7 +109,7 @@ maturity: reference          # draft | stable | reference
 tags: [email, sms, push, outbox, templates]
 author: tu-usuario
 license: Apache-2.0
-requires: [catalog]          # otros diseños del registry que este consume (coherente con la capa dependencies)
+requires: [<otro-diseño>]    # otros diseños del registry que este consume (coherente con la capa dependencies)
 ```
 
 Sobre `maturity`: empieza en `draft`. `stable` es para diseños que ya sostuvieron una implementación real.
@@ -151,6 +151,12 @@ mensaje dice qué arreglar.
 
 Este repositorio y [keel-system/keel](https://github.com/keel-system/keel) evolucionan por separado, y para
 que eso funcione el CI valida contra una **versión pineada** de la herramienta, no contra su última versión.
+
+> **Hoy no hay pin**: la herramienta aún no publica ninguna etiqueta, así que el CI usa `main`. Lo de abajo
+> describe el régimen normal, al que se vuelve con la primera versión etiquetada. Mientras tanto la CLI que
+> valida es la última, así que tu diseño puede empezar a fallar en el PR por un cambio de la herramienta que
+> tú no hiciste; si pasa, dilo en el PR y lo resuelven los mantenedores.
+
 Consecuencias prácticas:
 
 - **Un diseño no puede usar un DSL más nuevo que el que entiende la versión pineada.** Si lo hace, `keel
@@ -167,9 +173,9 @@ Consecuencias prácticas:
   payload tiene que corresponder a la **versión pineada**, no a la CLI que tengas instalada: si la tuya va por
   delante, ese `--force` deja el repo desalineado con el pin y la puerta `keel init --check` se pone en rojo
   en tu PR. Sincronizar el payload es tarea de los mantenedores, y va junto con subir el pin. (Si lo
-  ejecutaste sin querer: `git checkout -- schema templates docs/dsl docs/*.md .claude`; tus `specs/` y
-  `docs/<slug>/` no forman parte del payload y no se tocan, igual que `README.md` y `CLAUDE.md`, que
-  `--force` conserva.)
+  ejecutaste sin querer: `git checkout -- schema templates docs/dsl docs/*.md .claude .opencode`; tus
+  `specs/` y `docs/<slug>/` no forman parte del payload y no se tocan, igual que `README.md`, `AGENTS.md` y
+  `CLAUDE.md`, que `--force` conserva.)
 
 Si trabajas en local con una CLI más nueva que el pin, tu diseño puede validar en tu máquina y fallar en el
 PR. La versión que usa el CI se ve en el propio workflow.

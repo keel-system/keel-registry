@@ -19,7 +19,7 @@ Primero **descubrir**, contra este repo y sin clonarlo:
 ```bash
 keel registry                       # todos los diseños, agrupados por familia
 keel registry search notifications  # filtra por nombre, tags, dominio o descripción
-keel registry show catalog          # la ficha completa de uno
+keel registry show <diseño>         # la ficha completa de uno
 ```
 
 Después hay **dos formas de traértelo**, y la diferencia no es de comodidad sino de intención: si el
@@ -28,28 +28,28 @@ diseño te sirve tal cual, no hay nada que rediseñar.
 ### ¿Te sirve tal cual? Adóptalo
 
 ```bash
-keel registry get catalog
+keel registry get <diseño>
 ```
 
 Trae el diseño **sin tocarlo** —mismo nombre, misma versión, misma `description`— y sus derivados
-publicados en `docs/catalog/`: la ficha de decisiones, los contratos OpenAPI/AsyncAPI, las colecciones
-Postman y el panel. Como nacen con la misma versión que documentan, `keel describe catalog` los ve al día
+publicados en `docs/<diseño>/`: la ficha de decisiones, los contratos OpenAPI/AsyncAPI, las colecciones
+Postman y el panel. Como nacen con la misma versión que documentan, `keel describe <diseño>` los ve al día
 y puedes ir directo a generar:
 
 ```bash
-keel-spring build specs/catalog     # y después, dentro del proyecto, /keel-generate-spring
+keel-spring build specs/<diseño>    # y después, dentro del proyecto, /keel-generate-spring
 ```
 
 No se copia `specs/<diseño>/design.yaml`: son los metadatos con los que el diseño se publica **aquí**
 (autor, licencia, madurez), y en tu workspace te presentarían como su publicador. Sí se estampa
 `service.basedOn` aunque el nombre y la versión coincidan, para que quede constancia de que ese diseño
-*es* `catalog@0.3.0`. Si más adelante necesitas cambiarlo, no es una derivación: es una evolución normal,
+*es* el `<diseño>@<versión>` publicado aquí. Si más adelante necesitas cambiarlo, no es una derivación: es una evolución normal,
 y entra por `/keel-evolve`.
 
 ### ¿Hay que cambiarlo? Derívalo
 
 ```bash
-keel new mi-catalogo --from registry:catalog
+keel new mi-servicio --from registry:<diseño>
 ```
 
 Clona **solo el spec** —las capas y `validation-scenarios.md`—, estampa el linaje en `service.basedOn`,
@@ -64,15 +64,15 @@ El camino manual es equivalente. Para adoptar, copiar las dos carpetas:
 
 ```bash
 git clone https://github.com/keel-system/keel-registry
-cp -r keel-registry/specs/catalog specs/ && rm specs/catalog/design.yaml
-cp -r keel-registry/docs/catalog  docs/
+cp -r keel-registry/specs/<diseño> specs/ && rm specs/<diseño>/design.yaml
+cp -r keel-registry/docs/<diseño>  docs/
 keel index
 ```
 
 Para derivar, la CLI resuelve el origen por ruta:
 
 ```bash
-keel new mi-catalogo --from ../keel-registry/specs/catalog
+keel new mi-servicio --from ../keel-registry/specs/<diseño>
 ```
 
 ## Diseños disponibles
@@ -102,14 +102,16 @@ pin de la herramienta, refrescar el payload, promover la madurez de un diseño y
 Es un **workspace Keel** sembrado con `keel init`, así que la CLI funciona aquí tal cual:
 
 ```bash
-keel validate specs/catalog     # schemas por capa + referencias cruzadas
-keel describe catalog           # identidad, capas, contenido y frescura de los derivados
+keel validate specs/<diseño>    # schemas por capa + referencias cruzadas
+keel describe <diseño>          # identidad, capas, contenido y frescura de los derivados
 keel index                      # regenera la tabla de arriba y index.json
 keel index --check              # comprueba, sin escribir, que el índice está al día (esto corre en CI)
 ```
 
-`schema/`, `templates/`, `docs/dsl/` y `.claude/skills/` son el payload de la CLI, no contenido del
-registry: se refrescan con `keel init --force` al actualizar `keel-core`. `services/` está en `.gitignore`:
-aquí se publican diseños, no implementaciones.
+`schema/`, `templates/`, `docs/dsl/` y las skills de `.claude/` y `.opencode/` son el payload de la CLI, no
+contenido del registry: se refrescan con `keel init --force` al actualizar `keel-core`, y el CI lo comprueba
+con `keel init --check`. Las skills se siembran para los dos harnesses de agente soportados, así que el repo
+se puede trabajar con Claude Code o con opencode indistintamente. `services/` está en `.gitignore`: aquí se
+publican diseños, no implementaciones.
 
 La herramienta y la metodología viven en [keel-system/keel](https://github.com/keel-system/keel).

@@ -1,7 +1,7 @@
 ---
 name: keel-handoff
 description: Genera el documento de diseño reutilizable (DESIGN.md) de un servicio a partir de sus artefactos Keel validados. Usar cuando otro equipo necesite entender y construir sobre el diseño sin leer el código ni hablar con quien lo diseñó.
-argument-hint: "<specs/servicio>"
+argument-hint: <specs/servicio>
 ---
 
 # /keel-handoff — documento de diseño para reutilizar

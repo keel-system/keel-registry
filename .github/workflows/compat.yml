@@ -7,6 +7,12 @@ name: Compatibilidad con la herramienta
 # Este workflow paga ese precio: corre lo mismo contra `main` de la herramienta, en
 # frío y sin bloquear a nadie. Si se pone rojo, el registry sigue funcionando: lo
 # que dice es que subir el pin todavía requiere trabajo.
+#
+# Ojo: mientras la herramienta no publique su primera etiqueta, `ci.yml` tampoco
+# está pineado (usa `main`), así que este canario es redundante — avisa de lo mismo
+# que ya bloquea. Recupera su función en cuanto `ci.yml` vuelva a apuntar a un tag.
+# Se mantiene encendido porque también sirve al revés: un rojo aquí un lunes explica
+# un rojo en los PR de ese día sin tener que abrirlos.
 
 on:
   schedule:
@@ -52,6 +58,7 @@ jobs:
         id: validar
         continue-on-error: true
         run: |
+          shopt -s nullglob
           fallos=""
           for manifiesto in specs/*/service.keel.yaml; do
             diseno="$(dirname "$manifiesto")"
