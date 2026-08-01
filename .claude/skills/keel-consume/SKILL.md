@@ -4,7 +4,6 @@ description: "Diseña la integración de este servicio como consumidor de otro s
 argument-hint: <specs/servicio> [INTEGRATION.md del proveedor]
 ---
 
-
 # /keel-consume — diseñar este servicio como consumidor de otro
 
 Simétrica de `/keel-integrate`: aquella **publica** el contrato de un servicio; esta lo **ingiere**.

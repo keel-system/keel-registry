@@ -3,7 +3,6 @@ name: keel-integrate
 description: Genera INTEGRATION.md, el contrato de integración servidor-a-servidor de un servicio (endpoints expuestos a otros servidores + eventos publicados/consumidos) a partir de sus artefactos Keel validados. Usar cuando otro servidor deba consumir este servicio.
 ---
 
-
 # /keel-integrate — contrato servidor-a-servidor desde el diseño
 
 Produce `INTEGRATION.md`: cómo **otro servidor** se integra con este, sin leer su código ni hablar

@@ -4,7 +4,6 @@ description: Genera INTEGRATION.md, el contrato de integración servidor-a-servi
 argument-hint: <specs/servicio>
 ---
 
-
 # /keel-integrate — contrato servidor-a-servidor desde el diseño
 
 Produce `INTEGRATION.md`: cómo **otro servidor** se integra con este, sin leer su código ni hablar

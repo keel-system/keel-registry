@@ -3,7 +3,6 @@ name: keel-consume
 description: "Diseña la integración de este servicio como consumidor de otro servidor a partir de su INTEGRATION.md: entrevista la estrategia de cada dato ajeno que necesita y escribe las capas dependencies, http-clients y messaging coherentes entre sí. Usar cuando un servicio necesite un dato que no es suyo."
 ---
 
-
 # /keel-consume — diseñar este servicio como consumidor de otro
 
 Simétrica de `/keel-integrate`: aquella **publica** el contrato de un servicio; esta lo **ingiere**.

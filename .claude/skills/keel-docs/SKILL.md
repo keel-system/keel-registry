@@ -4,7 +4,6 @@ description: Genera la documentación derivada de un servicio (openapi.yaml, asy
 argument-hint: <specs/servicio>
 ---
 
-
 # /keel-docs — documentación derivada del diseño
 
 Produce los **contratos formales** del servicio (HTTP y asíncrono), las colecciones para probarlos y
