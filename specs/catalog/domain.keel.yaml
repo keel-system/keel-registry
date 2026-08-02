@@ -1,0 +1,106 @@
+# Capa domain — modelado del dominio: value types, entidades, relaciones, ciclo de vida e invariantes.
+# Cero tecnología: nada de tablas, ORMs ni frameworks.
+
+types:
+  SKU:
+    base: string
+    description: Identificador comercial único e inmutable del producto, tal como lo conoce el back-office.
+    constraints: { pattern: "^[A-Z0-9][A-Z0-9-]{2,31}$" }
+
+  Slug:
+    base: string
+    description: Identificador legible para URLs públicas, derivado del nombre.
+    constraints: { pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", maxLength: 140 }
+
+  Price:
+    base: decimal
+    description: Importe de venta al público en la divisa única de la tienda.
+    constraints: { min: 0, scale: 2 }
+
+  ProductStatus:
+    description: Situación comercial del producto.
+    values: [draft, active, discontinued]
+
+entities:
+  Brand:
+    description: Fabricante o marca comercial bajo la que se vende un producto.
+    fields:
+      id:          { type: uuid, id: true, generated: true }
+      name:        { type: string, required: true, unique: true, constraints: { maxLength: 80 } }
+      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case; si el slug resultante ya existe, la escritura se rechaza." }
+      description: { type: text, constraints: { maxLength: 1000 }, description: Reseña de la marca para la ficha pública. }
+    invariants:
+      - Una marca no puede eliminarse mientras exista algún producto que la referencie.
+      - Dos marcas no pueden tener el mismo name ignorando mayúsculas y acentos.
+
+  Category:
+    description: Agrupación comercial por la que el consumidor navega el catálogo.
+    fields:
+      id:          { type: uuid, id: true, generated: true }
+      name:        { type: string, required: true, unique: true, constraints: { maxLength: 80 } }
+      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case; si el slug resultante ya existe, la escritura se rechaza." }
+      description: { type: text, constraints: { maxLength: 1000 }, description: Texto de cabecera de la categoría en la tienda. }
+    invariants:
+      - Una categoría no puede eliminarse mientras exista algún producto que la referencie.
+      - Dos categorías no pueden tener el mismo name ignorando mayúsculas y acentos.
+
+  Product:
+    description: Artículo vendible del catálogo, con su ficha comercial y su precio de venta.
+    fields:
+      id:          { type: uuid, id: true, generated: true }
+      sku:         { type: SKU, required: true, unique: true }
+      name:        { type: string, required: true, constraints: { maxLength: 140 } }
+      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case, con sufijo numérico si colisiona; se recalcula solo mientras el producto está en draft y queda congelado en cuanto se publica por primera vez." }
+      description: { type: text, constraints: { maxLength: 4000 }, description: Descripción comercial larga que la tienda muestra en la ficha. }
+      price:       { type: Price, required: true }
+      status:      { type: ProductStatus, default: draft }
+      lockVersion: { type: int, generated: true }
+      createdAt:   { type: timestamp, generated: true }
+      updatedAt:   { type: timestamp, generated: true }
+      createdBy:   { type: string, generated: true }
+      updatedBy:   { type: string, generated: true }
+    relations:
+      brand:    { entity: Brand, cardinality: many-to-one, required: true, description: Marca bajo la que se vende el producto. }
+      category: { entity: Category, cardinality: many-to-one, required: true, description: Categoría comercial a la que pertenece. }
+      images:   { entity: ProductImage, cardinality: one-to-many, description: "Imágenes del producto, dentro de su propio agregado." }
+    lifecycle:
+      field: status
+      transitions:
+        draft:        [active]
+        active:       [draft, discontinued]
+        discontinued: [active]
+    invariants:
+      - El sku es inmutable una vez creado el producto.
+      - Un producto en estado active tiene price mayor que cero.
+      - Un producto en estado active tiene al menos una imagen.
+      - Solo los productos en estado active son visibles en la superficie pública del catálogo.
+      - El slug de un producto que ya se publicó alguna vez no vuelve a cambiar, aunque cambie su name.
+      - Un producto en estado discontinued no admite cambios en su ficha ni en su galería de imágenes.
+
+  ProductImage:
+    description: Imagen de la ficha de un producto, con su orden de presentación.
+    fields:
+      id:        { type: uuid, id: true, generated: true }
+      file:      { type: file, bucket: productImages, required: true }
+      altText:   { type: string, required: true, constraints: { maxLength: 160 }, description: Texto alternativo para accesibilidad y SEO. }
+      position:  { type: int, required: true, constraints: { min: 0 }, description: Orden de presentación dentro de la galería del producto. }
+      isPrimary: { type: boolean, default: false, description: Marca la imagen que representa al producto en listados y resultados de búsqueda. }
+    relations:
+      product: { entity: Product, cardinality: many-to-one, required: true, description: Producto al que pertenece la imagen. }
+    invariants:
+      - Dos imágenes del mismo producto no comparten position.
+      - Un producto con al menos una imagen tiene exactamente una imagen con isPrimary verdadero.
+
+# Fronteras de consistencia: el producto y sus imágenes cambian juntos; marca y categoría son agregados
+# aparte, referenciados por id desde el producto.
+aggregates:
+  Product:
+    description: El producto posee sus imágenes; se modifican en la misma transacción.
+    root: Product
+    entities: [ProductImage]
+  Brand:
+    description: La marca es su propia frontera; los productos la referencian por id.
+    root: Brand
+  Category:
+    description: La categoría es su propia frontera; los productos la referencian por id.
+    root: Category

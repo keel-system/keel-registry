@@ -1,0 +1,26 @@
+# Manifiesto del servicio — punto de entrada del diseño.
+# Declara la identidad del servicio y qué capas de diseño existen.
+# Regla: una capa opcional existe si y solo si está declarada aquí (y su archivo existe).
+keel: "2.4"
+
+service:
+  name: catalog
+  version: 0.1.0
+  description: >
+    Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus
+    categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios
+    al resto de servidores por consulta directa y por eventos.
+  domain: commerce
+  # basedOn: billing@1.2.0         # linaje: diseño@versión del que se derivó (lo escribe `keel new --from`)
+
+layers:
+  domain: domain.keel.yaml         # obligatoria
+  use-cases: use-cases.keel.yaml   # obligatoria
+  api: api.keel.yaml
+  # Descomenta las capas que apliquen y crea el archivo desde templates/service/:
+  security: security.keel.yaml
+  messaging: messaging.keel.yaml
+  # http-clients: http-clients.keel.yaml
+  # dependencies: dependencies.keel.yaml
+  persistence: persistence.keel.yaml
+  storage: storage.keel.yaml

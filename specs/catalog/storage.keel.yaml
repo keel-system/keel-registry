@@ -1,0 +1,12 @@
+# Capa storage — almacenamiento de archivos (object storage).
+# Agnóstico del proveedor: se declaran buckets lógicos y sus políticas.
+
+buckets:
+  productImages:
+    description: Fotografías de producto que la tienda muestra en listados y fichas.
+    # Público a propósito: es material de catálogo pensado para servirse y cachearse en el borde,
+    # y el producto que ilustra también es público. Riesgo asumido por el diseñador: la foto de un
+    # producto todavía en draft es visible para quien acierte con su URL.
+    visibility: public
+    allowedContentTypes: [image/jpeg, image/png, image/webp]
+    maxSizeMb: 5

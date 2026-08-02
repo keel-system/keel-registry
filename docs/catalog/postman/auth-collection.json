@@ -1,0 +1,158 @@
+{
+  "info": {
+    "name": "catalog — tokens",
+    "description": "Obtención de credenciales para la colección de negocio de catalog. El proveedor de identidad es agnóstico en el diseño: rellena tokenUrl, clientId, clientSecret y los usuarios de prueba según el stack elegido al generar (por ejemplo, un realm de Keycloak con tokenUrl http://localhost:8180/realms/<realm>/protocol/openid-connect/token). Importa esta colección ANTES que catalog-collection.json y ejecútala entera: cada request deja su token en una global que la otra colección consume.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Token — catalog-admin (usuario)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Token de usuario del rol catalog-admin, que concede los cuatro permisos del servicio: product:read, product:write, product:publish y taxonomy:write. Es el que usan todas las requests de /management/... de la colección de negocio.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "password" },
+            { "key": "client_id", "value": "{{clientId}}" },
+            { "key": "client_secret", "value": "{{clientSecret}}" },
+            { "key": "username", "value": "{{username_catalog-admin}}" },
+            { "key": "password", "value": "{{password_catalog-admin}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_catalog-admin', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — order-service (máquina)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Credencial de máquina del serviceClient order-service, con el scope product:read. Es la que usan las requests de /services/... La audiencia se valida: el token debe traer aud=catalog.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "client_credentials" },
+            { "key": "client_id", "value": "{{clientId_order-service}}" },
+            { "key": "client_secret", "value": "{{clientSecret_order-service}}" },
+            { "key": "scope", "value": "{{scopes_order-service}}" },
+            { "key": "audience", "value": "{{m2mAudience}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_order-service', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — inventory-service (máquina)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Credencial de máquina del serviceClient inventory-service, con el scope product:read.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "client_credentials" },
+            { "key": "client_id", "value": "{{clientId_inventory-service}}" },
+            { "key": "client_secret", "value": "{{clientSecret_inventory-service}}" },
+            { "key": "scope", "value": "{{scopes_inventory-service}}" },
+            { "key": "audience", "value": "{{m2mAudience}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_inventory-service', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — search-service (máquina)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Credencial de máquina del serviceClient search-service, con el scope product:read.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "client_credentials" },
+            { "key": "client_id", "value": "{{clientId_search-service}}" },
+            { "key": "client_secret", "value": "{{clientSecret_search-service}}" },
+            { "key": "scope", "value": "{{scopes_search-service}}" },
+            { "key": "audience", "value": "{{m2mAudience}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_search-service', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "tokenUrl", "value": "", "description": "Endpoint de token del proveedor de identidad; varía por entorno." },
+    { "key": "clientId", "value": "", "description": "Client del front de back-office (password grant)." },
+    { "key": "clientSecret", "value": "" },
+    { "key": "username_catalog-admin", "value": "" },
+    { "key": "password_catalog-admin", "value": "" },
+    { "key": "m2mAudience", "value": "catalog", "description": "Audiencia que el servicio valida en el token de máquina." },
+    { "key": "clientId_order-service", "value": "" },
+    { "key": "clientSecret_order-service", "value": "" },
+    { "key": "scopes_order-service", "value": "product:read" },
+    { "key": "clientId_inventory-service", "value": "" },
+    { "key": "clientSecret_inventory-service", "value": "" },
+    { "key": "scopes_inventory-service", "value": "product:read" },
+    { "key": "clientId_search-service", "value": "" },
+    { "key": "clientSecret_search-service", "value": "" },
+    { "key": "scopes_search-service", "value": "product:read" }
+  ]
+}

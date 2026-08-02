@@ -1,0 +1,456 @@
+# Capa use-cases — los casos de uso del servicio.
+# Aquí viven también las políticas propias del caso de uso: idempotencia, caché y schedule.
+# Quién los activa se declara en la capa que los expone (api: endpoints, messaging: subscriptions);
+# una operación sin trigger debe marcar internal: true o tener schedule.
+
+operations:
+
+  # ---------------------------------------------------------------------------
+  # Gestión de productos (back-office)
+  # ---------------------------------------------------------------------------
+
+  createProduct:
+    description: Da de alta un producto en estado draft, sin imágenes y todavía invisible para la tienda.
+    kind: command
+    input:
+      fields:
+        sku:         { type: SKU, required: true }
+        name:        { type: string, required: true, constraints: { maxLength: 140 } }
+        description: { type: text, constraints: { maxLength: 4000 } }
+        price:       { type: Price, required: true }
+        brandId:     { type: uuid, required: true }
+        categoryId:  { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    idempotency: { keySource: client-key, ttlSeconds: 86400 }
+    rules:
+      - El sku se normaliza a mayúsculas antes de validar su unicidad.
+      - El slug se deriva del name y se le añade un sufijo numérico si ya existe otro producto con ese slug.
+      - El producto nace siempre en estado draft, sea cual sea el resto de la petición.
+    errors:
+      - { code: SKU_ALREADY_EXISTS, when: Ya existe un producto con ese sku., http: 409 }
+      - { code: IDEMPOTENCY_KEY_REUSED, when: La clave de idempotencia ya se usó para una petición con otro contenido., http: 409 }
+      - { code: BRAND_NOT_FOUND, when: El brandId indicado no corresponde a ninguna marca., http: 422 }
+      - { code: CATEGORY_NOT_FOUND, when: El categoryId indicado no corresponde a ninguna categoría., http: 422 }
+    emits: [ProductCreated]
+
+  updateProduct:
+    description: Modifica la ficha comercial de un producto sin cambiar su estado ni su sku.
+    kind: command
+    input:
+      fields:
+        productId:   { type: uuid, required: true }
+        name:        { type: string, required: true, constraints: { maxLength: 140 } }
+        description: { type: text, constraints: { maxLength: 4000 } }
+        price:       { type: Price, required: true }
+        brandId:     { type: uuid, required: true }
+        categoryId:  { type: uuid, required: true }
+        lockVersion: { type: int, required: true, description: "Versión que el operador leyó; detecta la edición concurrente." }
+    output: { entity: Product, embed: [brand, category] }
+    preconditions:
+      - El producto existe.
+    rules:
+      - "El sku no se puede modificar: no forma parte de la entrada."
+      - "Es un reemplazo completo de la ficha: todo campo opcional que no venga en la petición queda a nulo."
+      - El slug se recalcula cuando cambia el name solo si el producto sigue en draft y nunca se publicó; una vez publicado, queda congelado.
+      - Si el producto está en estado active y el nuevo price no es mayor que cero, la operación se rechaza.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+      - { code: BRAND_NOT_FOUND, when: El brandId indicado no corresponde a ninguna marca., http: 422 }
+      - { code: CATEGORY_NOT_FOUND, when: El categoryId indicado no corresponde a ninguna categoría., http: 422 }
+      - { code: PRODUCT_NOT_PUBLISHABLE, when: El producto está active y el cambio lo dejaría sin precio válido., http: 422 }
+      - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su ficha no admite cambios; hay que reactivarlo antes., http: 409 }
+      - { code: PRODUCT_VERSION_CONFLICT, when: Otro operador modificó el producto después de que este lo leyera., http: 409 }
+    emits: [ProductUpdated]
+
+  publishProduct:
+    description: Publica un producto en borrador para que la tienda lo muestre a los consumidores.
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    preconditions:
+      - El producto existe y está en estado draft.
+      - El producto tiene al menos una imagen y un price mayor que cero.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+      - { code: INVALID_STATUS_TRANSITION, when: El producto no está en un estado desde el que se pueda publicar., http: 409 }
+      - { code: PRODUCT_NOT_PUBLISHABLE, when: El producto no tiene imágenes o su price no es mayor que cero., http: 422 }
+    emits: [ProductStatusChanged]
+
+  unpublishProduct:
+    description: Retira un producto de la tienda devolviéndolo a borrador para seguir editándolo.
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    preconditions:
+      - El producto existe y está en estado active.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+      - { code: INVALID_STATUS_TRANSITION, when: El producto no está active y no se puede despublicar., http: 409 }
+    emits: [ProductStatusChanged]
+
+  discontinueProduct:
+    description: Descataloga un producto que deja de venderse, conservando su ficha para las referencias históricas.
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    preconditions:
+      - El producto existe y está en estado active.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+      - { code: INVALID_STATUS_TRANSITION, when: El producto no está active y no se puede descatalogar., http: 409 }
+    emits: [ProductStatusChanged]
+
+  reactivateProduct:
+    description: Devuelve a la venta un producto descatalogado.
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    preconditions:
+      - El producto existe y está en estado discontinued.
+      - El producto tiene al menos una imagen y un price mayor que cero.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+      - { code: INVALID_STATUS_TRANSITION, when: El producto no está discontinued y no se puede reactivar., http: 409 }
+      - { code: PRODUCT_NOT_PUBLISHABLE, when: El producto no tiene imágenes o su price no es mayor que cero., http: 422 }
+    emits: [ProductStatusChanged]
+
+  getProduct:
+    description: Recupera la ficha completa de un producto por su id para el back-office, sea cual sea su estado.
+    kind: query
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+
+  listProducts:
+    description: Lista los productos del catálogo para el back-office, en cualquier estado, con filtros de gestión.
+    kind: query
+    input:
+      fields:
+        name:       { type: string, description: "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas." }
+        sku:        { type: string, description: "Filtra por coincidencia parcial del sku." }
+        status:     { type: ProductStatus, description: "Filtra por estado; sin él se devuelven todos." }
+        brandId:    { type: uuid }
+        categoryId: { type: uuid }
+    output: { entity: Product, paginated: true, sort: [updatedAt:desc], embed: [brand, category] }
+    rules:
+      - Los filtros presentes se combinan con conjunción; los ausentes no restringen.
+      - Los filtros de texto (name, sku) buscan coincidencia parcial sin distinguir mayúsculas ni acentos.
+
+  # ---------------------------------------------------------------------------
+  # Imágenes del producto (back-office) — operan sobre el agregado Product
+  # ---------------------------------------------------------------------------
+
+  addProductImage:
+    description: Añade una imagen a la galería de un producto.
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+        file:      { type: file, bucket: productImages, required: true }
+        altText:   { type: string, required: true, constraints: { maxLength: 160 } }
+    output: { entity: ProductImage }
+    idempotency: { keySource: client-key, ttlSeconds: 86400 }
+    preconditions:
+      - El producto existe y no está descatalogado.
+      - El producto tiene menos de 10 imágenes.
+    rules:
+      - La imagen se añade al final de la galería, con la position siguiente a la mayor existente.
+      - Si es la primera imagen del producto, queda marcada como isPrimary.
+      - Devuelve la imagen creada con su id, para que el cliente pueda referenciarla después.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+      - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes., http: 409 }
+      - { code: TOO_MANY_PRODUCT_IMAGES, when: El producto ya tiene el máximo de 10 imágenes., http: 422 }
+      - { code: IDEMPOTENCY_KEY_REUSED, when: La clave de idempotencia ya se usó para una subida con otro contenido., http: 409 }
+      - { code: FILE_TOO_LARGE, when: El archivo supera el tamaño máximo admitido por el bucket., http: 413 }
+      - { code: UNSUPPORTED_CONTENT_TYPE, when: El tipo de contenido del archivo no está entre los admitidos por el bucket., http: 415 }
+    emits: [ProductUpdated]
+
+  removeProductImage:
+    description: Elimina una imagen de la galería de un producto.
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+        imageId:   { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    preconditions:
+      - El producto existe, no está descatalogado y la imagen pertenece a ese producto.
+    rules:
+      - Las position de las imágenes restantes se recompactan para no dejar huecos.
+      - Si se elimina la imagen isPrimary y quedan otras, la de menor position pasa a ser la principal.
+      - El archivo se elimina del bucket junto con la imagen; no se conservan objetos huérfanos.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+      - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes., http: 409 }
+      - { code: PRODUCT_IMAGE_NOT_FOUND, when: La imagen indicada no pertenece a ese producto., http: 404 }
+      - { code: LAST_IMAGE_OF_ACTIVE_PRODUCT, when: Es la última imagen de un producto active y dejarlo sin imágenes rompería su invariante., http: 422 }
+    emits: [ProductUpdated]
+
+  setPrimaryProductImage:
+    description: Designa qué imagen representa al producto en listados y resultados de búsqueda.
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+        imageId:   { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    preconditions:
+      - El producto existe, no está descatalogado y la imagen pertenece a ese producto.
+    rules:
+      - La imagen que era principal deja de serlo en la misma transacción.
+      - Designar como principal la que ya lo es no cambia nada y se considera éxito.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+      - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes., http: 409 }
+      - { code: PRODUCT_IMAGE_NOT_FOUND, when: La imagen indicada no pertenece a ese producto., http: 404 }
+    emits: [ProductUpdated]
+
+  reorderProductImages:
+    description: Reordena la galería de un producto según la secuencia de imágenes indicada.
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+        imageIds:  { type: uuid, list: true, required: true, description: "Ids de todas las imágenes del producto, en el orden deseado." }
+    output: { entity: Product, embed: [brand, category] }
+    preconditions:
+      - El producto existe y no está descatalogado.
+      - La lista contiene exactamente las imágenes del producto, sin repeticiones ni ausencias.
+    rules:
+      - La position de cada imagen pasa a ser su índice en la lista recibida, empezando en cero.
+      - El reordenamiento no cambia cuál es la imagen isPrimary.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+      - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes., http: 409 }
+      - { code: IMAGE_SET_MISMATCH, when: La lista recibida no coincide exactamente con las imágenes del producto., http: 422 }
+    emits: [ProductUpdated]
+
+  # ---------------------------------------------------------------------------
+  # Marcas (back-office)
+  # ---------------------------------------------------------------------------
+
+  createBrand:
+    description: Da de alta una marca comercial.
+    kind: command
+    input:
+      fields:
+        name:        { type: string, required: true, constraints: { maxLength: 80 } }
+        description: { type: text, constraints: { maxLength: 1000 } }
+    output: { entity: Brand }
+    rules:
+      - El slug se deriva del name normalizado a kebab-case.
+      - La unicidad del name no distingue mayúsculas ni acentos.
+    errors:
+      - { code: BRAND_NAME_ALREADY_EXISTS, when: Ya existe una marca con ese nombre ignorando mayúsculas y acentos., http: 409 }
+      - { code: BRAND_SLUG_CONFLICT, when: El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre., http: 409 }
+    emits: [BrandCreated]
+
+  updateBrand:
+    description: Modifica el nombre o la reseña de una marca.
+    kind: command
+    input:
+      fields:
+        brandId:     { type: uuid, required: true }
+        name:        { type: string, required: true, constraints: { maxLength: 80 } }
+        description: { type: text, constraints: { maxLength: 1000 } }
+    output: { entity: Brand }
+    preconditions:
+      - La marca existe.
+    rules:
+      - El slug se recalcula cuando cambia el name.
+      - La unicidad del name no distingue mayúsculas ni acentos.
+      - "La marca no está sujeta a bloqueo optimista: dos ediciones concurrentes no dan conflicto y gana la última en confirmar."
+    errors:
+      - { code: BRAND_NOT_FOUND, when: No existe una marca con ese id., http: 404 }
+      - { code: BRAND_NAME_ALREADY_EXISTS, when: Ya existe otra marca con ese nombre ignorando mayúsculas y acentos., http: 409 }
+      - { code: BRAND_SLUG_CONFLICT, when: El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre., http: 409 }
+    emits: [BrandUpdated]
+
+  deleteBrand:
+    description: Elimina una marca que ningún producto referencia.
+    kind: command
+    input:
+      fields:
+        brandId: { type: uuid, required: true }
+    output: "void"
+    preconditions:
+      - La marca existe y ningún producto la referencia.
+    rules:
+      - "La referencia producto-marca es una restricción de integridad: si un producto se crea con esa marca mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a BRAND_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera."
+    errors:
+      - { code: BRAND_NOT_FOUND, when: No existe una marca con ese id., http: 404 }
+      - { code: BRAND_IN_USE, when: Existen productos que referencian esa marca., http: 409 }
+    emits: [BrandDeleted]
+
+  # ---------------------------------------------------------------------------
+  # Categorías (back-office)
+  # ---------------------------------------------------------------------------
+
+  createCategory:
+    description: Da de alta una categoría comercial.
+    kind: command
+    input:
+      fields:
+        name:        { type: string, required: true, constraints: { maxLength: 80 } }
+        description: { type: text, constraints: { maxLength: 1000 } }
+    output: { entity: Category }
+    rules:
+      - El slug se deriva del name normalizado a kebab-case.
+      - La unicidad del name no distingue mayúsculas ni acentos.
+    errors:
+      - { code: CATEGORY_NAME_ALREADY_EXISTS, when: Ya existe una categoría con ese nombre ignorando mayúsculas y acentos., http: 409 }
+      - { code: CATEGORY_SLUG_CONFLICT, when: El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre., http: 409 }
+    emits: [CategoryCreated]
+
+  updateCategory:
+    description: Modifica el nombre o el texto de cabecera de una categoría.
+    kind: command
+    input:
+      fields:
+        categoryId:  { type: uuid, required: true }
+        name:        { type: string, required: true, constraints: { maxLength: 80 } }
+        description: { type: text, constraints: { maxLength: 1000 } }
+    output: { entity: Category }
+    preconditions:
+      - La categoría existe.
+    rules:
+      - El slug se recalcula cuando cambia el name.
+      - La unicidad del name no distingue mayúsculas ni acentos.
+      - "La categoría no está sujeta a bloqueo optimista: dos ediciones concurrentes no dan conflicto y gana la última en confirmar."
+    errors:
+      - { code: CATEGORY_NOT_FOUND, when: No existe una categoría con ese id., http: 404 }
+      - { code: CATEGORY_NAME_ALREADY_EXISTS, when: Ya existe otra categoría con ese nombre ignorando mayúsculas y acentos., http: 409 }
+      - { code: CATEGORY_SLUG_CONFLICT, when: El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre., http: 409 }
+    emits: [CategoryUpdated]
+
+  deleteCategory:
+    description: Elimina una categoría que ningún producto referencia.
+    kind: command
+    input:
+      fields:
+        categoryId: { type: uuid, required: true }
+    output: "void"
+    preconditions:
+      - La categoría existe y ningún producto la referencia.
+    rules:
+      - "La referencia producto-categoría es una restricción de integridad: si un producto se crea con esa categoría mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a CATEGORY_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera."
+    errors:
+      - { code: CATEGORY_NOT_FOUND, when: No existe una categoría con ese id., http: 404 }
+      - { code: CATEGORY_IN_USE, when: Existen productos que referencian esa categoría., http: 409 }
+    emits: [CategoryDeleted]
+
+  # ---------------------------------------------------------------------------
+  # Superficie pública (tienda, sin autenticación)
+  # ---------------------------------------------------------------------------
+
+  listPublicProducts:
+    description: Lista los productos a la venta con los filtros de navegación de la tienda.
+    kind: query
+    input:
+      fields:
+        categorySlug: { type: Slug, description: "Filtra por la categoría indicada." }
+        brandSlug:    { type: Slug, description: "Filtra por la marca indicada." }
+        name:         { type: string, constraints: { maxLength: 140 }, description: "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas ni acentos." }
+        minPrice:     { type: Price, description: "Precio mínimo, incluido." }
+        maxPrice:     { type: Price, description: "Precio máximo, incluido." }
+    output:
+      entity: Product
+      paginated: true
+      sort: [name:asc]
+      embed: [brand, category]
+      exclude: [createdAt, updatedAt, createdBy, updatedBy, lockVersion]
+    cache:
+      ttlSeconds: 300
+      keyFields: [categorySlug, brandSlug, name, minPrice, maxPrice]
+      invalidatedBy: [ProductCreated, ProductUpdated, ProductStatusChanged, BrandUpdated, CategoryUpdated]
+    rules:
+      - Solo se devuelven productos en estado active.
+      - Los filtros presentes se combinan con conjunción; los ausentes no restringen.
+      - Un categorySlug o brandSlug que no corresponde a ninguna categoría o marca devuelve una página vacía, no un error.
+    errors:
+      - { code: INVALID_PRICE_RANGE, when: minPrice es mayor que maxPrice., http: 422 }
+
+  getPublicProduct:
+    description: Recupera la ficha de un producto a la venta por su slug.
+    kind: query
+    input:
+      fields:
+        slug: { type: Slug, required: true }
+    output:
+      entity: Product
+      embed: [brand, category]
+      exclude: [createdAt, updatedAt, createdBy, updatedBy, lockVersion]
+    cache:
+      ttlSeconds: 300
+      keyFields: [slug]
+      invalidatedBy: [ProductCreated, ProductUpdated, ProductStatusChanged, BrandUpdated, CategoryUpdated]
+    rules:
+      - Un producto que no está en estado active se trata como inexistente para esta operación.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto a la venta con ese slug., http: 404 }
+
+  listBrands:
+    description: Lista las marcas del catálogo para poblar el filtro de la tienda.
+    kind: query
+    input: "void"
+    output: { entity: Brand, paginated: true, sort: [name:asc] }
+
+  listCategories:
+    description: Lista las categorías del catálogo para poblar el filtro y el menú de la tienda.
+    kind: query
+    input: "void"
+    output: { entity: Category, paginated: true, sort: [name:asc] }
+
+  # ---------------------------------------------------------------------------
+  # Superficie servidor-a-servidor (M2M)
+  # ---------------------------------------------------------------------------
+
+  getProductForServices:
+    description: Resuelve la ficha de un producto por su id para otro servidor, en cualquier estado.
+    kind: query
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+    output:
+      entity: Product
+      embed: [brand, category]
+      exclude: [createdAt, createdBy, updatedBy, lockVersion]
+    rules:
+      - Devuelve el producto sea cual sea su estado, porque el consumidor puede referenciar un producto descatalogado.
+      - Conserva updatedAt para que el consumidor pueda ordenar lo recibido contra su propia copia al reconciliar.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+
+  listProductsBatchForServices:
+    description: Resuelve varios productos por sus identificadores en una sola llamada, para otro servidor.
+    kind: query
+    input:
+      fields:
+        ids: { type: uuid, list: true, required: true, description: "Identificadores de los productos a resolver." }
+    output:
+      entity: Product
+      list: true
+      sort: [name:asc]
+      embed: [brand, category]
+      exclude: [createdAt, createdBy, updatedBy, lockVersion]
+    preconditions:
+      - La lista contiene como máximo 100 identificadores.
+    rules:
+      - Devuelve los productos sea cual sea su estado.
+      - Los identificadores que no corresponden a ningún producto se omiten del resultado, sin error.
+      - Los identificadores repetidos se resuelven una sola vez.
+      - Conserva updatedAt para que el consumidor pueda ordenar lo recibido contra su propia copia al reconciliar.
+    errors:
+      - { code: TOO_MANY_IDS, when: La petición trae más de 100 identificadores., http: 422 }

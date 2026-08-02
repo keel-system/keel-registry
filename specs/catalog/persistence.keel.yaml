@@ -1,0 +1,46 @@
+# Capa persistence — integración con la base de datos.
+# Agnóstico del motor: se declara el modelo de almacenamiento, no la tecnología.
+
+default:
+  model: relational
+
+entities:
+  Product:
+    persisted: true
+    naturalKey: [sku]
+    # Índices dictados por las queries reales, no por la forma de la entidad:
+    #   sku/slug: unicidad y lectura directa (back-office y ficha pública).
+    #   (status, name): el listado de tienda filtra por active y ordena por name — sin este índice,
+    #   la paginación deja de responder al crecer el catálogo, que es cota y no rendimiento.
+    #   (status, price) y (status, categoryId|brandId): los tres filtros de navegación de la tienda.
+    #   (updatedAt): el orden por defecto del listado de back-office.
+    indexes: [[sku], [slug], [status, name], [status, price], [status, categoryId], [status, brandId], [updatedAt]]
+  ProductImage:
+    persisted: true
+    indexes: [[productId, position]]
+  Brand:
+    persisted: true
+    naturalKey: [name]
+    # slug: el filtro público de productos llega por slug de marca y hay que resolverlo a id.
+    indexes: [[name], [slug]]
+  Category:
+    persisted: true
+    naturalKey: [name]
+    # slug: el filtro público de productos llega por slug de categoría y hay que resolverlo a id.
+    indexes: [[name], [slug]]
+
+# El rastro de auditoría es parte del contrato y por eso es 'declared': los cuatro campos están
+# en domain y salen en los output del back-office. Solo Product los declara — la taxonomía no los
+# lleva, para que la marca y la categoría embebidas en una ficha pública no los arrastren.
+audit:
+  timestamps: declared
+  authorship: declared
+
+consistency:
+  # Ninguna operación escribe dos agregados a la vez, así que la transacción por agregado basta
+  # y contiende menos. La publicación de eventos es best-effort: no comparte esta transacción.
+  transactionalBoundary: per-aggregate
+  # lockVersion solo está declarado en Product, la única raíz con edición concurrente real: una
+  # escritura sobre una versión vieja falla con 409. Marcas y categorías las edita un admin de
+  # tanto en tanto y no lo declaran: ahí gana la última escritura, dicho a sabiendas.
+  optimisticLocking: declared

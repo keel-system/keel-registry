@@ -1,0 +1,582 @@
+asyncapi: 3.0.0
+info:
+  title: catalog
+  version: 0.1.0
+  description: 'Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías,
+    los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores
+    por consulta directa y por eventos.
+
+
+    Contrato asíncrono derivado del diseño Keel (capa messaging). El broker concreto y los nombres físicos de topic/cola
+    se deciden al generar, no aquí.
+
+
+    **Garantía de entrega: best-effort.** La publicación no comparte transacción con el cambio de estado: si el
+    broker está caído en el instante en que la escritura confirma, ese evento se pierde sin traza. La reconciliación
+    es responsabilidad del consumidor, mediante el endpoint M2M `listProductsBatchForServices` (ver INTEGRATION.md).'
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+defaultContentType: application/json
+channels:
+  productEvents:
+    address: productEvents
+    title: productEvents
+    description: 'Altas, cambios de ficha y cambios de estado comercial de los productos del catálogo. Nombre lógico:
+      el topic o cola físico que lo respalda es parámetro de despliegue.'
+    messages:
+      ProductCreated:
+        $ref: '#/components/messages/ProductCreated'
+      ProductUpdated:
+        $ref: '#/components/messages/ProductUpdated'
+      ProductStatusChanged:
+        $ref: '#/components/messages/ProductStatusChanged'
+  taxonomyEvents:
+    address: taxonomyEvents
+    title: taxonomyEvents
+    description: 'Cambios en la taxonomía del catálogo (marcas y categorías) que afectan a las fichas publicadas.
+      Nombre lógico: el topic o cola físico que lo respalda es parámetro de despliegue.'
+    messages:
+      BrandCreated:
+        $ref: '#/components/messages/BrandCreated'
+      BrandUpdated:
+        $ref: '#/components/messages/BrandUpdated'
+      BrandDeleted:
+        $ref: '#/components/messages/BrandDeleted'
+      CategoryCreated:
+        $ref: '#/components/messages/CategoryCreated'
+      CategoryUpdated:
+        $ref: '#/components/messages/CategoryUpdated'
+      CategoryDeleted:
+        $ref: '#/components/messages/CategoryDeleted'
+operations:
+  publishProductCreated:
+    action: send
+    channel:
+      $ref: '#/channels/productEvents'
+    summary: Se dio de alta un producto. Nace en draft, así que todavía no está a la venta.
+    messages:
+    - $ref: '#/channels/productEvents/messages/ProductCreated'
+    x-keel-emitted-by:
+    - createProduct
+  publishProductUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/productEvents'
+    summary: Cambió la ficha comercial de un producto, su galería de imágenes o su imagen principal.
+    messages:
+    - $ref: '#/channels/productEvents/messages/ProductUpdated'
+    x-keel-emitted-by:
+    - updateProduct
+    - addProductImage
+    - removeProductImage
+    - setPrimaryProductImage
+    - reorderProductImages
+  publishProductStatusChanged:
+    action: send
+    channel:
+      $ref: '#/channels/productEvents'
+    summary: Un producto entró o salió de la venta. Es el evento que basta seguir para saber si sigue disponible.
+    messages:
+    - $ref: '#/channels/productEvents/messages/ProductStatusChanged'
+    x-keel-emitted-by:
+    - publishProduct
+    - unpublishProduct
+    - discontinueProduct
+    - reactivateProduct
+  publishBrandCreated:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Se dio de alta una marca en el catálogo.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/BrandCreated'
+    x-keel-emitted-by:
+    - createBrand
+  publishBrandUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Cambió el nombre o la reseña de una marca; las fichas que la referencian quedan desactualizadas.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/BrandUpdated'
+    x-keel-emitted-by:
+    - updateBrand
+  publishBrandDeleted:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Se eliminó una marca. Quien mantenga una copia de la taxonomía debe purgarla.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/BrandDeleted'
+    x-keel-emitted-by:
+    - deleteBrand
+  publishCategoryCreated:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Se dio de alta una categoría en el catálogo.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/CategoryCreated'
+    x-keel-emitted-by:
+    - createCategory
+  publishCategoryUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Cambió el nombre o el texto de una categoría; las fichas que la referencian quedan desactualizadas.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/CategoryUpdated'
+    x-keel-emitted-by:
+    - updateCategory
+  publishCategoryDeleted:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Se eliminó una categoría. Quien mantenga una copia de la taxonomía debe purgarla.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/CategoryDeleted'
+    x-keel-emitted-by:
+    - deleteCategory
+components:
+  messages:
+    ProductCreated:
+      name: ProductCreated
+      title: ProductCreated
+      contentType: application/json
+      summary: Se dio de alta un producto. Nace en draft, así que todavía no está a la venta.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/ProductCreatedPayload'
+    ProductUpdated:
+      name: ProductUpdated
+      title: ProductUpdated
+      contentType: application/json
+      summary: Cambió la ficha comercial de un producto, su galería de imágenes o su imagen principal.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/ProductUpdatedPayload'
+    ProductStatusChanged:
+      name: ProductStatusChanged
+      title: ProductStatusChanged
+      contentType: application/json
+      summary: Un producto entró o salió de la venta. Es el evento que basta seguir para saber si sigue disponible.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/ProductStatusChangedPayload'
+    BrandCreated:
+      name: BrandCreated
+      title: BrandCreated
+      contentType: application/json
+      summary: Se dio de alta una marca en el catálogo.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/BrandCreatedPayload'
+    BrandUpdated:
+      name: BrandUpdated
+      title: BrandUpdated
+      contentType: application/json
+      summary: Cambió el nombre o la reseña de una marca; las fichas que la referencian quedan desactualizadas.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/BrandUpdatedPayload'
+    BrandDeleted:
+      name: BrandDeleted
+      title: BrandDeleted
+      contentType: application/json
+      summary: Se eliminó una marca. Quien mantenga una copia de la taxonomía debe purgarla.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/BrandDeletedPayload'
+    CategoryCreated:
+      name: CategoryCreated
+      title: CategoryCreated
+      contentType: application/json
+      summary: Se dio de alta una categoría en el catálogo.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/CategoryCreatedPayload'
+    CategoryUpdated:
+      name: CategoryUpdated
+      title: CategoryUpdated
+      contentType: application/json
+      summary: Cambió el nombre o el texto de una categoría; las fichas que la referencian quedan desactualizadas.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/CategoryUpdatedPayload'
+    CategoryDeleted:
+      name: CategoryDeleted
+      title: CategoryDeleted
+      contentType: application/json
+      summary: Se eliminó una categoría. Quien mantenga una copia de la taxonomía debe purgarla.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/CategoryDeletedPayload'
+  schemas:
+    ProductCreatedPayload:
+      type: object
+      description: Se dio de alta un producto. Nace en draft, así que todavía no está a la venta.
+      required:
+      - productId
+      - sku
+      - name
+      - slug
+      - price
+      - status
+      - brandId
+      - brandName
+      - categoryId
+      - categoryName
+      - updatedAt
+      properties:
+        productId:
+          type: string
+          format: uuid
+        sku:
+          $ref: '#/components/schemas/SKU'
+        name:
+          type: string
+        slug:
+          $ref: '#/components/schemas/Slug'
+        description:
+          type: string
+        price:
+          $ref: '#/components/schemas/Price'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        brandId:
+          type: string
+          format: uuid
+        brandName:
+          type: string
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        primaryImage:
+          type: string
+          description: Referencia al objeto en el bucket lógico `productImages`; viaja la referencia, no el binario.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Momento del cambio en el catálogo; permite al consumidor descartar eventos que lleguen desordenados.
+    ProductUpdatedPayload:
+      type: object
+      description: Cambió la ficha comercial de un producto, su galería de imágenes o su imagen principal.
+      required:
+      - productId
+      - sku
+      - name
+      - slug
+      - price
+      - status
+      - brandId
+      - brandName
+      - categoryId
+      - categoryName
+      - updatedAt
+      properties:
+        productId:
+          type: string
+          format: uuid
+        sku:
+          $ref: '#/components/schemas/SKU'
+        name:
+          type: string
+        slug:
+          $ref: '#/components/schemas/Slug'
+        description:
+          type: string
+        price:
+          $ref: '#/components/schemas/Price'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        brandId:
+          type: string
+          format: uuid
+        brandName:
+          type: string
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        primaryImage:
+          type: string
+          description: Referencia al objeto en el bucket lógico `productImages`; viaja la referencia, no el binario.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Momento del cambio en el catálogo; permite al consumidor descartar eventos que lleguen desordenados.
+    ProductStatusChangedPayload:
+      type: object
+      description: Un producto entró o salió de la venta. Es el evento que basta seguir para saber si sigue disponible.
+      required:
+      - productId
+      - sku
+      - slug
+      - previousStatus
+      - newStatus
+      - updatedAt
+      properties:
+        productId:
+          type: string
+          format: uuid
+        sku:
+          $ref: '#/components/schemas/SKU'
+        slug:
+          $ref: '#/components/schemas/Slug'
+        previousStatus:
+          $ref: '#/components/schemas/ProductStatus'
+        newStatus:
+          $ref: '#/components/schemas/ProductStatus'
+        updatedAt:
+          type: string
+          format: date-time
+    BrandCreatedPayload:
+      type: object
+      description: Se dio de alta una marca en el catálogo.
+      required:
+      - brandId
+      - name
+      - slug
+      - updatedAt
+      properties:
+        brandId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          $ref: '#/components/schemas/Slug'
+        updatedAt:
+          type: string
+          format: date-time
+    BrandUpdatedPayload:
+      type: object
+      description: Cambió el nombre o la reseña de una marca; las fichas que la referencian quedan desactualizadas.
+      required:
+      - brandId
+      - name
+      - slug
+      - updatedAt
+      properties:
+        brandId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          $ref: '#/components/schemas/Slug'
+        updatedAt:
+          type: string
+          format: date-time
+    BrandDeletedPayload:
+      type: object
+      description: Se eliminó una marca. Quien mantenga una copia de la taxonomía debe purgarla.
+      required:
+      - brandId
+      - slug
+      - deletedAt
+      properties:
+        brandId:
+          type: string
+          format: uuid
+        slug:
+          $ref: '#/components/schemas/Slug'
+        deletedAt:
+          type: string
+          format: date-time
+    CategoryCreatedPayload:
+      type: object
+      description: Se dio de alta una categoría en el catálogo.
+      required:
+      - categoryId
+      - name
+      - slug
+      - updatedAt
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          $ref: '#/components/schemas/Slug'
+        updatedAt:
+          type: string
+          format: date-time
+    CategoryUpdatedPayload:
+      type: object
+      description: Cambió el nombre o el texto de una categoría; las fichas que la referencian quedan desactualizadas.
+      required:
+      - categoryId
+      - name
+      - slug
+      - updatedAt
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          $ref: '#/components/schemas/Slug'
+        updatedAt:
+          type: string
+          format: date-time
+    CategoryDeletedPayload:
+      type: object
+      description: Se eliminó una categoría. Quien mantenga una copia de la taxonomía debe purgarla.
+      required:
+      - categoryId
+      - slug
+      - deletedAt
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        slug:
+          $ref: '#/components/schemas/Slug'
+        deletedAt:
+          type: string
+          format: date-time
+    Price:
+      type: number
+      minimum: 0
+      description: Importe de venta al público en la divisa única de la tienda.
+    ProductStatus:
+      type: string
+      enum:
+      - draft
+      - active
+      - discontinued
+      description: Situación comercial del producto.
+    SKU:
+      type: string
+      pattern: ^[A-Z0-9][A-Z0-9-]{2,31}$
+      description: Identificador comercial único e inmutable del producto, tal como lo conoce el back-office.
+    Slug:
+      type: string
+      pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+      maxLength: 140
+      description: Identificador legible para URLs públicas, derivado del nombre.
+    KeelEventMetadata:
+      type: object
+      description: Metadata transversal de la envoltura Keel; la estampa el servicio al emitir.
+      required:
+      - eventId
+      - eventType
+      - eventVersion
+      - occurredAt
+      - source
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Id único de esta ocurrencia; clave de deduplicación del consumidor.
+        eventType:
+          type: string
+          description: Nombre del evento en el diseño; discriminador cuando el canal lleva varios tipos.
+        eventVersion:
+          type: integer
+          minimum: 1
+          description: Versión del contrato del payload.
+        occurredAt:
+          type: string
+          format: date-time
+          description: Instante UTC en que ocurrió el hecho en el dominio, no el del envío.
+        source:
+          type: string
+          description: Nombre del servicio emisor.
+        correlationId:
+          type:
+          - string
+          - 'null'
+          description: Correlación de la petición que originó el hecho; null si no hubo contexto.
+  correlationIds:
+    keelCorrelationId:
+      description: Correlación end-to-end estampada en la envoltura Keel.
+      location: $message.payload#/metadata/correlationId

@@ -1,0 +1,26 @@
+# Metadatos de publicación en el registry. No forma parte del DSL: describe cómo se distribuye y
+# se descubre el diseño, no lo que el servicio hace.
+
+family: catalog
+summary: >
+  Catálogo comercial de una tienda: productos, marcas, categorías e imágenes, con superficie pública
+  para la tienda, gestión autenticada con auditoría, y contrato servidor-a-servidor por consulta
+  directa, por lotes y por eventos.
+maturity: draft
+tags:
+  - commerce
+  - catalog
+  - product
+  - brand
+  - category
+  - images
+  - storage
+  - cache
+  - events
+  - m2m
+  - idempotency
+  - optimistic-locking
+  - audit
+  - pagination
+author: keel
+license: Apache-2.0

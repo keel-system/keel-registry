@@ -1,0 +1,116 @@
+# Capa messaging — qué eventos publica el servicio y por qué canales.
+# El broker concreto no se menciona: es decisión de generación.
+# Este servicio no consume eventos de nadie: no hay subscriptions.
+
+channels:
+  productEvents:
+    description: Altas, cambios de ficha y cambios de estado comercial de los productos del catálogo.
+  taxonomyEvents:
+    description: Cambios en la taxonomía del catálogo (marcas y categorías) que afectan a las fichas publicadas.
+
+publishing:
+  # best-effort: elección del diseñador. Si el broker está caído en el instante en que confirma la
+  # transacción, ese evento se pierde sin traza. La vía de reconciliación es el endpoint M2M por
+  # lotes (listProductsBatchForServices), con el que un consumidor puede reconstruir su copia.
+  reliability: best-effort
+
+  events:
+
+    ProductCreated:
+      description: Se dio de alta un producto. Nace en draft, así que todavía no está a la venta.
+      channel: productEvents
+      payload:
+        productId:    { type: uuid, required: true }
+        sku:          { type: SKU, required: true }
+        name:         { type: string, required: true }
+        slug:         { type: Slug, required: true }
+        description:  { type: text }
+        price:        { type: Price, required: true }
+        status:       { type: ProductStatus, required: true }
+        brandId:      { type: uuid, required: true }
+        brandName:    { type: string, required: true }
+        categoryId:   { type: uuid, required: true }
+        categoryName: { type: string, required: true }
+        primaryImage: { type: file, bucket: productImages, description: "Imagen principal del producto; ausente mientras no tenga ninguna." }
+        updatedAt:    { type: timestamp, required: true, description: "Momento del cambio en el catálogo; permite al consumidor descartar eventos que lleguen desordenados." }
+
+    ProductUpdated:
+      description: Cambió la ficha comercial de un producto, su galería de imágenes o su imagen principal.
+      channel: productEvents
+      payload:
+        productId:    { type: uuid, required: true }
+        sku:          { type: SKU, required: true }
+        name:         { type: string, required: true }
+        slug:         { type: Slug, required: true }
+        description:  { type: text }
+        price:        { type: Price, required: true }
+        status:       { type: ProductStatus, required: true }
+        brandId:      { type: uuid, required: true }
+        brandName:    { type: string, required: true }
+        categoryId:   { type: uuid, required: true }
+        categoryName: { type: string, required: true }
+        primaryImage: { type: file, bucket: productImages, description: "Imagen principal del producto; ausente mientras no tenga ninguna." }
+        updatedAt:    { type: timestamp, required: true, description: "Momento del cambio en el catálogo; permite al consumidor descartar eventos que lleguen desordenados." }
+
+    ProductStatusChanged:
+      description: Un producto entró o salió de la venta. Es el evento que basta seguir para saber si sigue disponible.
+      channel: productEvents
+      payload:
+        productId:      { type: uuid, required: true }
+        sku:            { type: SKU, required: true }
+        slug:           { type: Slug, required: true }
+        previousStatus: { type: ProductStatus, required: true }
+        newStatus:      { type: ProductStatus, required: true }
+        updatedAt:      { type: timestamp, required: true }
+
+    BrandCreated:
+      description: Se dio de alta una marca en el catálogo.
+      channel: taxonomyEvents
+      payload:
+        brandId:   { type: uuid, required: true }
+        name:      { type: string, required: true }
+        slug:      { type: Slug, required: true }
+        updatedAt: { type: timestamp, required: true }
+
+    BrandUpdated:
+      description: Cambió el nombre o la reseña de una marca; las fichas que la referencian quedan desactualizadas.
+      channel: taxonomyEvents
+      payload:
+        brandId:   { type: uuid, required: true }
+        name:      { type: string, required: true }
+        slug:      { type: Slug, required: true }
+        updatedAt: { type: timestamp, required: true }
+
+    BrandDeleted:
+      description: Se eliminó una marca. Quien mantenga una copia de la taxonomía debe purgarla.
+      channel: taxonomyEvents
+      payload:
+        brandId:   { type: uuid, required: true }
+        slug:      { type: Slug, required: true }
+        deletedAt: { type: timestamp, required: true }
+
+    CategoryCreated:
+      description: Se dio de alta una categoría en el catálogo.
+      channel: taxonomyEvents
+      payload:
+        categoryId: { type: uuid, required: true }
+        name:       { type: string, required: true }
+        slug:       { type: Slug, required: true }
+        updatedAt:  { type: timestamp, required: true }
+
+    CategoryUpdated:
+      description: Cambió el nombre o el texto de una categoría; las fichas que la referencian quedan desactualizadas.
+      channel: taxonomyEvents
+      payload:
+        categoryId: { type: uuid, required: true }
+        name:       { type: string, required: true }
+        slug:       { type: Slug, required: true }
+        updatedAt:  { type: timestamp, required: true }
+
+    CategoryDeleted:
+      description: Se eliminó una categoría. Quien mantenga una copia de la taxonomía debe purgarla.
+      channel: taxonomyEvents
+      payload:
+        categoryId: { type: uuid, required: true }
+        slug:       { type: Slug, required: true }
+        deletedAt:  { type: timestamp, required: true }

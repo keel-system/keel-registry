@@ -1,0 +1,54 @@
+# Capa api — integración con el cliente: exposición REST de las operaciones.
+# La seguridad de estos endpoints se declara en security.keel.yaml, no aquí.
+#
+# Tres superficies separadas por prefijo, cada una con su propio contrato:
+#   /products, /brands, /categories      → tienda, sin autenticación, solo productos a la venta
+#   /management/...                      → back-office, autenticado
+#   /services/...                        → otros servidores (M2M), credencial de máquina
+
+style: rest
+basePath: /api/v1
+defaultAudience: users
+
+pagination:
+  style: offset
+  defaultSize: 20
+  maxSize: 100
+
+endpoints:
+
+  # --- Tienda (público) ------------------------------------------------------
+  listPublicProducts: { method: GET, path: "/products" }
+  getPublicProduct:   { method: GET, path: "/products/{slug}" }
+  listBrands:         { method: GET, path: "/brands" }
+  listCategories:     { method: GET, path: "/categories" }
+
+  # --- Back-office: productos ------------------------------------------------
+  listProducts:       { method: GET, path: "/management/products" }
+  getProduct:         { method: GET, path: "/management/products/{productId}" }
+  createProduct:      { method: POST, path: "/management/products", successStatus: 201 }
+  updateProduct:      { method: PUT, path: "/management/products/{productId}" }
+  publishProduct:     { method: POST, path: "/management/products/{productId}/publish" }
+  unpublishProduct:   { method: POST, path: "/management/products/{productId}/unpublish" }
+  discontinueProduct: { method: POST, path: "/management/products/{productId}/discontinue" }
+  reactivateProduct:  { method: POST, path: "/management/products/{productId}/reactivate" }
+
+  # --- Back-office: imágenes del producto ------------------------------------
+  addProductImage:        { method: POST, path: "/management/products/{productId}/images", successStatus: 201 }
+  removeProductImage:     { method: DELETE, path: "/management/products/{productId}/images/{imageId}", successStatus: 204 }
+  setPrimaryProductImage: { method: PUT, path: "/management/products/{productId}/images/{imageId}/primary" }
+  reorderProductImages:   { method: PUT, path: "/management/products/{productId}/images/order" }
+
+  # --- Back-office: marcas y categorías --------------------------------------
+  createBrand:    { method: POST, path: "/management/brands", successStatus: 201 }
+  updateBrand:    { method: PUT, path: "/management/brands/{brandId}" }
+  deleteBrand:    { method: DELETE, path: "/management/brands/{brandId}", successStatus: 204 }
+  createCategory: { method: POST, path: "/management/categories", successStatus: 201 }
+  updateCategory: { method: PUT, path: "/management/categories/{categoryId}" }
+  deleteCategory: { method: DELETE, path: "/management/categories/{categoryId}", successStatus: 204 }
+
+  # --- Servidor a servidor (M2M) ---------------------------------------------
+  # Operaciones propias, no reutilizadas de la superficie de usuarios: su contrato es estable
+  # y devuelven el producto en cualquier estado, cosa que la tienda nunca debe ver.
+  getProductForServices:        { method: GET, path: "/services/products/{productId}", audience: services }
+  listProductsBatchForServices: { method: POST, path: "/services/products/batch", audience: services }

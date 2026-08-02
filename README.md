@@ -85,7 +85,9 @@ relativo GitHub lo muestra como código fuente. Las familias con varias variante
 las compara.
 
 <!-- keel:servicios:start -->
-_Aún no hay servicios diseñados. Cierra un diseño con `/keel-design specs/<servicio>` para poblar esta tabla._
+| Diseño | Dominio | Madurez | Resumen | Capas | Documentación |
+|---|---|---|---|---|---|
+| [`catalog`](specs/catalog/) | commerce | borrador | Catálogo comercial de una tienda: productos, marcas, categorías e imágenes, con superficie pública para la tienda, gestión autenticada con auditoría, y contrato servidor-a-servidor por consulta directa, por lotes y por eventos. | `domain`, `use-cases`, `api`, `security`, `messaging`, `persistence`, `storage` | [diseño](docs/catalog/DESIGN.md) · [panel](https://htmlpreview.github.io/?https://raw.githubusercontent.com/keel-system/keel-registry/main/docs/catalog/overview.html) · [API](https://htmlpreview.github.io/?https://raw.githubusercontent.com/keel-system/keel-registry/main/docs/catalog/openapi.html) · [eventos](https://htmlpreview.github.io/?https://raw.githubusercontent.com/keel-system/keel-registry/main/docs/catalog/asyncapi.html) · [integración](docs/catalog/INTEGRATION.md) |
 <!-- keel:servicios:end -->
 
 **Madurez**: `referencia` = diseño ejemplar, mantenido como muestra de la metodología · `estable` = usable

@@ -1,0 +1,3642 @@
+<!doctype html>
+<!-- keel:version 0.1.0 -->
+<!--
+  Visor de contratos Keel — plantilla de forma fija, común a OpenAPI y AsyncAPI.
+  NO edites el markup, el CSS ni el JS al generar. Copia este archivo tal cual y sustituye
+  únicamente los tres marcadores que aparecen más abajo (el título de la pestaña, el nombre del
+  renderer y el marcador de la constante del spec). Los tokens exactos y el procedimiento están
+  en ../overview-html-guide.md.
+
+  El spec va embebido, nunca por fetch: así el archivo abre con doble clic desde file://.
+  El renderer se carga de CDN; sin conexión, la página muestra el fallback con enlaces al
+  archivo crudo y al editor online.
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>catalog · OpenAPI</title>
+<style>
+  :root { color-scheme: light dark; --bg:#ffffff; --text:#1b1f24; --muted:#5c6773; --border:#dfe3e8; --accent:#2f6feb; --panel:#f6f7f9; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151a; --text:#e6e9ee; --muted:#9aa5b1; --border:#2c333d; --accent:#6ea0ff; --panel:#191d24; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--border); background:var(--panel); }
+  .bar strong { font-size:14px; }
+  .bar a, .bar button {
+    font:inherit; font-size:13px; padding:5px 11px; border:1px solid var(--border); border-radius:8px;
+    background:var(--bg); color:var(--text); text-decoration:none; cursor:pointer;
+  }
+  .bar a:hover, .bar button:hover { border-color:var(--accent); color:var(--accent); }
+  .spacer { flex:1 1 auto; }
+  #fallback { max-width:780px; margin:48px auto; padding:0 20px; }
+  #fallback h1 { font-size:22px; }
+  #fallback p { color:var(--muted); }
+  #fallback ul { padding-left:20px; }
+  #fallback pre {
+    background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px;
+    max-height:50vh; overflow:auto; font-size:12.5px;
+  }
+  /*
+    Isla clara para el render. Ni Redoc ni el componente de AsyncAPI traen tema oscuro: pintan sus
+    propios fondos claros y dejan que el texto herede del documento. Si el visor hereda el esquema
+    oscuro de la barra, el resultado es texto claro sobre panel claro (ilegible: ~1.2:1). Fijamos
+    aquí fondo, color y color-scheme para que el contenido del contrato se renderice siempre sobre
+    claro, con el contraste que el propio renderer diseñó. La barra y el fallback siguen siendo
+    sensibles al tema: son nuestros y sí tienen ambas variantes.
+  */
+  #render { min-height:60vh; background:#ffffff; color:#1b1f24; color-scheme: light; }
+  /*
+    El `code` inline de Redoc por defecto es #e53935 sobre #263238: 3.11:1, por debajo de AA.
+    Solo el inline de markdown (hijo de p, li, td…): quedan fuera los bloques con resaltado de
+    sintaxis (`.redoc-json` en Redoc, `pre` en el visor de AsyncAPI), que traen su propia paleta
+    sobre fondo oscuro y se romperían al forzarles un fondo claro.
+  */
+  #render :not(pre):not(.redoc-json) > code { background:#eceff3; color:#8a1c17; }
+  /*
+    Redoc rotula «Authorizations:», «path Parameters», «Request Body schema:»… con su color de
+    texto al 50% de opacidad (2.9:1 sobre blanco). Mismo gris «muted» de esta plantilla: sigue
+    siendo secundario, pero legible (5.76:1).
+  */
+  #render h5 { color:#5c6773; }
+  /*
+    Pestañas de respuesta de Redoc: la seleccionada se pinta sobre blanco (pasa AA), pero las no
+    seleccionadas caen sobre el panel oscuro de ejemplos manteniendo el rojo/verde pensados para
+    fondo claro (3.45:1 el rojo; el verde queda igual de bajo en cuanto se selecciona una de error).
+    Tonos claros de la misma familia para el estado no seleccionado.
+  */
+  #render li.tab-error:not(.react-tabs__tab--selected) { color:#ff8a80; }
+  #render li.tab-success:not(.react-tabs__tab--selected) { color:#7ddc8a; }
+  [hidden] { display:none !important; }
+</style>
+<link id="viewer-css" rel="stylesheet" href="">
+</head>
+<body>
+<div class="bar">
+  <strong id="doc-title">catalog · OpenAPI</strong>
+  <span class="spacer"></span>
+  <a href="overview.html">← Panel del servicio</a>
+  <a id="raw-link" href="#" download>Descargar spec</a>
+  <a id="editor-link" href="#" target="_blank" rel="noopener">Abrir editor online</a>
+  <button id="copy" type="button">Copiar spec</button>
+</div>
+
+<div id="render"></div>
+
+<div id="fallback" hidden>
+  <h1>No se pudo cargar el visor</h1>
+  <p>
+    El renderizado usa una librería servida desde un CDN y esta página no ha podido descargarla
+    (normalmente, por falta de conexión). El contrato en sí está completo y embebido aquí abajo.
+  </p>
+  <ul>
+    <li>Descarga el archivo con el botón <em>Descargar spec</em> y ábrelo con tu herramienta habitual.</li>
+    <li>O pulsa <em>Copiar spec</em> y pégalo en el <span id="editor-name">editor online</span>.</li>
+    <li>O vuelve a abrir esta página con conexión a internet.</li>
+  </ul>
+  <pre id="raw"></pre>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Contrato embebido. `/keel-docs` sustituye el placeholder por el spec completo.
+// ---------------------------------------------------------------------------
+var KEEL_SPEC = {
+  "openapi": "3.1.0",
+  "info": {
+    "title": "catalog",
+    "version": "0.1.0",
+    "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.\n\nContrato HTTP derivado del diseño Keel. Tres superficies separadas por prefijo de ruta:\n\n- `/products`, `/brands`, `/categories` — tienda, sin credencial, solo productos a la venta.\n- `/management/...` — back-office, token de usuario con el permiso de la operación.\n- `/services/...` — otros servidores, credencial de máquina con el scope `product:read`.\n\nEl host, el proveedor de identidad y el motor de persistencia se deciden al generar, no aquí.",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "{baseUrl}",
+      "description": "El host y el puerto son parámetro de despliegue, nunca dato de diseño.",
+      "variables": {
+        "baseUrl": {
+          "default": "http://localhost:8080",
+          "description": "Raíz del servicio desplegado."
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Tienda",
+      "description": "Lectura pública del catálogo para los consumidores."
+    },
+    {
+      "name": "Back-office",
+      "description": "Gestión autenticada del catálogo."
+    },
+    {
+      "name": "Servidores (M2M)",
+      "description": "Superficie servidor-a-servidor; ver INTEGRATION.md."
+    }
+  ],
+  "paths": {
+    "/api/v1/brands": {
+      "get": {
+        "operationId": "listBrands",
+        "summary": "Lista las marcas del catálogo para poblar el filtro de la tienda.",
+        "tags": [
+          "Tienda"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Página, base 0."
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20,
+              "maximum": 100
+            },
+            "description": "Tamaño de página; un valor mayor que 100 se recorta a 100, no da error."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedBrand"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "operationId": "listCategories",
+        "summary": "Lista las categorías del catálogo para poblar el filtro y el menú de la tienda.",
+        "tags": [
+          "Tienda"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Página, base 0."
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20,
+              "maximum": 100
+            },
+            "description": "Tamaño de página; un valor mayor que 100 se recorta a 100, no da error."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedCategory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/management/brands": {
+      "post": {
+        "operationId": "createBrand",
+        "summary": "Da de alta una marca comercial.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Reglas**\n\n- El slug se deriva del name normalizado a kebab-case.\n- La unicidad del name no distingue mayúsculas ni acentos.\n\n**Eventos emitidos**: `BrandCreated` (ver `asyncapi.yaml`).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBrandRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Brand"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "URI del recurso creado.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`BRAND_NAME_ALREADY_EXISTS` — Ya existe una marca con ese nombre ignorando mayúsculas y acentos.\n`BRAND_SLUG_CONFLICT` — El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "BRAND_NAME_ALREADY_EXISTS": {
+                    "summary": "Ya existe una marca con ese nombre ignorando mayúsculas y acentos.",
+                    "value": {
+                      "status": 409,
+                      "code": "BRAND_NAME_ALREADY_EXISTS",
+                      "message": "Ya existe una marca con ese nombre ignorando mayúsculas y acentos."
+                    }
+                  },
+                  "BRAND_SLUG_CONFLICT": {
+                    "summary": "El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre.",
+                    "value": {
+                      "status": 409,
+                      "code": "BRAND_SLUG_CONFLICT",
+                      "message": "El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    "/api/v1/management/brands/{brandId}": {
+      "put": {
+        "operationId": "updateBrand",
+        "summary": "Modifica el nombre o la reseña de una marca.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- La marca existe.\n\n**Reglas**\n\n- El slug se recalcula cuando cambia el name.\n- La unicidad del name no distingue mayúsculas ni acentos.\n- La marca no está sujeta a bloqueo optimista: dos ediciones concurrentes no dan conflicto y gana la última en confirmar.\n\n**Eventos emitidos**: `BrandUpdated` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBrandRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Brand"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`BRAND_NOT_FOUND` — No existe una marca con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "BRAND_NOT_FOUND": {
+                    "summary": "No existe una marca con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "BRAND_NOT_FOUND",
+                      "message": "No existe una marca con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`BRAND_NAME_ALREADY_EXISTS` — Ya existe otra marca con ese nombre ignorando mayúsculas y acentos.\n`BRAND_SLUG_CONFLICT` — El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "BRAND_NAME_ALREADY_EXISTS": {
+                    "summary": "Ya existe otra marca con ese nombre ignorando mayúsculas y acentos.",
+                    "value": {
+                      "status": 409,
+                      "code": "BRAND_NAME_ALREADY_EXISTS",
+                      "message": "Ya existe otra marca con ese nombre ignorando mayúsculas y acentos."
+                    }
+                  },
+                  "BRAND_SLUG_CONFLICT": {
+                    "summary": "El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre.",
+                    "value": {
+                      "status": 409,
+                      "code": "BRAND_SLUG_CONFLICT",
+                      "message": "El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "taxonomy:write"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteBrand",
+        "summary": "Elimina una marca que ningún producto referencia.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- La marca existe y ningún producto la referencia.\n\n**Reglas**\n\n- La referencia producto-marca es una restricción de integridad: si un producto se crea con esa marca mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a BRAND_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera.\n\n**Eventos emitidos**: `BrandDeleted` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operación completada; sin cuerpo."
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`BRAND_NOT_FOUND` — No existe una marca con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "BRAND_NOT_FOUND": {
+                    "summary": "No existe una marca con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "BRAND_NOT_FOUND",
+                      "message": "No existe una marca con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`BRAND_IN_USE` — Existen productos que referencian esa marca.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "BRAND_IN_USE": {
+                    "summary": "Existen productos que referencian esa marca.",
+                    "value": {
+                      "status": 409,
+                      "code": "BRAND_IN_USE",
+                      "message": "Existen productos que referencian esa marca."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    "/api/v1/management/categories": {
+      "post": {
+        "operationId": "createCategory",
+        "summary": "Da de alta una categoría comercial.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Reglas**\n\n- El slug se deriva del name normalizado a kebab-case.\n- La unicidad del name no distingue mayúsculas ni acentos.\n\n**Eventos emitidos**: `CategoryCreated` (ver `asyncapi.yaml`).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "URI del recurso creado.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CATEGORY_NAME_ALREADY_EXISTS` — Ya existe una categoría con ese nombre ignorando mayúsculas y acentos.\n`CATEGORY_SLUG_CONFLICT` — El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "CATEGORY_NAME_ALREADY_EXISTS": {
+                    "summary": "Ya existe una categoría con ese nombre ignorando mayúsculas y acentos.",
+                    "value": {
+                      "status": 409,
+                      "code": "CATEGORY_NAME_ALREADY_EXISTS",
+                      "message": "Ya existe una categoría con ese nombre ignorando mayúsculas y acentos."
+                    }
+                  },
+                  "CATEGORY_SLUG_CONFLICT": {
+                    "summary": "El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre.",
+                    "value": {
+                      "status": 409,
+                      "code": "CATEGORY_SLUG_CONFLICT",
+                      "message": "El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    "/api/v1/management/categories/{categoryId}": {
+      "put": {
+        "operationId": "updateCategory",
+        "summary": "Modifica el nombre o el texto de cabecera de una categoría.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- La categoría existe.\n\n**Reglas**\n\n- El slug se recalcula cuando cambia el name.\n- La unicidad del name no distingue mayúsculas ni acentos.\n- La categoría no está sujeta a bloqueo optimista: dos ediciones concurrentes no dan conflicto y gana la última en confirmar.\n\n**Eventos emitidos**: `CategoryUpdated` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "CATEGORY_NOT_FOUND": {
+                    "summary": "No existe una categoría con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "CATEGORY_NOT_FOUND",
+                      "message": "No existe una categoría con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CATEGORY_NAME_ALREADY_EXISTS` — Ya existe otra categoría con ese nombre ignorando mayúsculas y acentos.\n`CATEGORY_SLUG_CONFLICT` — El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "CATEGORY_NAME_ALREADY_EXISTS": {
+                    "summary": "Ya existe otra categoría con ese nombre ignorando mayúsculas y acentos.",
+                    "value": {
+                      "status": 409,
+                      "code": "CATEGORY_NAME_ALREADY_EXISTS",
+                      "message": "Ya existe otra categoría con ese nombre ignorando mayúsculas y acentos."
+                    }
+                  },
+                  "CATEGORY_SLUG_CONFLICT": {
+                    "summary": "El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre.",
+                    "value": {
+                      "status": 409,
+                      "code": "CATEGORY_SLUG_CONFLICT",
+                      "message": "El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "taxonomy:write"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteCategory",
+        "summary": "Elimina una categoría que ningún producto referencia.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- La categoría existe y ningún producto la referencia.\n\n**Reglas**\n\n- La referencia producto-categoría es una restricción de integridad: si un producto se crea con esa categoría mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a CATEGORY_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera.\n\n**Eventos emitidos**: `CategoryDeleted` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operación completada; sin cuerpo."
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "CATEGORY_NOT_FOUND": {
+                    "summary": "No existe una categoría con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "CATEGORY_NOT_FOUND",
+                      "message": "No existe una categoría con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`CATEGORY_IN_USE` — Existen productos que referencian esa categoría.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "CATEGORY_IN_USE": {
+                    "summary": "Existen productos que referencian esa categoría.",
+                    "value": {
+                      "status": 409,
+                      "code": "CATEGORY_IN_USE",
+                      "message": "Existen productos que referencian esa categoría."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    "/api/v1/management/products": {
+      "get": {
+        "operationId": "listProducts",
+        "summary": "Lista los productos del catálogo para el back-office, en cualquier estado, con filtros de gestión.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Reglas**\n\n- Los filtros presentes se combinan con conjunción; los ausentes no restringen.\n- Los filtros de texto (name, sku) buscan coincidencia parcial sin distinguir mayúsculas ni acentos.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas."
+            },
+            "description": "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas."
+          },
+          {
+            "name": "sku",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Filtra por coincidencia parcial del sku."
+            },
+            "description": "Filtra por coincidencia parcial del sku."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ProductStatus",
+              "description": "Filtra por estado; sin él se devuelven todos."
+            },
+            "description": "Filtra por estado; sin él se devuelven todos."
+          },
+          {
+            "name": "brandId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Página, base 0."
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20,
+              "maximum": 100
+            },
+            "description": "Tamaño de página; un valor mayor que 100 se recorta a 100, no da error."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedProduct"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:read"
+        ]
+      },
+      "post": {
+        "operationId": "createProduct",
+        "summary": "Da de alta un producto en estado draft, sin imágenes y todavía invisible para la tienda.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Reglas**\n\n- El sku se normaliza a mayúsculas antes de validar su unicidad.\n- El slug se deriva del name y se le añade un sufijo numérico si ya existe otro producto con ese slug.\n- El producto nace siempre en estado draft, sea cual sea el resto de la petición.\n\n**Eventos emitidos**: `ProductCreated` (ver `asyncapi.yaml`).\n\n**Idempotencia**: clave del cliente en la cabecera `Idempotency-Key`; ventana de 86400 s.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Clave de intento generada por el cliente; repetirla con el mismo contenido devuelve el resultado original."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "URI del recurso creado.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`SKU_ALREADY_EXISTS` — Ya existe un producto con ese sku.\n`IDEMPOTENCY_KEY_REUSED` — La clave de idempotencia ya se usó para una petición con otro contenido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "SKU_ALREADY_EXISTS": {
+                    "summary": "Ya existe un producto con ese sku.",
+                    "value": {
+                      "status": 409,
+                      "code": "SKU_ALREADY_EXISTS",
+                      "message": "Ya existe un producto con ese sku."
+                    }
+                  },
+                  "IDEMPOTENCY_KEY_REUSED": {
+                    "summary": "La clave de idempotencia ya se usó para una petición con otro contenido.",
+                    "value": {
+                      "status": 409,
+                      "code": "IDEMPOTENCY_KEY_REUSED",
+                      "message": "La clave de idempotencia ya se usó para una petición con otro contenido."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`BRAND_NOT_FOUND` — El brandId indicado no corresponde a ninguna marca.\n`CATEGORY_NOT_FOUND` — El categoryId indicado no corresponde a ninguna categoría.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "BRAND_NOT_FOUND": {
+                    "summary": "El brandId indicado no corresponde a ninguna marca.",
+                    "value": {
+                      "status": 422,
+                      "code": "BRAND_NOT_FOUND",
+                      "message": "El brandId indicado no corresponde a ninguna marca."
+                    }
+                  },
+                  "CATEGORY_NOT_FOUND": {
+                    "summary": "El categoryId indicado no corresponde a ninguna categoría.",
+                    "value": {
+                      "status": 422,
+                      "code": "CATEGORY_NOT_FOUND",
+                      "message": "El categoryId indicado no corresponde a ninguna categoría."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:write"
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}": {
+      "get": {
+        "operationId": "getProduct",
+        "summary": "Recupera la ficha completa de un producto por su id para el back-office, sea cual sea su estado.",
+        "tags": [
+          "Back-office"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:read"
+        ]
+      },
+      "put": {
+        "operationId": "updateProduct",
+        "summary": "Modifica la ficha comercial de un producto sin cambiar su estado ni su sku.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- El producto existe.\n\n**Reglas**\n\n- El sku no se puede modificar: no forma parte de la entrada.\n- Es un reemplazo completo de la ficha: todo campo opcional que no venga en la petición queda a nulo.\n- El slug se recalcula cuando cambia el name solo si el producto sigue en draft y nunca se publicó; una vez publicado, queda congelado.\n- Si el producto está en estado active y el nuevo price no es mayor que cero, la operación se rechaza.\n\n**Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PRODUCT_DISCONTINUED` — El producto está descatalogado y su ficha no admite cambios; hay que reactivarlo antes.\n`PRODUCT_VERSION_CONFLICT` — Otro operador modificó el producto después de que este lo leyera.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_DISCONTINUED": {
+                    "summary": "El producto está descatalogado y su ficha no admite cambios; hay que reactivarlo antes.",
+                    "value": {
+                      "status": 409,
+                      "code": "PRODUCT_DISCONTINUED",
+                      "message": "El producto está descatalogado y su ficha no admite cambios; hay que reactivarlo antes."
+                    }
+                  },
+                  "PRODUCT_VERSION_CONFLICT": {
+                    "summary": "Otro operador modificó el producto después de que este lo leyera.",
+                    "value": {
+                      "status": 409,
+                      "code": "PRODUCT_VERSION_CONFLICT",
+                      "message": "Otro operador modificó el producto después de que este lo leyera."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`BRAND_NOT_FOUND` — El brandId indicado no corresponde a ninguna marca.\n`CATEGORY_NOT_FOUND` — El categoryId indicado no corresponde a ninguna categoría.\n`PRODUCT_NOT_PUBLISHABLE` — El producto está active y el cambio lo dejaría sin precio válido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "BRAND_NOT_FOUND": {
+                    "summary": "El brandId indicado no corresponde a ninguna marca.",
+                    "value": {
+                      "status": 422,
+                      "code": "BRAND_NOT_FOUND",
+                      "message": "El brandId indicado no corresponde a ninguna marca."
+                    }
+                  },
+                  "CATEGORY_NOT_FOUND": {
+                    "summary": "El categoryId indicado no corresponde a ninguna categoría.",
+                    "value": {
+                      "status": 422,
+                      "code": "CATEGORY_NOT_FOUND",
+                      "message": "El categoryId indicado no corresponde a ninguna categoría."
+                    }
+                  },
+                  "PRODUCT_NOT_PUBLISHABLE": {
+                    "summary": "El producto está active y el cambio lo dejaría sin precio válido.",
+                    "value": {
+                      "status": 422,
+                      "code": "PRODUCT_NOT_PUBLISHABLE",
+                      "message": "El producto está active y el cambio lo dejaría sin precio válido."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:write"
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/discontinue": {
+      "post": {
+        "operationId": "discontinueProduct",
+        "summary": "Descataloga un producto que deja de venderse, conservando su ficha para las referencias históricas.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- El producto existe y está en estado active.\n\n**Eventos emitidos**: `ProductStatusChanged` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`INVALID_STATUS_TRANSITION` — El producto no está active y no se puede descatalogar.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "INVALID_STATUS_TRANSITION": {
+                    "summary": "El producto no está active y no se puede descatalogar.",
+                    "value": {
+                      "status": 409,
+                      "code": "INVALID_STATUS_TRANSITION",
+                      "message": "El producto no está active y no se puede descatalogar."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:publish"
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/images": {
+      "post": {
+        "operationId": "addProductImage",
+        "summary": "Añade una imagen a la galería de un producto.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- El producto existe y no está descatalogado.\n- El producto tiene menos de 10 imágenes.\n\n**Reglas**\n\n- La imagen se añade al final de la galería, con la position siguiente a la mayor existente.\n- Si es la primera imagen del producto, queda marcada como isPrimary.\n- Devuelve la imagen creada con su id, para que el cliente pueda referenciarla después.\n\n**Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).\n\n**Idempotencia**: clave del cliente en la cabecera `Idempotency-Key`; ventana de 86400 s.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Clave de intento generada por el cliente; repetirla con el mismo contenido devuelve el resultado original."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "altText"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Imagen a subir al bucket `productImages` (JPEG, PNG o WebP; máximo 5 MB)."
+                  },
+                  "altText": {
+                    "type": "string",
+                    "maxLength": 160
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductImage"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "URI del recurso creado.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PRODUCT_DISCONTINUED` — El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes.\n`IDEMPOTENCY_KEY_REUSED` — La clave de idempotencia ya se usó para una subida con otro contenido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_DISCONTINUED": {
+                    "summary": "El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes.",
+                    "value": {
+                      "status": 409,
+                      "code": "PRODUCT_DISCONTINUED",
+                      "message": "El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes."
+                    }
+                  },
+                  "IDEMPOTENCY_KEY_REUSED": {
+                    "summary": "La clave de idempotencia ya se usó para una subida con otro contenido.",
+                    "value": {
+                      "status": 409,
+                      "code": "IDEMPOTENCY_KEY_REUSED",
+                      "message": "La clave de idempotencia ya se usó para una subida con otro contenido."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`FILE_TOO_LARGE` — El archivo supera el tamaño máximo admitido por el bucket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "FILE_TOO_LARGE": {
+                    "summary": "El archivo supera el tamaño máximo admitido por el bucket.",
+                    "value": {
+                      "status": 413,
+                      "code": "FILE_TOO_LARGE",
+                      "message": "El archivo supera el tamaño máximo admitido por el bucket."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`UNSUPPORTED_CONTENT_TYPE` — El tipo de contenido del archivo no está entre los admitidos por el bucket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNSUPPORTED_CONTENT_TYPE": {
+                    "summary": "El tipo de contenido del archivo no está entre los admitidos por el bucket.",
+                    "value": {
+                      "status": 415,
+                      "code": "UNSUPPORTED_CONTENT_TYPE",
+                      "message": "El tipo de contenido del archivo no está entre los admitidos por el bucket."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`TOO_MANY_PRODUCT_IMAGES` — El producto ya tiene el máximo de 10 imágenes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TOO_MANY_PRODUCT_IMAGES": {
+                    "summary": "El producto ya tiene el máximo de 10 imágenes.",
+                    "value": {
+                      "status": 422,
+                      "code": "TOO_MANY_PRODUCT_IMAGES",
+                      "message": "El producto ya tiene el máximo de 10 imágenes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:write"
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/images/order": {
+      "put": {
+        "operationId": "reorderProductImages",
+        "summary": "Reordena la galería de un producto según la secuencia de imágenes indicada.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- El producto existe y no está descatalogado.\n- La lista contiene exactamente las imágenes del producto, sin repeticiones ni ausencias.\n\n**Reglas**\n\n- La position de cada imagen pasa a ser su índice en la lista recibida, empezando en cero.\n- El reordenamiento no cambia cuál es la imagen isPrimary.\n\n**Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderProductImagesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PRODUCT_DISCONTINUED` — El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_DISCONTINUED": {
+                    "summary": "El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes.",
+                    "value": {
+                      "status": 409,
+                      "code": "PRODUCT_DISCONTINUED",
+                      "message": "El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`IMAGE_SET_MISMATCH` — La lista recibida no coincide exactamente con las imágenes del producto.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "IMAGE_SET_MISMATCH": {
+                    "summary": "La lista recibida no coincide exactamente con las imágenes del producto.",
+                    "value": {
+                      "status": 422,
+                      "code": "IMAGE_SET_MISMATCH",
+                      "message": "La lista recibida no coincide exactamente con las imágenes del producto."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:write"
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/images/{imageId}": {
+      "delete": {
+        "operationId": "removeProductImage",
+        "summary": "Elimina una imagen de la galería de un producto.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- El producto existe, no está descatalogado y la imagen pertenece a ese producto.\n\n**Reglas**\n\n- Las position de las imágenes restantes se recompactan para no dejar huecos.\n- Si se elimina la imagen isPrimary y quedan otras, la de menor position pasa a ser la principal.\n- El archivo se elimina del bucket junto con la imagen; no se conservan objetos huérfanos.\n\n**Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "imageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operación completada; sin cuerpo."
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.\n`PRODUCT_IMAGE_NOT_FOUND` — La imagen indicada no pertenece a ese producto.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  },
+                  "PRODUCT_IMAGE_NOT_FOUND": {
+                    "summary": "La imagen indicada no pertenece a ese producto.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_IMAGE_NOT_FOUND",
+                      "message": "La imagen indicada no pertenece a ese producto."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PRODUCT_DISCONTINUED` — El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_DISCONTINUED": {
+                    "summary": "El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes.",
+                    "value": {
+                      "status": 409,
+                      "code": "PRODUCT_DISCONTINUED",
+                      "message": "El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`LAST_IMAGE_OF_ACTIVE_PRODUCT` — Es la última imagen de un producto active y dejarlo sin imágenes rompería su invariante.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "LAST_IMAGE_OF_ACTIVE_PRODUCT": {
+                    "summary": "Es la última imagen de un producto active y dejarlo sin imágenes rompería su invariante.",
+                    "value": {
+                      "status": 422,
+                      "code": "LAST_IMAGE_OF_ACTIVE_PRODUCT",
+                      "message": "Es la última imagen de un producto active y dejarlo sin imágenes rompería su invariante."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:write"
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/images/{imageId}/primary": {
+      "put": {
+        "operationId": "setPrimaryProductImage",
+        "summary": "Designa qué imagen representa al producto en listados y resultados de búsqueda.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- El producto existe, no está descatalogado y la imagen pertenece a ese producto.\n\n**Reglas**\n\n- La imagen que era principal deja de serlo en la misma transacción.\n- Designar como principal la que ya lo es no cambia nada y se considera éxito.\n\n**Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "imageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.\n`PRODUCT_IMAGE_NOT_FOUND` — La imagen indicada no pertenece a ese producto.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  },
+                  "PRODUCT_IMAGE_NOT_FOUND": {
+                    "summary": "La imagen indicada no pertenece a ese producto.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_IMAGE_NOT_FOUND",
+                      "message": "La imagen indicada no pertenece a ese producto."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PRODUCT_DISCONTINUED` — El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_DISCONTINUED": {
+                    "summary": "El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes.",
+                    "value": {
+                      "status": 409,
+                      "code": "PRODUCT_DISCONTINUED",
+                      "message": "El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:write"
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/publish": {
+      "post": {
+        "operationId": "publishProduct",
+        "summary": "Publica un producto en borrador para que la tienda lo muestre a los consumidores.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- El producto existe y está en estado draft.\n- El producto tiene al menos una imagen y un price mayor que cero.\n\n**Eventos emitidos**: `ProductStatusChanged` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`INVALID_STATUS_TRANSITION` — El producto no está en un estado desde el que se pueda publicar.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "INVALID_STATUS_TRANSITION": {
+                    "summary": "El producto no está en un estado desde el que se pueda publicar.",
+                    "value": {
+                      "status": 409,
+                      "code": "INVALID_STATUS_TRANSITION",
+                      "message": "El producto no está en un estado desde el que se pueda publicar."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`PRODUCT_NOT_PUBLISHABLE` — El producto no tiene imágenes o su price no es mayor que cero.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_PUBLISHABLE": {
+                    "summary": "El producto no tiene imágenes o su price no es mayor que cero.",
+                    "value": {
+                      "status": 422,
+                      "code": "PRODUCT_NOT_PUBLISHABLE",
+                      "message": "El producto no tiene imágenes o su price no es mayor que cero."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:publish"
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/reactivate": {
+      "post": {
+        "operationId": "reactivateProduct",
+        "summary": "Devuelve a la venta un producto descatalogado.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- El producto existe y está en estado discontinued.\n- El producto tiene al menos una imagen y un price mayor que cero.\n\n**Eventos emitidos**: `ProductStatusChanged` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`INVALID_STATUS_TRANSITION` — El producto no está discontinued y no se puede reactivar.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "INVALID_STATUS_TRANSITION": {
+                    "summary": "El producto no está discontinued y no se puede reactivar.",
+                    "value": {
+                      "status": 409,
+                      "code": "INVALID_STATUS_TRANSITION",
+                      "message": "El producto no está discontinued y no se puede reactivar."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`PRODUCT_NOT_PUBLISHABLE` — El producto no tiene imágenes o su price no es mayor que cero.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_PUBLISHABLE": {
+                    "summary": "El producto no tiene imágenes o su price no es mayor que cero.",
+                    "value": {
+                      "status": 422,
+                      "code": "PRODUCT_NOT_PUBLISHABLE",
+                      "message": "El producto no tiene imágenes o su price no es mayor que cero."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:publish"
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/unpublish": {
+      "post": {
+        "operationId": "unpublishProduct",
+        "summary": "Retira un producto de la tienda devolviéndolo a borrador para seguir editándolo.",
+        "tags": [
+          "Back-office"
+        ],
+        "description": "**Precondiciones**\n\n- El producto existe y está en estado active.\n\n**Eventos emitidos**: `ProductStatusChanged` (ver `asyncapi.yaml`).",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`INVALID_STATUS_TRANSITION` — El producto no está active y no se puede despublicar.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "INVALID_STATUS_TRANSITION": {
+                    "summary": "El producto no está active y no se puede despublicar.",
+                    "value": {
+                      "status": 409,
+                      "code": "INVALID_STATUS_TRANSITION",
+                      "message": "El producto no está active y no se puede despublicar."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userAuth": []
+          }
+        ],
+        "x-keel-permissions": [
+          "product:publish"
+        ]
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "operationId": "listPublicProducts",
+        "summary": "Lista los productos a la venta con los filtros de navegación de la tienda.",
+        "tags": [
+          "Tienda"
+        ],
+        "description": "**Reglas**\n\n- Solo se devuelven productos en estado active.\n- Los filtros presentes se combinan con conjunción; los ausentes no restringen.\n- Un categorySlug o brandSlug que no corresponde a ninguna categoría o marca devuelve una página vacía, no un error.\n\n**Caché**: 300 s, invalidada por `ProductCreated`, `ProductUpdated`, `ProductStatusChanged`, `BrandUpdated`, `CategoryUpdated`.",
+        "parameters": [
+          {
+            "name": "categorySlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Slug",
+              "description": "Filtra por la categoría indicada."
+            },
+            "description": "Filtra por la categoría indicada."
+          },
+          {
+            "name": "brandSlug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Slug",
+              "description": "Filtra por la marca indicada."
+            },
+            "description": "Filtra por la marca indicada."
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 140,
+              "description": "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas ni acentos."
+            },
+            "description": "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas ni acentos."
+          },
+          {
+            "name": "minPrice",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Price",
+              "description": "Precio mínimo, incluido."
+            },
+            "description": "Precio mínimo, incluido."
+          },
+          {
+            "name": "maxPrice",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Price",
+              "description": "Precio máximo, incluido."
+            },
+            "description": "Precio máximo, incluido."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Página, base 0."
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20,
+              "maximum": 100
+            },
+            "description": "Tamaño de página; un valor mayor que 100 se recorta a 100, no da error."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedProductPublic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`INVALID_PRICE_RANGE` — minPrice es mayor que maxPrice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "INVALID_PRICE_RANGE": {
+                    "summary": "minPrice es mayor que maxPrice.",
+                    "value": {
+                      "status": 422,
+                      "code": "INVALID_PRICE_RANGE",
+                      "message": "minPrice es mayor que maxPrice."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/products/{slug}": {
+      "get": {
+        "operationId": "getPublicProduct",
+        "summary": "Recupera la ficha de un producto a la venta por su slug.",
+        "tags": [
+          "Tienda"
+        ],
+        "description": "**Reglas**\n\n- Un producto que no está en estado active se trata como inexistente para esta operación.\n\n**Caché**: 300 s, invalidada por `ProductCreated`, `ProductUpdated`, `ProductStatusChanged`, `BrandUpdated`, `CategoryUpdated`.",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPublic"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto a la venta con ese slug.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto a la venta con ese slug.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto a la venta con ese slug."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/services/products/batch": {
+      "post": {
+        "operationId": "listProductsBatchForServices",
+        "summary": "Resuelve varios productos por sus identificadores en una sola llamada, para otro servidor.",
+        "tags": [
+          "Servidores (M2M)"
+        ],
+        "description": "**Precondiciones**\n\n- La lista contiene como máximo 100 identificadores.\n\n**Reglas**\n\n- Devuelve los productos sea cual sea su estado.\n- Los identificadores que no corresponden a ningún producto se omiten del resultado, sin error.\n- Los identificadores repetidos se resuelven una sola vez.\n- Conserva updatedAt para que el consumidor pueda ordenar lo recibido contra su propia copia al reconciliar.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListProductsBatchForServicesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductForServicesList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Petición mal formada: falta un campo requerido o incumple sus restricciones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`TOO_MANY_IDS` — La petición trae más de 100 identificadores.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TOO_MANY_IDS": {
+                    "summary": "La petición trae más de 100 identificadores.",
+                    "value": {
+                      "status": 422,
+                      "code": "TOO_MANY_IDS",
+                      "message": "La petición trae más de 100 identificadores."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceAuth": [
+              "product:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/services/products/{productId}": {
+      "get": {
+        "operationId": "getProductForServices",
+        "summary": "Resuelve la ficha de un producto por su id para otro servidor, en cualquier estado.",
+        "tags": [
+          "Servidores (M2M)"
+        ],
+        "description": "**Reglas**\n\n- Devuelve el producto sea cual sea su estado, porque el consumidor puede referenciar un producto descatalogado.\n- Conserva updatedAt para que el consumidor pueda ordenar lo recibido contra su propia copia al reconciliar.",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operación completada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductForServices"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sin credencial válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "La credencial no tiene el permiso o scope exigido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PRODUCT_NOT_FOUND": {
+                    "summary": "No existe un producto con ese id.",
+                    "value": {
+                      "status": 404,
+                      "code": "PRODUCT_NOT_FOUND",
+                      "message": "No existe un producto con ese id."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceAuth": [
+              "product:read"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "userAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Token de usuario emitido por el proveedor OIDC del despliegue. Los permisos exigidos por cada operación están en `x-keel-permissions`."
+      },
+      "serviceAuth": {
+        "type": "oauth2",
+        "description": "Credencial de máquina (OAuth2 client credentials). El `tokenUrl` real es parámetro de despliegue; la audiencia `catalog` se valida.",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "https://identity.invalid/oauth2/token",
+            "scopes": {
+              "product:read": "Consultar productos en cualquier estado."
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "SKU": {
+        "type": "string",
+        "pattern": "^[A-Z0-9][A-Z0-9-]{2,31}$",
+        "description": "Identificador comercial único e inmutable del producto, tal como lo conoce el back-office."
+      },
+      "Slug": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "maxLength": 140,
+        "description": "Identificador legible para URLs públicas, derivado del nombre."
+      },
+      "Price": {
+        "type": "number",
+        "minimum": 0,
+        "multipleOf": 0.01,
+        "description": "Importe de venta al público en la divisa única de la tienda."
+      },
+      "ProductStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "active",
+          "discontinued"
+        ],
+        "description": "Situación comercial del producto."
+      },
+      "Brand": {
+        "type": "object",
+        "description": "Fabricante o marca comercial bajo la que se vende un producto.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Reseña de la marca para la ficha pública."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ]
+      },
+      "Category": {
+        "type": "object",
+        "description": "Agrupación comercial por la que el consumidor navega el catálogo.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Texto de cabecera de la categoría en la tienda."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ]
+      },
+      "ProductImage": {
+        "type": "object",
+        "description": "Imagen de la ficha de un producto, con su orden de presentación.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "file": {
+            "type": "string",
+            "description": "Referencia al objeto en el bucket lógico `productImages`; viaja la referencia, no el binario."
+          },
+          "altText": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "Texto alternativo para accesibilidad y SEO."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Orden de presentación dentro de la galería del producto."
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "description": "Marca la imagen que representa al producto en listados y resultados de búsqueda.",
+            "default": false
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Producto al que pertenece la imagen."
+          }
+        },
+        "required": [
+          "id",
+          "file",
+          "altText",
+          "position",
+          "isPrimary",
+          "productId"
+        ]
+      },
+      "Product": {
+        "type": "object",
+        "description": "Ficha completa del producto tal como la ve el back-office, con su rastro de auditoría.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "$ref": "#/components/schemas/SKU"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 140
+          },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Descripción comercial larga que la tienda muestra en la ficha."
+          },
+          "price": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProductStatus",
+            "default": "draft"
+          },
+          "lockVersion": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "brand": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Brand"
+              }
+            ],
+            "description": "Marca resuelta como objeto anidado, no como identificador."
+          },
+          "category": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              }
+            ],
+            "description": "Categoría resuelta como objeto anidado, no como identificador."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductImage"
+            },
+            "description": "Galería del producto, ordenada por position ascendente."
+          }
+        },
+        "required": [
+          "id",
+          "sku",
+          "name",
+          "slug",
+          "price",
+          "status",
+          "lockVersion",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy",
+          "brand",
+          "category",
+          "images"
+        ]
+      },
+      "ProductPublic": {
+        "type": "object",
+        "description": "Ficha del producto para la tienda: sin auditoría ni versión de bloqueo.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "$ref": "#/components/schemas/SKU"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 140
+          },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Descripción comercial larga que la tienda muestra en la ficha."
+          },
+          "price": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProductStatus",
+            "default": "draft"
+          },
+          "brand": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Brand"
+              }
+            ],
+            "description": "Marca resuelta como objeto anidado, no como identificador."
+          },
+          "category": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              }
+            ],
+            "description": "Categoría resuelta como objeto anidado, no como identificador."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductImage"
+            },
+            "description": "Galería del producto, ordenada por position ascendente."
+          }
+        },
+        "required": [
+          "id",
+          "sku",
+          "name",
+          "slug",
+          "price",
+          "status",
+          "brand",
+          "category",
+          "images"
+        ]
+      },
+      "ProductForServices": {
+        "type": "object",
+        "description": "Ficha del producto para otros servidores: conserva updatedAt para reconciliar, sin el resto de la auditoría.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "$ref": "#/components/schemas/SKU"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 140
+          },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Descripción comercial larga que la tienda muestra en la ficha."
+          },
+          "price": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProductStatus",
+            "default": "draft"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "brand": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Brand"
+              }
+            ],
+            "description": "Marca resuelta como objeto anidado, no como identificador."
+          },
+          "category": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              }
+            ],
+            "description": "Categoría resuelta como objeto anidado, no como identificador."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductImage"
+            },
+            "description": "Galería del producto, ordenada por position ascendente."
+          }
+        },
+        "required": [
+          "id",
+          "sku",
+          "name",
+          "slug",
+          "price",
+          "status",
+          "updatedAt",
+          "brand",
+          "category",
+          "images"
+        ]
+      },
+      "PagedProduct": {
+        "type": "object",
+        "description": "Sobre de paginación canónico de Keel.",
+        "required": [
+          "items",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Página actual, base 0."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Tamaño de página aplicado."
+          },
+          "totalElements": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PagedProductPublic": {
+        "type": "object",
+        "description": "Sobre de paginación canónico de Keel.",
+        "required": [
+          "items",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductPublic"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Página actual, base 0."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Tamaño de página aplicado."
+          },
+          "totalElements": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PagedBrand": {
+        "type": "object",
+        "description": "Sobre de paginación canónico de Keel.",
+        "required": [
+          "items",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Brand"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Página actual, base 0."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Tamaño de página aplicado."
+          },
+          "totalElements": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PagedCategory": {
+        "type": "object",
+        "description": "Sobre de paginación canónico de Keel.",
+        "required": [
+          "items",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Página actual, base 0."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Tamaño de página aplicado."
+          },
+          "totalElements": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "description": "Forma única del cuerpo de error del servicio.",
+        "required": [
+          "status",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string",
+            "description": "Nombre del status HTTP."
+          },
+          "code": {
+            "type": "string",
+            "description": "Código de negocio estable; es el contrato."
+          },
+          "message": {
+            "type": "string",
+            "description": "Texto humano; no es contrato."
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "correlationId": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductForServicesList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProductForServices"
+        },
+        "description": "Productos resueltos, ordenados por name ascendente; los ids inexistentes se omiten."
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "properties": {
+          "sku": {
+            "$ref": "#/components/schemas/SKU"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 140
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "price": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "sku",
+          "name",
+          "price",
+          "brandId",
+          "categoryId"
+        ]
+      },
+      "UpdateProductRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 140
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "price": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lockVersion": {
+            "type": "integer",
+            "description": "Versión que el operador leyó; detecta la edición concurrente."
+          }
+        },
+        "required": [
+          "name",
+          "price",
+          "brandId",
+          "categoryId",
+          "lockVersion"
+        ]
+      },
+      "ReorderProductImagesRequest": {
+        "type": "object",
+        "properties": {
+          "imageIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Ids de todas las imágenes del producto, en el orden deseado."
+          }
+        },
+        "required": [
+          "imageIds"
+        ]
+      },
+      "CreateBrandRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateBrandRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "CreateCategoryRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateCategoryRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ListProductsBatchForServicesRequest": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Identificadores de los productos a resolver."
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "userAuth": []
+    }
+  ]
+};
+var KEEL_RENDERER = "redoc";
+
+(function () {
+  'use strict';
+
+  var VIEWERS = {
+    redoc: {
+      js: 'https://cdn.redocly.com/redoc/latest/bundles/redoc.standalone.js',
+      css: '',
+      global: 'Redoc',
+      rawFile: 'openapi.yaml',
+      editor: 'https://editor.swagger.io/',
+      editorName: 'Swagger Editor',
+      mount: function (spec, node) { window.Redoc.init(spec, { hideDownloadButton: true }, node); }
+    },
+    asyncapi: {
+      js: 'https://unpkg.com/@asyncapi/react-component@latest/browser/standalone/index.js',
+      css: 'https://unpkg.com/@asyncapi/react-component@latest/styles/default.min.css',
+      global: 'AsyncApiStandalone',
+      rawFile: 'asyncapi.yaml',
+      editor: 'https://studio.asyncapi.com/',
+      editorName: 'AsyncAPI Studio',
+      mount: function (spec, node) {
+        window.AsyncApiStandalone.render({
+          schema: JSON.stringify(spec),
+          config: { show: { sidebar: true, errors: true } }
+        }, node);
+      }
+    }
+  };
+
+  var v = VIEWERS[KEEL_RENDERER];
+  var fallback = document.getElementById('fallback');
+  var render = document.getElementById('render');
+  var json = KEEL_SPEC ? JSON.stringify(KEEL_SPEC, null, 2) : '';
+
+  document.getElementById('raw').textContent = json;
+  document.getElementById('editor-name').textContent = v ? v.editorName : 'editor online';
+  if (v) {
+    document.getElementById('editor-link').href = v.editor;
+    document.getElementById('editor-link').textContent = 'Abrir ' + v.editorName;
+    var raw = document.getElementById('raw-link');
+    raw.href = v.rawFile;
+    raw.setAttribute('download', v.rawFile);
+  }
+  document.getElementById('copy').addEventListener('click', function () {
+    var btn = this;
+    var done = function () { btn.textContent = 'Copiado ✓'; setTimeout(function () { btn.textContent = 'Copiar spec'; }, 1800); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(json).then(done, showRaw);
+    else showRaw();
+  });
+
+  function showRaw() { render.hidden = true; fallback.hidden = false; }
+
+  if (!v || !KEEL_SPEC) { showRaw(); return; }
+
+  if (v.css) document.getElementById('viewer-css').href = v.css;
+
+  var timer = setTimeout(showRaw, 12000);
+  var s = document.createElement('script');
+  s.src = v.js;
+  s.onload = function () {
+    clearTimeout(timer);
+    try { v.mount(KEEL_SPEC, render); } catch (e) { showRaw(); }
+  };
+  s.onerror = function () { clearTimeout(timer); showRaw(); };
+  document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>

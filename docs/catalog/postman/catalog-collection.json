@@ -1,0 +1,2974 @@
+{
+  "info": {
+    "name": "catalog — flujos de validación",
+    "description": "Derivada de specs/catalog v0.1.0 (validation-scenarios.md). Importa antes auth-collection.json: los tokens viajan por globals.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "FL-BRD-001 — Alta, consulta y edición de una marca",
+      "description": "Given: no existe ninguna marca. Ejecuta las requests en orden.",
+      "item": [
+        {
+          "name": "FL-BRD-001 · A — Alta de marca (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike\",\n  \"description\": \"Ropa y calzado deportivo.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('slug derivado', () => pm.expect(pm.response.json().slug).to.eql('nike'));",
+                  "pm.test('sin auditoría', () => pm.expect(pm.response.json()).to.not.have.property('createdBy'));",
+                  "pm.collectionVariables.set('brandId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-001 · B — Listado público de marcas (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/brands"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('una marca', () => pm.expect(pm.response.json().totalElements).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-001 · C — Nombre duplicado ignorando mayúsculas (409 BRAND_NAME_ALREADY_EXISTS)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"nike\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('BRAND_NAME_ALREADY_EXISTS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-001 · D — Edición de la marca (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/{{brandId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike Sportswear\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('slug recalculado', () => pm.expect(pm.response.json().slug).to.eql('nike-sportswear'));",
+                  "pm.test('description a null', () => pm.expect(pm.response.json().description).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-001 · E — Colisión de slug (409 BRAND_SLUG_CONFLICT)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike, Sportswear!\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('BRAND_SLUG_CONFLICT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-001 · F — Marca inexistente (404 BRAND_NOT_FOUND)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/00000000-0000-4000-8000-000000000000",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike Sportswear\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('BRAND_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-BRD-010 — Borrado de marca, en uso y libre",
+      "description": "Given: una marca referenciada por un producto y otra libre.",
+      "item": [
+        {
+          "name": "FL-BRD-010 · A — Alta de marca en uso (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('brandId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-010 · B — Alta de categoría (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado\",\n  \"description\": \"Zapatillas y botas.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('categoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-010 · C — Alta de producto que la referencia (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('productId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-010 · D — Borrado de marca en uso (409 BRAND_IN_USE)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/{{brandId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('BRAND_IN_USE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-010 · E — Alta de marca libre (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Adidas\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('freeBrandId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-010 · F — Borrado de marca libre (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/{{freeBrandId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-010 · G — Borrado repetido (404 BRAND_NOT_FOUND)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/{{freeBrandId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('BRAND_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CTG-001 — Alta, consulta y edición de una categoría",
+      "description": "Simétrico a FL-BRD-001.",
+      "item": [
+        {
+          "name": "FL-CTG-001 · A — Alta de categoría (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado\",\n  \"description\": \"Zapatillas y botas.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('slug derivado', () => pm.expect(pm.response.json().slug).to.eql('calzado'));",
+                  "pm.collectionVariables.set('categoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-001 · B — Listado público de categorías (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/categories"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('una categoría', () => pm.expect(pm.response.json().totalElements).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-001 · C — Nombre duplicado (409 CATEGORY_NAME_ALREADY_EXISTS)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"calzado\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('CATEGORY_NAME_ALREADY_EXISTS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-001 · D — Edición de la categoría (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado deportivo\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('slug recalculado', () => pm.expect(pm.response.json().slug).to.eql('calzado-deportivo'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-001 · E — Colisión de slug (409 CATEGORY_SLUG_CONFLICT)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado, deportivo\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('CATEGORY_SLUG_CONFLICT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-001 · F — Categoría inexistente (404 CATEGORY_NOT_FOUND)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories/00000000-0000-4000-8000-000000000000",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado deportivo\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('CATEGORY_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CTG-010 — Borrado de categoría, en uso y libre",
+      "description": "Simétrico a FL-BRD-010.",
+      "item": [
+        {
+          "name": "FL-CTG-010 · A — Alta de marca (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('brandId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-010 · B — Alta de categoría en uso (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado\",\n  \"description\": \"Zapatillas y botas.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('categoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-010 · C — Alta de producto que la referencia (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('productId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-010 · D — Borrado de categoría en uso (409 CATEGORY_IN_USE)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories/{{categoryId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('CATEGORY_IN_USE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-010 · E — Alta de categoría libre (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Camisetas\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('freeCategoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-010 · F — Borrado de categoría libre (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories/{{freeCategoryId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRD-001 — Alta de producto, evento e idempotencia",
+      "description": "Given: existen la marca y la categoría. La cabecera Idempotency-Key se fija a mano en B y C para repetir la misma clave.",
+      "item": [
+        {
+          "name": "FL-PRD-001 · A — Alta de marca (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike\",\n  \"description\": \"Ropa y calzado deportivo.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('brandId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-001 · B — Alta de categoría (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado\",\n  \"description\": \"Zapatillas y botas.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('categoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-001 · C — Alta de producto (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "description": "El sku llega en minúsculas y debe volver normalizado a mayúsculas.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"sku-001\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('sku normalizado', () => pm.expect(pm.response.json().sku).to.eql('SKU-001'));",
+                  "pm.test('nace en draft', () => pm.expect(pm.response.json().status).to.eql('draft'));",
+                  "pm.test('marca anidada', () => pm.expect(pm.response.json().brand.name).to.eql('Nike'));",
+                  "pm.test('sin imágenes', () => pm.expect(pm.response.json().images).to.eql([]));",
+                  "pm.test('Location', () => pm.expect(pm.response.headers.has('Location')).to.be.true);",
+                  "pm.collectionVariables.set('productId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-001 · D — Consulta de la ficha (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('auditoría presente', () => pm.expect(pm.response.json()).to.have.property('createdBy'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-001 · E — SKU duplicado (409 SKU_ALREADY_EXISTS)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('SKU_ALREADY_EXISTS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-001 · F — Marca inexistente (422 BRAND_NOT_FOUND)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-002\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.9,\n  \"brandId\": \"00000000-0000-4000-8000-000000000000\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('BRAND_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-001 · G — Categoría inexistente (422 CATEGORY_NOT_FOUND)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-003\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"00000000-0000-4000-8000-000000000000\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('CATEGORY_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-001 · H — Precio con escala inválida (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-004\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.999,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRD-010 — Edición de la ficha y conflicto de versión",
+      "description": "Given: un producto en draft. La lockVersion se captura de la lectura previa.",
+      "item": [
+        {
+          "name": "FL-PRD-010 · A — Alta de marca (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('brandId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-010 · B — Alta de categoría (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado\",\n  \"description\": \"Zapatillas y botas.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('categoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-010 · C — Alta de producto (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('productId', pm.response.json().id);",
+                  "pm.collectionVariables.set('lockVersion', pm.response.json().lockVersion);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-010 · D — Edición con la versión vigente (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Zapatilla Runner Pro\",\n  \"description\": null,\n  \"price\": 99.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"lockVersion\": \"{{lockVersion}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('sku inmutable', () => pm.expect(pm.response.json().sku).to.eql('SKU-001'));",
+                  "pm.test('slug recalculado en draft', () => pm.expect(pm.response.json().slug).to.eql('zapatilla-runner-pro'));",
+                  "pm.test('description a null', () => pm.expect(pm.response.json().description).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-010 · E — Edición con versión vieja (409 PRODUCT_VERSION_CONFLICT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Zapatilla Runner Pro\",\n  \"description\": null,\n  \"price\": 99.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"lockVersion\": \"{{lockVersion}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_VERSION_CONFLICT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-010 · F — Producto inexistente (404 PRODUCT_NOT_FOUND)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/00000000-0000-4000-8000-000000000000",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Zapatilla Runner Pro\",\n  \"description\": null,\n  \"price\": 99.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"lockVersion\": 0\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRD-020 — Publicar, despublicar, descatalogar y reactivar",
+      "description": "Given: un producto en draft sin imágenes. La request C exige adjuntar un archivo a mano.",
+      "item": [
+        {
+          "name": "FL-PRD-020 · A — Alta de marca (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('brandId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · B — Alta de categoría (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado\",\n  \"description\": \"Zapatillas y botas.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('categoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · C — Alta de producto (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('productId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · D — Publicar sin imágenes (422 PRODUCT_NOT_PUBLISHABLE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/publish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_NOT_PUBLISHABLE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · E — Añadir imagen (201) [adjunta un JPEG]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "JPEG, PNG o WebP; máximo 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Zapatilla vista lateral"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('imageId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · F — Publicar (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/publish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('active', () => pm.expect(pm.response.json().status).to.eql('active'));",
+                  "pm.collectionVariables.set('slug', pm.response.json().slug);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · G — Ficha pública visible (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{slug}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('sin auditoría', () => pm.expect(pm.response.json()).to.not.have.property('createdBy'));",
+                  "pm.test('sin lockVersion', () => pm.expect(pm.response.json()).to.not.have.property('lockVersion'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · H — Publicar de nuevo (409 INVALID_STATUS_TRANSITION)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/publish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('INVALID_STATUS_TRANSITION'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · I — Despublicar (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/unpublish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('draft', () => pm.expect(pm.response.json().status).to.eql('draft'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · J — Ficha pública ya no visible (404 PRODUCT_NOT_FOUND)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{slug}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · K — Descatalogar desde draft (409 INVALID_STATUS_TRANSITION)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/discontinue"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('INVALID_STATUS_TRANSITION'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · L — Publicar otra vez (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/publish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · M — Descatalogar (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/discontinue"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('discontinued', () => pm.expect(pm.response.json().status).to.eql('discontinued'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · N — Editar un descatalogado (409 PRODUCT_DISCONTINUED)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Zapatilla Runner Pro\",\n  \"description\": null,\n  \"price\": 99.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"lockVersion\": 0\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_DISCONTINUED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · O — Reactivar (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/reactivate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('active', () => pm.expect(pm.response.json().status).to.eql('active'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRD-030 — Consulta y listado de back-office",
+      "description": "Given: al menos un producto creado por los pasos previos.",
+      "item": [
+        {
+          "name": "FL-PRD-030 · A — Alta de marca (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('brandId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-030 · B — Alta de categoría (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado\",\n  \"description\": \"Zapatillas y botas.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('categoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-030 · C — Alta de producto (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('productId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-030 · D — Listado paginado (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('sobre de paginación', () => pm.expect(pm.response.json()).to.have.all.keys('items','page','size','totalElements','totalPages'));",
+                  "pm.test('tamaño por defecto', () => pm.expect(pm.response.json().size).to.eql(20));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-030 · E — Tope de tamaño de página (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products?size=500"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('size recortado a 100', () => pm.expect(pm.response.json().size).to.eql(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-030 · F — Filtro por estado y marca (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products?status=draft&brandId={{brandId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-030 · G — Búsqueda parcial sin acentos (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products?name=RÚNNER"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('encuentra el producto', () => pm.expect(pm.response.json().totalElements).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-030 · H — Producto inexistente (404 PRODUCT_NOT_FOUND)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/00000000-0000-4000-8000-000000000000"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-IMG-001 — Galería: orden, imagen principal y borrado",
+      "description": "Given: un producto en draft. Las requests de subida exigen adjuntar un archivo a mano.",
+      "item": [
+        {
+          "name": "FL-IMG-001 · A — Alta de marca (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('brandId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · B — Alta de categoría (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado\",\n  \"description\": \"Zapatillas y botas.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('categoryId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · C — Alta de producto (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Zapatilla Runner\",\n  \"description\": \"Zapatilla de running para asfalto.\",\n  \"price\": 89.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('productId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · D — Primera imagen (201) [adjunta un JPEG]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "JPEG, PNG o WebP; máximo 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Zapatilla vista lateral"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('position 0', () => pm.expect(pm.response.json().position).to.eql(0));",
+                  "pm.test('principal', () => pm.expect(pm.response.json().isPrimary).to.be.true);",
+                  "pm.collectionVariables.set('imageId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · E — Segunda imagen (201) [adjunta un JPEG]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "JPEG, PNG o WebP; máximo 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Zapatilla vista lateral"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('position 1', () => pm.expect(pm.response.json().position).to.eql(1));",
+                  "pm.test('no principal', () => pm.expect(pm.response.json().isPrimary).to.be.false);",
+                  "pm.collectionVariables.set('imageId2', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · F — Designar principal (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/{{imageId2}}/primary"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('una sola principal', () => pm.expect(pm.response.json().images.filter(i => i.isPrimary).length).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · G — Reordenar la galería (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/order",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageIds\": [\n    \"{{imageId2}}\",\n    \"{{imageId}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('orden aplicado', () => pm.expect(pm.response.json().images[0].position).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · H — Reordenar con lista incompleta (422 IMAGE_SET_MISMATCH)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/order",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageIds\": [\n    \"{{imageId}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('IMAGE_SET_MISMATCH'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · I — Imagen de otro producto (404 PRODUCT_IMAGE_NOT_FOUND)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/00000000-0000-4000-8000-000000000000/primary"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_IMAGE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · J — Borrar una imagen (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/{{imageId2}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · K — Publicar el producto (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/publish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · L — Borrar la última imagen de un active (422 LAST_IMAGE_OF_ACTIVE_PRODUCT)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/{{imageId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('LAST_IMAGE_OF_ACTIVE_PRODUCT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · M — Content-type no admitido (415 UNSUPPORTED_CONTENT_TYPE) [adjunta un PDF]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "JPEG, PNG o WebP; máximo 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Zapatilla vista lateral"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 415', () => pm.response.to.have.status(415));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('UNSUPPORTED_CONTENT_TYPE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · N — Archivo demasiado grande (413 FILE_TOO_LARGE) [adjunta un JPEG > 5 MB]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "JPEG, PNG o WebP; máximo 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Zapatilla vista lateral"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 413', () => pm.response.to.have.status(413));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('FILE_TOO_LARGE'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PUB-001 / FL-PUB-010 / FL-PUB-020 — Superficie pública",
+      "description": "Sin credencial. Given: al menos un producto publicado (ejecuta antes FL-PRD-020).",
+      "item": [
+        {
+          "name": "FL-PUB-010 · A — Listado de tienda (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('solo active', () => pm.expect(pm.response.json().items.every(p => p.status === 'active')).to.be.true);",
+                  "pm.test('marca anidada', () => pm.expect(pm.response.json().items.every(p => typeof p.brand === 'object')).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PUB-010 · B — Filtro por categoría y marca (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?categorySlug=calzado&brandSlug=nike"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PUB-010 · C — Filtro por rango de precio (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?minPrice=50.00&maxPrice=100.00"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('rango inclusivo', () => pm.expect(pm.response.json().items.every(p => p.price >= 50 && p.price <= 100)).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PUB-010 · D — Filtro por nombre (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?name=runner"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PUB-010 · E — Rango de precio invertido (422 INVALID_PRICE_RANGE)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?minPrice=100.00&maxPrice=50.00"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('INVALID_PRICE_RANGE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PUB-010 · F — Slug de marca desconocido (200, página vacía)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?brandSlug=marca-que-no-existe"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('página vacía', () => pm.expect(pm.response.json().totalElements).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PUB-001 · A — Ficha pública por slug (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{slug}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('sin auditoría', () => pm.expect(pm.response.json()).to.not.have.property('updatedBy'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PUB-001 · B — Slug inexistente (404 PRODUCT_NOT_FOUND)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/no-existe"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PUB-020 · A — Marcas públicas (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/brands"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('orden por nombre', () => { const n = pm.response.json().items.map(b => b.name); pm.expect(n).to.eql([...n].sort()); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PUB-020 · B — Categorías públicas (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/categories"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CCH-020 — La clave de caché incluye la paginación",
+      "description": "Sin credencial. Verifica que la página 1 no devuelve la página 0 cacheada.",
+      "item": [
+        {
+          "name": "FL-CCH-020 · A — Página 0 (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?page=0&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('page0', JSON.stringify(pm.response.json().items.map(p => p.id)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-020 · B — Página 1 (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?page=1&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('page 1', () => pm.expect(pm.response.json().page).to.eql(1));",
+                  "pm.test('sin solapamiento con la página 0', () => { const a = JSON.parse(pm.collectionVariables.get('page0') || '[]'); pm.expect(pm.response.json().items.filter(p => a.includes(p.id)).length).to.eql(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-020 · C — Tamaño distinto, misma página (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?page=0&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('size 5', () => pm.expect(pm.response.json().size).to.eql(5));",
+                  "pm.test('como mucho 5 elementos', () => pm.expect(pm.response.json().items.length).to.be.at.most(5));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-M2M-001 / FL-M2M-010 — Superficie servidor a servidor",
+      "description": "Credencial de máquina del cliente order-service (token_order-service).",
+      "item": [
+        {
+          "name": "FL-M2M-001 · A — Ficha por id (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/products/{{productId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('conserva updatedAt', () => pm.expect(pm.response.json()).to.have.property('updatedAt'));",
+                  "pm.test('sin autoría', () => pm.expect(pm.response.json()).to.not.have.property('updatedBy'));",
+                  "pm.test('sin lockVersion', () => pm.expect(pm.response.json()).to.not.have.property('lockVersion'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-001 · B — Id inexistente (404 PRODUCT_NOT_FOUND)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/products/00000000-0000-4000-8000-000000000000"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-010 · A — Lote de ids (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/products/batch",
+            "description": "Un id inexistente y uno repetido: el primero se omite y el segundo se resuelve una vez.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [\n    \"{{productId}}\",\n    \"00000000-0000-4000-8000-000000000000\",\n    \"{{productId}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('un solo elemento', () => pm.expect(pm.response.json().length).to.eql(1));",
+                  "pm.test('orden por nombre', () => { const n = pm.response.json().map(p => p.name); pm.expect(n).to.eql([...n].sort()); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-010 · B — Lote vacío (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/products/batch",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": []\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-001 — Sin credencial y con credencial insuficiente",
+      "description": "Las dos primeras requests van deliberadamente sin cabecera Authorization. Para el 403, usa un token sin el permiso exigido por la operación.",
+      "item": [
+        {
+          "name": "FL-SEC-001 · A — Gestión sin credencial (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/management/products"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('sin cuerpo de éxito', () => pm.expect(pm.response.code).to.eql(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · B — M2M sin credencial (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/services/products/{{productId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · C — Pública sin credencial (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · D — Marcas públicas sin credencial (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/brands"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "keelVersion",
+      "value": "0.1.0"
+    },
+    {
+      "key": "brandId",
+      "value": ""
+    },
+    {
+      "key": "categoryId",
+      "value": ""
+    },
+    {
+      "key": "freeBrandId",
+      "value": ""
+    },
+    {
+      "key": "freeCategoryId",
+      "value": ""
+    },
+    {
+      "key": "productId",
+      "value": ""
+    },
+    {
+      "key": "imageId",
+      "value": ""
+    },
+    {
+      "key": "imageId2",
+      "value": ""
+    },
+    {
+      "key": "lockVersion",
+      "value": ""
+    },
+    {
+      "key": "slug",
+      "value": ""
+    },
+    {
+      "key": "page0",
+      "value": ""
+    }
+  ]
+}

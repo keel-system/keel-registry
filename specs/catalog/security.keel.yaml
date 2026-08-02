@@ -1,0 +1,81 @@
+# Capa security — autenticación y autorización.
+# Las reglas se declaran por operación (nombre estable), no por ruta.
+# Agnóstico de proveedor: el servidor de identidad concreto se decide al generar.
+
+authentication:
+  protocol: oidc
+  tokenLocation: header
+  serviceAuth:
+    protocol: client-credentials
+    validateAudience: true
+    audience: catalog
+
+roles:
+  catalog-admin: { description: Gestiona el catálogo completo desde el back-office. }
+
+permissions:
+  product:read:    { description: Consultar productos en cualquier estado. }
+  product:write:   { description: Crear y modificar la ficha de un producto y su galería de imágenes. }
+  product:publish: { description: "Cambiar el estado comercial de un producto: publicar, despublicar, descatalogar y reactivar." }
+  taxonomy:write:  { description: "Crear, modificar y eliminar marcas y categorías." }
+
+roleGrants:
+  catalog-admin: [product:read, product:write, product:publish, taxonomy:write]
+
+cors:
+  description: La tienda y el back-office son aplicaciones de navegador que llaman directamente a esta API.
+  allowCredentials: false
+  allowedHeaders: [Authorization, Content-Type, Idempotency-Key]
+  exposedHeaders: [X-Correlation-Id]
+  maxAgeSeconds: 3600
+
+# Consumidores máquina. Ninguno escribe en el catálogo: los tres solo leen fichas de producto,
+# así que product:read es su mínimo privilegio completo.
+serviceClients:
+  order-service:
+    description: Resuelve las fichas de los productos de un carrito o de un pedido, casi siempre por lotes.
+    scopes: [product:read]
+  inventory-service:
+    description: Mantiene el stock por producto y necesita saber qué productos existen y cuáles salen del catálogo.
+    scopes: [product:read]
+  search-service:
+    description: Mantiene su índice de búsqueda con los eventos del catálogo y reconcilia por lotes.
+    scopes: [product:read]
+
+access:
+  # Todo lo que no se nombre abajo exige usuario autenticado.
+  default: { level: required }
+  rules:
+    # --- Tienda: sin autenticación -------------------------------------------
+    listPublicProducts: { level: public }
+    getPublicProduct:   { level: public }
+    listBrands:         { level: public }
+    listCategories:     { level: public }
+
+    # --- Back-office: productos ----------------------------------------------
+    listProducts:       { level: required, permissions: [product:read] }
+    getProduct:         { level: required, permissions: [product:read] }
+    createProduct:      { level: required, permissions: [product:write] }
+    updateProduct:      { level: required, permissions: [product:write] }
+    publishProduct:     { level: required, permissions: [product:publish] }
+    unpublishProduct:   { level: required, permissions: [product:publish] }
+    discontinueProduct: { level: required, permissions: [product:publish] }
+    reactivateProduct:  { level: required, permissions: [product:publish] }
+
+    # --- Back-office: imágenes ------------------------------------------------
+    addProductImage:        { level: required, permissions: [product:write] }
+    removeProductImage:     { level: required, permissions: [product:write] }
+    setPrimaryProductImage: { level: required, permissions: [product:write] }
+    reorderProductImages:   { level: required, permissions: [product:write] }
+
+    # --- Back-office: marcas y categorías -------------------------------------
+    createBrand:    { level: required, permissions: [taxonomy:write] }
+    updateBrand:    { level: required, permissions: [taxonomy:write] }
+    deleteBrand:    { level: required, permissions: [taxonomy:write] }
+    createCategory: { level: required, permissions: [taxonomy:write] }
+    updateCategory: { level: required, permissions: [taxonomy:write] }
+    deleteCategory: { level: required, permissions: [taxonomy:write] }
+
+    # --- Servidor a servidor ---------------------------------------------------
+    getProductForServices:        { level: service, scopes: [product:read] }
+    listProductsBatchForServices: { level: service, scopes: [product:read] }
