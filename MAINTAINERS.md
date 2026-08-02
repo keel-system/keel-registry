@@ -57,8 +57,9 @@ keel init --force
 ```
 
 `--force` **conserva** `README.md`, `AGENTS.md`, `CLAUDE.md`, `.gitignore`, `.gitattributes` y
-`contracts/README.md` (los lista como *«es tuyo, no se sobrescribe»*), y no toca `specs/` ni `docs/<slug>/`,
-que no son payload. Revisa el diff igualmente: debe limitarse a `schema/`, `templates/`, `docs/dsl/`, los
+`contracts/README.md` (los lista como *«es tuyo, no se sobrescribe»*), y no toca `specs/`, `docs/<slug>/` ni
+`publish.yaml`, que no son payload — `publish.yaml` ni siquiera aparece en esa lista de conservados porque la
+CLI no lo siembra nunca: es config de este repo. Revisa el diff igualmente: debe limitarse a `schema/`, `templates/`, `docs/dsl/`, los
 `docs/*.md` del método y las skills de `.claude/` y `.opencode/`.
 
 Dos cosas que `--force` **no** hace y hay que mirar a mano: no borra huérfanos (una skill retirada en la
@@ -149,3 +150,10 @@ Un cambio de madurez es un cambio del sidecar, así que hay que reindexar (`keel
   refrescan con `keel init --force` y nada más. Un arreglo que haga falta ahí se hace en la herramienta.
 - **Un spec publicado**: se cambia con `/keel-evolve specs/<slug>`, que versiona el contrato y regenera los
   derivados en cascada. Editarlo a mano deja derivados que mienten, y `keel describe <slug>` lo delata.
+
+La excepción, por contraste: **`publish.yaml` sí se edita a mano**. No es payload (la CLI no lo siembra) ni
+contenido de ningún diseño: declara dónde está publicado este repo (`repo`, `branch`) y es lo que hace que
+`keel index` enlace el panel y los visores de cada diseño por `htmlpreview.github.io` en vez de en relativo,
+que GitHub muestra como código fuente. Solo se toca si el repo se mueve de sitio o cambia de rama por
+defecto; nada lo valida más allá de su schema, así que un `repo` mal escrito no rompe ninguna puerta del CI
+— deja enlaces rotos en la portada, que es peor. Al cambiarlo, reindexar (`keel index`) y abrir un enlace.

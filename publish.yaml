@@ -1,0 +1,6 @@
+# Dónde vive publicado este workspace. Es lo único que le falta a `keel index` para
+# enlazar el panel y los visores de cada diseño de forma **navegable** en GitHub: un
+# .html enlazado en relativo GitHub lo muestra como código fuente, así que sin esto la
+# portada del registry apuntaría al markup del panel en vez de al panel.
+repo: keel-system/keel-registry
+branch: main

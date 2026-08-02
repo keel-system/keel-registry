@@ -34,7 +34,10 @@ y después, cada vez que el diseño cambie:  /keel-evolve
 ```
 AGENTS.md            # este archivo (CLAUDE.md lo importa: es el mismo contexto con el nombre
                      # que busca Claude Code; se edita AGENTS.md, nunca la copia)
-README.md            # índice de servicios diseñados (enlaza el DESIGN.md de cada uno); página de entrada del repo
+README.md            # índice de servicios diseñados (enlaza el DESIGN.md, el panel y los visores de cada
+                     # uno); página de entrada del repo
+publish.yaml         # dónde está publicado este workspace (repo: <org>/<repo>), para que el índice enlace
+                     # los HTML navegables. NO es una capa del DSL ni describe ningún servicio
 system.yaml          # el mapa del sistema, si el workspace tiene más de un servicio (de /keel-decompose)
                      # NO es una capa del DSL: describe cómo se reparte el encargo, no lo que hace un servicio
 .gitignore           # excluye services/ del repo del workspace (aquí solo se versiona el diseño)
@@ -70,7 +73,7 @@ services/            # servicios generados por `keel-<tech> build` (un repo git 
 - **Una capa por vez.** Al diseñar o iterar, trabaja el artefacto de la capa activa y cierra sus referencias cruzadas antes de seguir.
 - **Una capa opcional existe ⇔ está declarada en `layers`** del manifiesto. No crees artefactos de capas que el servicio no necesita.
 - **Nunca generes desde un diseño inválido** ni con un generador cuya compatibilidad de versión DSL no cubra el manifiesto.
-- **El índice del `README.md` lo genera `keel index`**, nunca se edita a mano la región entre los marcadores `<!-- keel:servicios:start/end -->`. Lo ejecutan `/keel-design` al cerrar y `/keel-handoff`.
+- **El índice del `README.md` lo genera `keel index`**, nunca se edita a mano la región entre los marcadores `<!-- keel:servicios:start/end -->`. Lo ejecutan `/keel-design` al cerrar, `/keel-handoff` y `/keel-docs` (que es quien produce el panel y los visores que la tabla enlaza).
 - **El mapa no sustituye al diseño, y no se ignora.** `system.yaml` dice qué servicios hay y quién consume a quién; lo que cada uno hace vive solo en `specs/<servicio>/`. Cuando `keel system check` reporte que el mapa y un diseño no coinciden, **se corrige uno de los dos** — un mapa que quedó atrás miente igual que un `DESIGN.md` que quedó atrás. Las olas de construcción las calcula `keel system`: no se escriben a mano ni se declaran en el mapa.
 - La metodología completa está en `docs/methodology.md`; descomponer un encargo en servicios, en `docs/system-decomposition.md`; publicar y consumir diseños reutilizables, en `docs/design-registry.md`.
 
@@ -79,7 +82,7 @@ services/            # servicios generados por `keel-<tech> build` (un repo git 
 Todo lo anterior describe un workspace de diseño cualquiera. **Este** es además el repo público `keel-registry`: lo que aquí se diseña no es para consumo propio, es el catálogo que otros workspaces adoptan (`keel registry get <diseño>`) o derivan (`keel new <nuevo> --from registry:<diseño>`). Eso cambia tres cosas:
 
 - **Publicar un diseño sigue `CONTRIBUTING.md`**, no el flujo suelto de arriba. El listón de aceptación (8 puntos) es lo que decide si un diseño entra: `keel validate` sin `--wip`, escenarios cerrados, derivados al día, `design.yaml` válido, `service.name` idéntico al directorio, identificadores en inglés, cero tecnología y `keel index --check` verde. El sidecar `specs/<diseño>/design.yaml` (resumen, madurez, familia, tags) es **obligatorio aquí** aunque sea opcional en un workspace normal: es lo que hace descubrible el diseño.
-- **`index.json` y la tabla del `README.md` son generados.** Los escribe `keel index` y nadie más; editarlos a mano rompe la puerta `keel index --check` del CI. `docs/<diseño>/` sí se versiona (a diferencia de un workspace normal): los derivados publicados son parte de lo que se descarga.
+- **`index.json` y la tabla del `README.md` son generados.** Los escribe `keel index` y nadie más; editarlos a mano rompe la puerta `keel index --check` del CI. `docs/<diseño>/` sí se versiona (a diferencia de un workspace normal): los derivados publicados son parte de lo que se descarga, y la tabla los enlaza —ficha, panel, visores, integración— para que se puedan revisar **desde GitHub**, sin clonar. Que los tres HTML se abran renderizados en vez de como código fuente depende de `publish.yaml`, que sí es config a mano de este repo: si desaparece o apunta mal, la portada sigue generándose pero deja de ser navegable.
 - **El payload (`schema/`, `templates/`, `docs/`, `docs/dsl/`, `.claude/`, `.opencode/`) es una copia de `keel-core`**, no contenido del registry: se refresca con `keel init --force` y se commitea, y es tarea de mantenedor (ver `MAINTAINERS.md`). El CI lo comprueba con `keel init --check`. No se edita a mano ningún archivo de esas rutas: el cambio se hace en el repo de la herramienta y se resiembra aquí.
 
 `services/` está en `.gitignore`: en este repo no se generan implementaciones.

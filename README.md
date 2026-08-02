@@ -78,8 +78,11 @@ keel new mi-servicio --from ../keel-registry/specs/<diseño>
 ## Diseños disponibles
 
 Cada fila enlaza el diseño (`specs/`) y, cuando existen, su **ficha de decisiones** (`DESIGN.md`), su
-**panel visual** (`overview.html`) y su **contrato servidor-a-servidor** (`INTEGRATION.md`). Las familias
-con varias variantes remiten a una subtabla que las compara.
+**panel visual** (`overview.html`), los visores de sus contratos formales —**API** (`openapi.html`) y
+**eventos** (`asyncapi.html`)— y su **contrato servidor-a-servidor** (`INTEGRATION.md`). Los tres visores se
+abren renderizados desde aquí mismo: se sirven por `htmlpreview.github.io`, porque un `.html` enlazado en
+relativo GitHub lo muestra como código fuente. Las familias con varias variantes remiten a una subtabla que
+las compara.
 
 <!-- keel:servicios:start -->
 _Aún no hay servicios diseñados. Cierra un diseño con `/keel-design specs/<servicio>` para poblar esta tabla._
@@ -107,6 +110,10 @@ keel describe <diseño>          # identidad, capas, contenido y frescura de los
 keel index                      # regenera la tabla de arriba y index.json
 keel index --check              # comprueba, sin escribir, que el índice está al día (esto corre en CI)
 ```
+
+`publish.yaml` es config **de este repo**, no payload ni parte de ningún diseño: dice dónde está publicado
+el workspace (`repo`, `branch`) y es lo que permite a `keel index` enlazar los HTML de cada diseño de forma
+navegable en vez de en relativo. Por eso se edita a mano y `keel init` no lo resiembra.
 
 `schema/`, `templates/`, `docs/dsl/` y las skills de `.claude/` y `.opencode/` son el payload de la CLI, no
 contenido del registry: se refrescan con `keel init --force` al actualizar `keel-core`, y el CI lo comprueba
