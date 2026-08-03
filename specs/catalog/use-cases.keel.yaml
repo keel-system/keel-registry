@@ -25,9 +25,11 @@ operations:
     rules:
       - El sku se normaliza a mayúsculas antes de validar su unicidad.
       - El slug se deriva del name y se le añade un sufijo numérico si ya existe otro producto con ese slug.
+      - "La derivación del sufijo es una lectura seguida de una escritura: dos altas simultáneas del mismo name pueden calcular el mismo sufijo y solo una llega a escribir. Esa carrera se resuelve con PRODUCT_SLUG_CONFLICT, no reintentando en silencio."
       - El producto nace siempre en estado draft, sea cual sea el resto de la petición.
     errors:
       - { code: SKU_ALREADY_EXISTS, when: Ya existe un producto con ese sku., http: 409 }
+      - { code: PRODUCT_SLUG_CONFLICT, when: Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre., http: 409 }
       - { code: IDEMPOTENCY_KEY_REUSED, when: La clave de idempotencia ya se usó para una petición con otro contenido., http: 409 }
       - { code: BRAND_NOT_FOUND, when: El brandId indicado no corresponde a ninguna marca., http: 422 }
       - { code: CATEGORY_NOT_FOUND, when: El categoryId indicado no corresponde a ninguna categoría., http: 422 }
@@ -52,9 +54,11 @@ operations:
       - "El sku no se puede modificar: no forma parte de la entrada."
       - "Es un reemplazo completo de la ficha: todo campo opcional que no venga en la petición queda a nulo."
       - El slug se recalcula cuando cambia el name solo si el producto sigue en draft y nunca se publicó; una vez publicado, queda congelado.
+      - "El recálculo deriva el sufijo igual que el alta, así que hereda su misma ventana de carrera: se resuelve con PRODUCT_SLUG_CONFLICT."
       - Si el producto está en estado active y el nuevo price no es mayor que cero, la operación se rechaza.
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
+      - { code: PRODUCT_SLUG_CONFLICT, when: Otra escritura simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre., http: 409 }
       - { code: BRAND_NOT_FOUND, when: El brandId indicado no corresponde a ninguna marca., http: 422 }
       - { code: CATEGORY_NOT_FOUND, when: El categoryId indicado no corresponde a ninguna categoría., http: 422 }
       - { code: PRODUCT_NOT_PUBLISHABLE, when: El producto está active y el cambio lo dejaría sin precio válido., http: 422 }

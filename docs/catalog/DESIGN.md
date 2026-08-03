@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.2.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.3.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -76,6 +76,10 @@ De los casos de uso:
   `204` y no cambia nada. Un `204` no implica, por tanto, que se haya publicado evento de borrado.
 - Los filtros de texto (`name`, `sku`) buscan coincidencia parcial sin distinguir mayúsculas ni
   acentos.
+- La derivación del sufijo del slug de `Product` (lectura del slug libre + escritura) no es atómica:
+  dos altas o ediciones simultáneas del mismo `name` pueden calcular el mismo sufijo y solo una
+  llega a escribir. Esa carrera se resuelve con `PRODUCT_SLUG_CONFLICT`, nunca reintentando en
+  silencio.
 
 ## 4. Qué hace
 
@@ -157,6 +161,7 @@ lo que expone es suyo. Las fronteras son de salida.
 | **Sin borrado de productos** | Solo `discontinueProduct` | Un borrado real dejaría referencias rotas en todo consumidor con copia, sin vía de reparación | Borrado real; borrado solo en `draft` |
 | **Borrado de taxonomía bloqueado** | `BRAND_IN_USE` / `CATEGORY_IN_USE` (409) | Ningún producto queda huérfano y ningún consumidor ve una referencia rota. La garantía es de integridad referencial, no un `SELECT` previo, para cerrar la carrera | Cascada (una acción de mantenimiento sacaría cientos de productos de la tienda); baja lógica |
 | **Rechazo de colisión de slug en taxonomía** | `BRAND_SLUG_CONFLICT` / `CATEGORY_SLUG_CONFLICT` (409) | La taxonomía es corta y la maneja un humano: mejor que corrija el nombre a tener `/marcas/nike-2` en el menú de la tienda. En productos, en cambio, el volumen obliga al sufijo automático | Sufijo numérico también en taxonomía |
+| **Carrera del sufijo de slug en `Product`** | `PRODUCT_SLUG_CONFLICT` (409) al perdedor de la carrera, sin reintento en servidor | Reintentar en servidor añade un bucle con su propio límite y ventana de bloqueo, y esconde al cliente que perdió una carrera de nombres; el 409 es más simple de implementar y deja la decisión de reintentar (con qué backoff) en manos del cliente, igual que ya ocurre con `SKU_ALREADY_EXISTS` | Reintento automático en servidor con el siguiente sufijo libre |
 | **Un solo rol** | `catalog-admin` | Decisión del diseñador contra la recomendación del agente (admin + editor). Queda anotado que cualquier operador puede borrar taxonomía compartida | `catalog-admin` + `catalog-editor` sin permiso sobre marcas y categorías |
 | **Reemplazo total en las ediciones** | Omitir un campo lo pone a nulo | Sin ambigüedad y coherente con el `PUT` elegido; el formulario del back-office manda siempre la ficha entera | Fusión (`PATCH`): exige distinguir "ausente" de "nulo", que el DSL no expresa hoy |
 | **Al menos una imagen para publicar** | `PRODUCT_NOT_PUBLISHABLE` (422) | La tienda nunca pinta un hueco, y no tiene que decidir por su cuenta qué mostrar cuando falta la foto | Imagen opcional |
@@ -168,7 +173,7 @@ lo que expone es suyo. Las fronteras son de salida.
 
 ### Contrato estable vs adaptable
 
-**Estable** —cambiarlo rompe a alguien y exige versión mayor—: los 23 códigos de error en
+**Estable** —cambiarlo rompe a alguien y exige versión mayor—: los 24 códigos de error en
 `SCREAMING_SNAKE_CASE` con su status HTTP; los nueve nombres de evento y la forma de su payload; los
 dos endpoints `audience: services` y sus scopes; los cuatro endpoints públicos y la forma de sus
 filtros; el prefijo `/api/v1` (una ruptura abre `/api/v2`, que convive con la anterior mientras los

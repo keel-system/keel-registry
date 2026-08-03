@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.2.0 -->
+<!-- keel:version 0.3.0 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,7 +188,7 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.",
     "domain": "commerce",
     "generatedAt": "2026-08-03"
@@ -451,6 +451,7 @@ const KEEL = {
       "rules": [
         "El sku se normaliza a mayúsculas antes de validar su unicidad.",
         "El slug se deriva del name y se le añade un sufijo numérico si ya existe otro producto con ese slug.",
+        "La derivación del sufijo es una lectura seguida de una escritura: dos altas simultáneas del mismo name pueden calcular el mismo sufijo y solo una llega a escribir. Esa carrera se resuelve con PRODUCT_SLUG_CONFLICT, no reintentando en silencio.",
         "El producto nace siempre en estado draft, sea cual sea el resto de la petición."
       ],
       "errors": [
@@ -458,6 +459,11 @@ const KEEL = {
           "code": "SKU_ALREADY_EXISTS",
           "http": 409,
           "when": "Ya existe un producto con ese sku."
+        },
+        {
+          "code": "PRODUCT_SLUG_CONFLICT",
+          "http": 409,
+          "when": "Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre."
         },
         {
           "code": "IDEMPOTENCY_KEY_REUSED",
@@ -557,6 +563,7 @@ const KEEL = {
         "El sku no se puede modificar: no forma parte de la entrada.",
         "Es un reemplazo completo de la ficha: todo campo opcional que no venga en la petición queda a nulo.",
         "El slug se recalcula cuando cambia el name solo si el producto sigue en draft y nunca se publicó; una vez publicado, queda congelado.",
+        "El recálculo deriva el sufijo igual que el alta, así que hereda su misma ventana de carrera: se resuelve con PRODUCT_SLUG_CONFLICT.",
         "Si el producto está en estado active y el nuevo price no es mayor que cero, la operación se rechaza."
       ],
       "errors": [
@@ -564,6 +571,11 @@ const KEEL = {
           "code": "PRODUCT_NOT_FOUND",
           "http": 404,
           "when": "No existe un producto con ese id."
+        },
+        {
+          "code": "PRODUCT_SLUG_CONFLICT",
+          "http": 409,
+          "when": "Otra escritura simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre."
         },
         {
           "code": "BRAND_NOT_FOUND",

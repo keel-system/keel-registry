@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: catalog
-  version: 0.2.0
+  version: 0.3.0
   description: 'Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías,
     los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores
     por consulta directa y por eventos.
@@ -707,6 +707,8 @@ paths:
 
         - El slug se deriva del name y se le añade un sufijo numérico si ya existe otro producto con ese slug.
 
+        - La derivación del sufijo es una lectura seguida de una escritura: dos altas simultáneas del mismo name pueden calcular el mismo sufijo y solo una llega a escribir. Esa carrera se resuelve con PRODUCT_SLUG_CONFLICT, no reintentando en silencio.
+
         - El producto nace siempre en estado draft, sea cual sea el resto de la petición.
 
 
@@ -761,6 +763,8 @@ paths:
         '409':
           description: '`SKU_ALREADY_EXISTS` — Ya existe un producto con ese sku.
 
+            `PRODUCT_SLUG_CONFLICT` — Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre.
+
             `IDEMPOTENCY_KEY_REUSED` — La clave de idempotencia ya se usó para una petición con otro contenido.'
           content:
             application/json:
@@ -773,6 +777,12 @@ paths:
                     status: 409
                     code: SKU_ALREADY_EXISTS
                     message: Ya existe un producto con ese sku.
+                PRODUCT_SLUG_CONFLICT:
+                  summary: Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre.
+                  value:
+                    status: 409
+                    code: PRODUCT_SLUG_CONFLICT
+                    message: Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre.
                 IDEMPOTENCY_KEY_REUSED:
                   summary: La clave de idempotencia ya se usó para una petición con otro contenido.
                   value:
@@ -874,6 +884,9 @@ paths:
         - El slug se recalcula cuando cambia el name solo si el producto sigue en draft y nunca se publicó; una
         vez publicado, queda congelado.
 
+        - El recálculo deriva el sufijo igual que el alta, así que hereda su misma ventana de carrera: se resuelve
+        con PRODUCT_SLUG_CONFLICT.
+
         - Si el producto está en estado active y el nuevo price no es mayor que cero, la operación se rechaza.
 
 
@@ -933,6 +946,9 @@ paths:
           description: '`PRODUCT_DISCONTINUED` — El producto está descatalogado y su ficha no admite cambios; hay
             que reactivarlo antes.
 
+            `PRODUCT_SLUG_CONFLICT` — Otra escritura simultánea se quedó con el slug que esta petición había
+            calculado; reintentar la llamada deriva un sufijo libre.
+
             `PRODUCT_VERSION_CONFLICT` — Otro operador modificó el producto después de que este lo leyera.'
           content:
             application/json:
@@ -945,6 +961,14 @@ paths:
                     status: 409
                     code: PRODUCT_DISCONTINUED
                     message: El producto está descatalogado y su ficha no admite cambios; hay que reactivarlo antes.
+                PRODUCT_SLUG_CONFLICT:
+                  summary: Otra escritura simultánea se quedó con el slug que esta petición había calculado; reintentar
+                    la llamada deriva un sufijo libre.
+                  value:
+                    status: 409
+                    code: PRODUCT_SLUG_CONFLICT
+                    message: Otra escritura simultánea se quedó con el slug que esta petición había calculado; reintentar
+                      la llamada deriva un sufijo libre.
                 PRODUCT_VERSION_CONFLICT:
                   summary: Otro operador modificó el producto después de que este lo leyera.
                   value:

@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.2.0 -->
+<!-- keel:version 0.3.0 -->
 <!--
   Visor de contratos Keel — plantilla de forma fija, común a OpenAPI y AsyncAPI.
   NO edites el markup, el CSS ni el JS al generar. Copia este archivo tal cual y sustituye
@@ -107,7 +107,7 @@ var KEEL_SPEC = {
   "openapi": "3.1.0",
   "info": {
     "title": "catalog",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.\n\nContrato HTTP derivado del diseño Keel. Tres superficies separadas por prefijo de ruta:\n\n- `/products`, `/brands`, `/categories` — tienda, sin credencial, solo productos a la venta.\n- `/management/...` — back-office, token de usuario con el permiso de la operación.\n- `/services/...` — otros servidores, credencial de máquina con el scope `product:read`.\n\nEl host, el proveedor de identidad y el motor de persistencia se deciden al generar, no aquí.",
     "license": {
       "name": "Apache-2.0",
@@ -1007,7 +1007,7 @@ var KEEL_SPEC = {
         "tags": [
           "Back-office"
         ],
-        "description": "**Reglas**\n\n- El sku se normaliza a mayúsculas antes de validar su unicidad.\n- El slug se deriva del name y se le añade un sufijo numérico si ya existe otro producto con ese slug.\n- El producto nace siempre en estado draft, sea cual sea el resto de la petición.\n\n**Eventos emitidos**: `ProductCreated` (ver `asyncapi.yaml`).\n\n**Idempotencia**: clave del cliente en la cabecera `Idempotency-Key`; ventana de 86400 s.",
+        "description": "**Reglas**\n\n- El sku se normaliza a mayúsculas antes de validar su unicidad.\n- El slug se deriva del name y se le añade un sufijo numérico si ya existe otro producto con ese slug.\n- La derivación del sufijo es una lectura seguida de una escritura: dos altas simultáneas del mismo name pueden calcular el mismo sufijo y solo una llega a escribir. Esa carrera se resuelve con PRODUCT_SLUG_CONFLICT, no reintentando en silencio.\n- El producto nace siempre en estado draft, sea cual sea el resto de la petición.\n\n**Eventos emitidos**: `ProductCreated` (ver `asyncapi.yaml`).\n\n**Idempotencia**: clave del cliente en la cabecera `Idempotency-Key`; ventana de 86400 s.",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -1079,7 +1079,7 @@ var KEEL_SPEC = {
             }
           },
           "409": {
-            "description": "`SKU_ALREADY_EXISTS` — Ya existe un producto con ese sku.\n`IDEMPOTENCY_KEY_REUSED` — La clave de idempotencia ya se usó para una petición con otro contenido.",
+            "description": "`SKU_ALREADY_EXISTS` — Ya existe un producto con ese sku.\n`PRODUCT_SLUG_CONFLICT` — Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre.\n`IDEMPOTENCY_KEY_REUSED` — La clave de idempotencia ya se usó para una petición con otro contenido.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1092,6 +1092,14 @@ var KEEL_SPEC = {
                       "status": 409,
                       "code": "SKU_ALREADY_EXISTS",
                       "message": "Ya existe un producto con ese sku."
+                    }
+                  },
+                  "PRODUCT_SLUG_CONFLICT": {
+                    "summary": "Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre.",
+                    "value": {
+                      "status": 409,
+                      "code": "PRODUCT_SLUG_CONFLICT",
+                      "message": "Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre."
                     }
                   },
                   "IDEMPOTENCY_KEY_REUSED": {
@@ -1230,7 +1238,7 @@ var KEEL_SPEC = {
         "tags": [
           "Back-office"
         ],
-        "description": "**Precondiciones**\n\n- El producto existe.\n\n**Reglas**\n\n- El sku no se puede modificar: no forma parte de la entrada.\n- Es un reemplazo completo de la ficha: todo campo opcional que no venga en la petición queda a nulo.\n- El slug se recalcula cuando cambia el name solo si el producto sigue en draft y nunca se publicó; una vez publicado, queda congelado.\n- Si el producto está en estado active y el nuevo price no es mayor que cero, la operación se rechaza.\n\n**Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).",
+        "description": "**Precondiciones**\n\n- El producto existe.\n\n**Reglas**\n\n- El sku no se puede modificar: no forma parte de la entrada.\n- Es un reemplazo completo de la ficha: todo campo opcional que no venga en la petición queda a nulo.\n- El slug se recalcula cuando cambia el name solo si el producto sigue en draft y nunca se publicó; una vez publicado, queda congelado.\n- El recálculo deriva el sufijo igual que el alta, así que hereda su misma ventana de carrera: se resuelve con PRODUCT_SLUG_CONFLICT.\n- Si el producto está en estado active y el nuevo price no es mayor que cero, la operación se rechaza.\n\n**Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).",
         "parameters": [
           {
             "name": "productId",
@@ -1314,7 +1322,7 @@ var KEEL_SPEC = {
             }
           },
           "409": {
-            "description": "`PRODUCT_DISCONTINUED` — El producto está descatalogado y su ficha no admite cambios; hay que reactivarlo antes.\n`PRODUCT_VERSION_CONFLICT` — Otro operador modificó el producto después de que este lo leyera.",
+            "description": "`PRODUCT_DISCONTINUED` — El producto está descatalogado y su ficha no admite cambios; hay que reactivarlo antes.\n`PRODUCT_SLUG_CONFLICT` — Otra escritura simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre.\n`PRODUCT_VERSION_CONFLICT` — Otro operador modificó el producto después de que este lo leyera.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1327,6 +1335,14 @@ var KEEL_SPEC = {
                       "status": 409,
                       "code": "PRODUCT_DISCONTINUED",
                       "message": "El producto está descatalogado y su ficha no admite cambios; hay que reactivarlo antes."
+                    }
+                  },
+                  "PRODUCT_SLUG_CONFLICT": {
+                    "summary": "Otra escritura simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre.",
+                    "value": {
+                      "status": 409,
+                      "code": "PRODUCT_SLUG_CONFLICT",
+                      "message": "Otra escritura simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre."
                     }
                   },
                   "PRODUCT_VERSION_CONFLICT": {

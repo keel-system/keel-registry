@@ -13,7 +13,7 @@
       "variant": null,
       "service": {
         "name": "catalog",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "dsl": "2.4",
         "domain": "commerce",
         "basedOn": null,

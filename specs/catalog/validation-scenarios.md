@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.2.0. Contrato de validación para la fase de generación.
+> specs/catalog v0.3.0. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -324,6 +324,9 @@ cabecera `Idempotency-Key: key-001`
 2. La marca existe → `BRAND_NOT_FOUND` (`422`).
 3. La categoría existe → `CATEGORY_NOT_FOUND` (`422`).
 4. La clave de idempotencia no se usó con otro contenido → `IDEMPOTENCY_KEY_REUSED` (`409`).
+5. El slug derivado (con su sufijo) sigue libre en el instante de escribir → `PRODUCT_SLUG_CONFLICT`
+   (`409`). Es la única guarda que se dispara por una carrera, no por el estado leído al validar las
+   guardas 1-4.
 
 **Casos borde**:
 - `sku: "SKU-001"` de nuevo, sin cabecera de idempotencia → `409`, `code: SKU_ALREADY_EXISTS`.
@@ -339,6 +342,13 @@ cabecera `Idempotency-Key: key-001`
   precede a la 3.
 - Dos altas con el mismo `sku` en paralelo: una responde `201` y la otra `409`
   (`SKU_ALREADY_EXISTS`); `listProducts` devuelve `totalElements: 1`.
+- Dos altas en paralelo con el mismo `name` (y por tanto el mismo slug candidato): una responde
+  `201` y la otra `409`, `code: PRODUCT_SLUG_CONFLICT` — la que pierde la carrera **no** reintenta
+  en silencio con el siguiente sufijo; `listProducts` devuelve `totalElements: 1` y el slug del
+  producto creado es el que ninguna de las dos había leído como ocupado. No es reproducible con dos
+  peticiones secuenciales: en secuencial, la segunda siempre ve el slug de la primera ya escrito y
+  deriva el sufijo libre sin error (validado por el `slug: "..."` recalculado en escenarios como
+  FL-BRD-001).
 
 **Notas de determinación**: `id`, `lockVersion`, `createdAt` y `updatedAt` se verifican por forma;
 `sku` se compara por valor **ya normalizado a mayúsculas**.
@@ -386,6 +396,10 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 4. La categoría existe → `CATEGORY_NOT_FOUND` (`422`).
 5. Si el producto está `active`, el nuevo `price` es mayor que cero → `PRODUCT_NOT_PUBLISHABLE` (`422`).
 6. El `lockVersion` coincide con el vigente → `PRODUCT_VERSION_CONFLICT` (`409`).
+7. Si el `name` cambió y el producto sigue en `draft` sin publicar nunca (el slug se recalcula): el
+   slug derivado sigue libre en el instante de escribir → `PRODUCT_SLUG_CONFLICT` (`409`). No aplica
+   si el slug está congelado (producto ya publicado alguna vez): entonces no hay recálculo y esta
+   guarda no se evalúa.
 
 **Ramas condicionales**:
 - El `slug` **solo** se recalcula si el producto sigue en `draft` y nunca se publicó. Un producto
@@ -400,6 +414,10 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 - `categoryId` inexistente **y** `lockVersion` viejo → `422`, `code: CATEGORY_NOT_FOUND`: la guarda
   4 precede a la 6.
 - `lockVersion` ausente → `400`.
+- Dos ediciones en paralelo sobre dos productos `draft` distintos, ambos aún sin publicar, que
+  cambian su `name` al mismo valor: una responde `200` con el slug recalculado y la otra `409`,
+  `code: PRODUCT_SLUG_CONFLICT` — misma carrera que en el alta (FL-PRD-001), aplicada al recálculo.
+  Un producto ya publicado alguna vez nunca entra en esta carrera: su slug está congelado.
 
 ---
 
