@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.1.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.2.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -72,6 +72,8 @@ De los casos de uso:
   nulo. No hay semántica de fusión.
 - La referencia producto→marca y producto→categoría es una **restricción de integridad**, no una
   comprobación previa: es lo que cierra la carrera entre crear un producto y borrar su marca.
+- Los tres borrados son **idempotentes**: repetirlos sobre un recurso que ya no existe responde
+  `204` y no cambia nada. Un `204` no implica, por tanto, que se haya publicado evento de borrado.
 - Los filtros de texto (`name`, `sku`) buscan coincidencia parcial sin distinguir mayúsculas ni
   acentos.
 
@@ -84,12 +86,15 @@ De los casos de uso:
 `listProducts` consultan en cualquier estado, con filtros de gestión (nombre, sku, estado, marca,
 categoría) y orden por `updatedAt` descendente.
 
-**Galería** (back-office). `addProductImage` (idempotente, devuelve la imagen creada con su id),
-`setPrimaryProductImage`, `reorderProductImages` y `removeProductImage`. Las cuatro operan sobre el
-agregado a través de la raíz.
+**Galería** (back-office). `addProductImage` (idempotente por clave de cliente, devuelve la imagen
+creada con su id), `setPrimaryProductImage`, `reorderProductImages` y `removeProductImage`. Las
+cuatro operan sobre el agregado a través de la raíz. `removeProductImage` es un `DELETE`
+**idempotente**: responde `204` sin cuerpo tanto si eliminó la imagen como si ya no estaba, y solo
+publica `ProductUpdated` cuando hubo eliminación real. El producto de la ruta sí tiene que existir.
 
 **Taxonomía** (back-office). `createBrand` / `updateBrand` / `deleteBrand` y sus tres equivalentes
-de categoría. El borrado se rechaza si hay productos que la referencian.
+de categoría. El borrado se rechaza si hay productos que la referencian, y —como el de imágenes— es
+idempotente: sobre una marca o categoría que ya no existe responde `204` sin publicar evento.
 
 **Tienda** (público, sin credencial). `listPublicProducts` con los cuatro filtros pedidos —categoría,
 marca, nombre y rango de precio— paginado y ordenado por nombre, y `getPublicProduct` por slug. Las
@@ -142,6 +147,7 @@ lo que expone es suyo. Las fronteras son de salida.
 | **Frontera transaccional** | `per-aggregate` | Ninguna operación escribe dos agregados a la vez, así que la transacción por agregado basta y contiende menos | `per-operation` |
 | **Concurrencia** | Bloqueo optimista solo en `Product`, con `409` | Un operador no debe ver desaparecer su cambio de precio sin aviso. La taxonomía la edita un admin de tanto en tanto: ahí gana la última escritura, dicho a sabiendas | Último gana en todo |
 | **Idempotencia** | `client-key` en `createProduct` y `addProductImage`, 24 h | El reintento tras un timeout no debe producir un alta duplicada ni una foto repetida, ni un `409` confuso | `payload-hash` (dos altas legítimas idénticas colisionarían) y sin idempotencia |
+| **`DELETE` idempotente** | Los tres borrados (`deleteBrand`, `deleteCategory`, `removeProductImage`) responden `204` también cuando el recurso ya no está, y por eso no declaran un error de «no encontrado». El evento de borrado sale solo si hubo eliminación real | Un reintento de red tras un `204` perdido no debe ensuciar el cliente con un `404` que describe un éxito. La idempotencia cubre la ausencia del recurso, nunca las invariantes: `BRAND_IN_USE`, `CATEGORY_IN_USE`, `PRODUCT_DISCONTINUED` y `LAST_IMAGE_OF_ACTIVE_PRODUCT` se siguen evaluando | `404` al repetir (`BRAND_NOT_FOUND`, `CATEGORY_NOT_FOUND`, `PRODUCT_IMAGE_NOT_FOUND` en esas operaciones): delata el borrado doble como bug del cliente, a cambio de que un reintento legítimo sea indistinguible de un error. También se descartó extender la idempotencia al `productId` de `removeProductImage`, que dejaría pasar un typo en la ruta como éxito |
 | **Caché** | 300 s en las dos lecturas públicas, con cinco vías de invalidación | La tienda es la carga dominante. Como la respuesta embebe marca y categoría, la elección **obligó** a publicar `BrandUpdated` y `CategoryUpdated`: sin ellos, renombrar una marca tardaría 5 min en verse y nada lo delataría | Cachear solo la ficha; no cachear |
 | **Superficie M2M** | Operaciones propias con `audience: services` | Los dos contratos ya divergen: el M2M devuelve productos en cualquier estado, cosa que la tienda nunca debe ver. Compartir endpoint sería compartir output, errores y scopes | `audience: both` |
 | **Auditoría** | `declared` en `Product`; **ninguna** en `Brand` y `Category` | Los cuatro campos son contrato porque el back-office muestra quién tocó cada ficha. Se quitaron de la taxonomía porque el DSL **no permite recortar un objeto `embed`**: con ellos, la marca anidada en cada ficha pública habría filtrado el nombre del operador que la creó | Mantener la auditoría en la taxonomía y aceptar la fuga; quitar el `embed` de las superficies públicas |
@@ -167,7 +173,8 @@ lo que expone es suyo. Las fronteras son de salida.
 dos endpoints `audience: services` y sus scopes; los cuatro endpoints públicos y la forma de sus
 filtros; el prefijo `/api/v1` (una ruptura abre `/api/v2`, que convive con la anterior mientras los
 tres consumidores migran); los nombres de rol y permiso; el nombre lógico de los canales y del
-bucket.
+bucket; y la **semántica idempotente de los tres `DELETE`** —un cliente que trate el `204` repetido
+como éxito se rompe si algún derivado vuelve a introducir el `404`.
 
 **Adaptable** sin romper a nadie: las `rules` y `preconditions` de los casos de uso; los TTL y las
 vías de invalidación de la caché; la ventana de idempotencia; los límites del bucket

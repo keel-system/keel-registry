@@ -389,7 +389,7 @@
           ]
         },
         {
-          "name": "FL-BRD-010 · G — Borrado repetido (404 BRAND_NOT_FOUND)",
+          "name": "FL-BRD-010 · G — Borrado repetido, idempotente (204)",
           "request": {
             "method": "DELETE",
             "header": [
@@ -406,8 +406,33 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 404', () => pm.response.to.have.status(404));",
-                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('BRAND_NOT_FOUND'));"
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('sin cuerpo', () => pm.expect(pm.response.text()).to.be.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-010 · H — Borrado de un id que nunca existió (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/00000000-0000-4000-8000-000000000000"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('sin cuerpo', () => pm.expect(pm.response.text()).to.be.empty);"
                 ]
               }
             }
@@ -791,6 +816,31 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-010 · G — Borrado repetido, idempotente (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories/{{freeCategoryId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('sin cuerpo', () => pm.expect(pm.response.text()).to.be.empty);"
                 ]
               }
             }
@@ -2300,6 +2350,81 @@
           ]
         },
         {
+          "name": "FL-IMG-001 · J2 — Borrado repetido de la misma imagen, idempotente (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/{{imageId2}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('sin cuerpo', () => pm.expect(pm.response.text()).to.be.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · J3 — Borrado de un imageId inexistente, idempotente (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/00000000-0000-4000-8000-000000000000"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('sin cuerpo', () => pm.expect(pm.response.text()).to.be.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · J4 — Borrado sobre un productId inexistente (404 PRODUCT_NOT_FOUND)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/00000000-0000-4000-8000-000000000000/images/{{imageId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "FL-IMG-001 · K — Publicar el producto (200)",
           "request": {
             "method": "POST",
@@ -2928,7 +3053,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.1.0"
+      "value": "0.2.0"
     },
     {
       "key": "brandId",

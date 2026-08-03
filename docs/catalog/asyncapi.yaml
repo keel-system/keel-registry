@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: catalog
-  version: 0.1.0
+  version: 0.2.0
   description: 'Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías,
     los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores
     por consulta directa y por eventos.
@@ -63,7 +63,9 @@ operations:
     action: send
     channel:
       $ref: '#/channels/productEvents'
-    summary: Cambió la ficha comercial de un producto, su galería de imágenes o su imagen principal.
+    summary: 'Cambió la ficha comercial de un producto, su galería de imágenes o su imagen principal. Desde
+      removeProductImage solo se publica cuando se eliminó una imagen: ese borrado es idempotente y repetirlo
+      responde 204 sin emitir este evento.'
     messages:
     - $ref: '#/channels/productEvents/messages/ProductUpdated'
     x-keel-emitted-by:
@@ -106,7 +108,9 @@ operations:
     action: send
     channel:
       $ref: '#/channels/taxonomyEvents'
-    summary: Se eliminó una marca. Quien mantenga una copia de la taxonomía debe purgarla.
+    summary: 'Se eliminó una marca. Quien mantenga una copia de la taxonomía debe purgarla. Solo se publica cuando
+      hubo eliminación real: deleteBrand es idempotente y una repetición sobre una marca que ya no existe responde
+      204 sin emitir este evento.'
     messages:
     - $ref: '#/channels/taxonomyEvents/messages/BrandDeleted'
     x-keel-emitted-by:
@@ -133,7 +137,9 @@ operations:
     action: send
     channel:
       $ref: '#/channels/taxonomyEvents'
-    summary: Se eliminó una categoría. Quien mantenga una copia de la taxonomía debe purgarla.
+    summary: 'Se eliminó una categoría. Quien mantenga una copia de la taxonomía debe purgarla. Solo se publica
+      cuando hubo eliminación real: deleteCategory es idempotente y una repetición sobre una categoría que ya no
+      existe responde 204 sin emitir este evento.'
     messages:
     - $ref: '#/channels/taxonomyEvents/messages/CategoryDeleted'
     x-keel-emitted-by:

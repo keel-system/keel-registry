@@ -1,6 +1,6 @@
 ---
 service: catalog
-version: 0.1.0
+version: 0.2.0
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -305,6 +305,8 @@ ficha completa ya actualizada, así que no necesitas llamar de vuelta.
 - **Canal**: `productEvents`
 - **Emitido por**: `updateProduct`, `addProductImage`, `removeProductImage`,
   `setPrimaryProductImage`, `reorderProductImages`
+- **Desde `removeProductImage`, solo cuando se eliminó una imagen**: ese borrado es idempotente y
+  repetirlo responde `204` sin publicar este evento.
 
 Mismo payload que `ProductCreated`.
 
@@ -365,6 +367,9 @@ huérfanas.
 
 - **Canal**: `taxonomyEvents`
 - **Emitido por**: `deleteBrand`
+- **Solo cuando hubo borrado real**: `deleteBrand` es idempotente y responde `204` también sobre una
+  marca que ya no existe; en ese caso **no** publica este evento. No esperes un evento por cada
+  llamada de borrado que veas tener éxito.
 
 ```json
 {
@@ -406,6 +411,8 @@ marcas, solo se borra una categoría que ningún producto referencia.
 
 - **Canal**: `taxonomyEvents`
 - **Emitido por**: `deleteCategory`
+- **Solo cuando hubo borrado real**: igual que `BrandDeleted`, un `deleteCategory` repetido responde
+  `204` sin publicar un segundo evento.
 
 ```json
 {

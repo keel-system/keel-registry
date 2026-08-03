@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.0 -->
+<!-- keel:version 0.2.0 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,10 +188,10 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.",
     "domain": "commerce",
-    "generatedAt": "2026-08-02"
+    "generatedAt": "2026-08-03"
   },
   "links": [
     {
@@ -1058,22 +1058,17 @@ const KEEL = {
         ]
       },
       "output": {
-        "kind": "entity",
-        "entity": "Product",
-        "list": false,
-        "paginated": false,
-        "embed": [
-          "brand",
-          "category"
-        ]
+        "kind": "void"
       },
       "preconditions": [
-        "El producto existe, no está descatalogado y la imagen pertenece a ese producto."
+        "El producto existe y no está descatalogado."
       ],
       "rules": [
+        "El borrado es idempotente: si imageId no está en la galería del producto —porque ya se borró o porque pertenece a otro producto— la operación no hace nada y responde igual que si hubiera borrado.",
         "Las position de las imágenes restantes se recompactan para no dejar huecos.",
         "Si se elimina la imagen isPrimary y quedan otras, la de menor position pasa a ser la principal.",
-        "El archivo se elimina del bucket junto con la imagen; no se conservan objetos huérfanos."
+        "El archivo se elimina del bucket junto con la imagen; no se conservan objetos huérfanos.",
+        "ProductUpdated se publica solo si se eliminó una imagen; una repetición que no cambia nada no emite evento."
       ],
       "errors": [
         {
@@ -1085,11 +1080,6 @@ const KEEL = {
           "code": "PRODUCT_DISCONTINUED",
           "http": 409,
           "when": "El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes."
-        },
-        {
-          "code": "PRODUCT_IMAGE_NOT_FOUND",
-          "http": 404,
-          "when": "La imagen indicada no pertenece a ese producto."
         },
         {
           "code": "LAST_IMAGE_OF_ACTIVE_PRODUCT",
@@ -1400,17 +1390,14 @@ const KEEL = {
         "kind": "void"
       },
       "preconditions": [
-        "La marca existe y ningún producto la referencia."
+        "Ningún producto referencia la marca."
       ],
       "rules": [
-        "La referencia producto-marca es una restricción de integridad: si un producto se crea con esa marca mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a BRAND_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera."
+        "El borrado es idempotente: si no existe una marca con ese id la operación no hace nada y responde igual que si la hubiera borrado.",
+        "La referencia producto-marca es una restricción de integridad: si un producto se crea con esa marca mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a BRAND_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera.",
+        "BrandDeleted se publica solo si se eliminó una marca; una repetición que no cambia nada no emite evento."
       ],
       "errors": [
-        {
-          "code": "BRAND_NOT_FOUND",
-          "http": 404,
-          "when": "No existe una marca con ese id."
-        },
         {
           "code": "BRAND_IN_USE",
           "http": 409,
@@ -1579,17 +1566,14 @@ const KEEL = {
         "kind": "void"
       },
       "preconditions": [
-        "La categoría existe y ningún producto la referencia."
+        "Ningún producto referencia la categoría."
       ],
       "rules": [
-        "La referencia producto-categoría es una restricción de integridad: si un producto se crea con esa categoría mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a CATEGORY_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera."
+        "El borrado es idempotente: si no existe una categoría con ese id la operación no hace nada y responde igual que si la hubiera borrado.",
+        "La referencia producto-categoría es una restricción de integridad: si un producto se crea con esa categoría mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a CATEGORY_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera.",
+        "CategoryDeleted se publica solo si se eliminó una categoría; una repetición que no cambia nada no emite evento."
       ],
       "errors": [
-        {
-          "code": "CATEGORY_NOT_FOUND",
-          "http": 404,
-          "when": "No existe una categoría con ese id."
-        },
         {
           "code": "CATEGORY_IN_USE",
           "http": 409,

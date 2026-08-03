@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.1.0. Contrato de validación para la fase de generación.
+> specs/catalog v0.2.0. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -37,7 +37,15 @@ Valen para **todo** el servicio y ningún escenario las repite.
 - **`BRAND_NOT_FOUND` y `CATEGORY_NOT_FOUND` llevan status distinto según la operación**, y es
   deliberado: `422` cuando son una referencia inválida dentro del alta o la edición de un producto
   (el recurso de la petición sí existe), y `404` cuando son el recurso de la propia petición
-  (`updateBrand`, `deleteBrand`, `updateCategory`, `deleteCategory`). Cada escenario lo dice.
+  (`updateBrand`, `updateCategory`). Cada escenario lo dice.
+- **Los tres `DELETE` del servicio son idempotentes** y por eso ninguno declara un error de «no
+  encontrado»: `deleteBrand`, `deleteCategory` y `removeProductImage` responden `204` sin cuerpo
+  tanto si eliminaron algo como si el recurso ya no estaba. El evento de borrado se publica **solo**
+  cuando hubo eliminación real, así que un `204` no implica evento. Las guardas que sí quedan
+  (`BRAND_IN_USE`, `CATEGORY_IN_USE`, `PRODUCT_DISCONTINUED`, `LAST_IMAGE_OF_ACTIVE_PRODUCT`) se
+  siguen evaluando y siguen fallando; la idempotencia cubre la ausencia del recurso, no las
+  invariantes. `removeProductImage` es idempotente respecto a la **imagen**, no al producto de la
+  ruta: un `productId` inexistente sigue siendo `404`.
 - **Sobre de paginación**: `{ items, page, size, totalElements, totalPages }`, con `page` en base 0.
   Se pide con los query params `page` y `size`. `size` por defecto 20, tope 100; un `size` mayor
   **se recorta** a 100, no da error. Es contrato canónico del DSL, igual en todo generador.
@@ -190,15 +198,17 @@ producto `p1` (`sku: "SKU-001"`, marca `b1`, categoría `c1`), creado dentro de 
 5. Se publica `BrandDeleted` en `taxonomyEvents` con `brandId` (el de `b2`), `slug: "adidas"` y
    `deletedAt` (forma de instante).
 6. `listBrands` devuelve `totalElements: 1` y ya no incluye `b2`.
-7. `deleteBrand` sobre `b2` otra vez → `404`, `code: BRAND_NOT_FOUND`.
+7. `deleteBrand` sobre `b2` otra vez → `204`, sin cuerpo: el borrado es idempotente.
+8. Esa repetición **no** publica un segundo `BrandDeleted`: el evento solo sale cuando algo se
+   eliminó de verdad. `listBrands` sigue devolviendo `totalElements: 1`.
 
 **Orden de evaluación** (`deleteBrand`):
-1. La marca existe → `BRAND_NOT_FOUND` (`404`).
-2. Ningún producto la referencia → `BRAND_IN_USE` (`409`).
+1. Ningún producto la referencia → `BRAND_IN_USE` (`409`).
+2. Si no existe una marca con ese id, no hay guarda que falle: `204` sin efecto.
 
 **Casos borde**:
-- `deleteBrand` sobre un id inexistente → `404`, `code: BRAND_NOT_FOUND`, aunque otra marca sí
-  estuviera en uso: la guarda 1 precede a la 2.
+- `deleteBrand` sobre un id inexistente → `204`, sin cuerpo y sin evento, aunque otra marca sí
+  estuviera en uso: la guarda de integridad solo mira la marca indicada.
 - La referencia producto→marca es una **restricción de integridad**: si `createProduct` con la marca
   `b2` confirma a la vez que su borrado, una de las dos escrituras falla; el borrado que pierde
   responde `BRAND_IN_USE` (`409`) y el producto no queda nunca con una marca inexistente.
@@ -248,9 +258,11 @@ con `categoryId`, `name`, `slug` y `updatedAt`.
 ### FL-CTG-010: borrado de una categoría, en uso y libre
 
 Simétrico a FL-BRD-010, con `deleteCategory` — `DELETE /api/v1/management/categories/{categoryId}`,
-los códigos `CATEGORY_IN_USE` (`409`) y `CATEGORY_NOT_FOUND` (`404`), y el evento `CategoryDeleted`
-en `taxonomyEvents` con `categoryId`, `slug` y `deletedAt`. Mismo orden de evaluación y misma
-garantía de integridad referencial frente a la carrera con `createProduct`.
+el código `CATEGORY_IN_USE` (`409`) y el evento `CategoryDeleted` en `taxonomyEvents` con
+`categoryId`, `slug` y `deletedAt`. Mismo orden de evaluación, misma **idempotencia** (repetir el
+borrado sobre una categoría ya eliminada, o sobre un id inexistente, responde `204` sin cuerpo y sin
+publicar un segundo `CategoryDeleted`) y misma garantía de integridad referencial frente a la carrera
+con `createProduct`.
 
 ---
 
@@ -618,13 +630,22 @@ distintas
     la imagen.
 23. Se publica `ProductUpdated`.
 
+**When**: `removeProductImage` sobre `img3` **otra vez**, y después sobre un `imageId` que nunca
+existió
+
+**Then**:
+24. Status `204` en ambas, sin cuerpo: el borrado es idempotente.
+25. `getProduct` sigue devolviendo las mismas 2 imágenes, con `position` `0` y `1` y `img1` como
+    principal: ninguna de las dos repeticiones altera la galería.
+26. Ninguna de las dos publica `ProductUpdated`: el evento solo sale cuando se eliminó una imagen.
+
 **When**: se publica `p1` (queda `active` con 2 imágenes), se borra una y se intenta borrar la
 última
 
 **Then**:
-24. Status `422`, `code: LAST_IMAGE_OF_ACTIVE_PRODUCT`: un producto `active` no puede quedarse sin
+27. Status `422`, `code: LAST_IMAGE_OF_ACTIVE_PRODUCT`: un producto `active` no puede quedarse sin
     imágenes.
-25. `getProduct` sigue devolviendo 1 imagen.
+28. `getProduct` sigue devolviendo 1 imagen.
 
 **Orden de evaluación** (`addProductImage`):
 1. El producto existe → `PRODUCT_NOT_FOUND` (`404`).
@@ -634,12 +655,20 @@ distintas
 5. El archivo no supera 5 MB → `FILE_TOO_LARGE` (`413`).
 6. La clave de idempotencia no se usó con otro contenido → `IDEMPOTENCY_KEY_REUSED` (`409`).
 
-**Orden de evaluación** (`removeProductImage`, `setPrimaryProductImage`):
+**Orden de evaluación** (`setPrimaryProductImage`):
 1. El producto existe → `PRODUCT_NOT_FOUND` (`404`).
 2. El producto no está descatalogado → `PRODUCT_DISCONTINUED` (`409`).
 3. La imagen pertenece a ese producto → `PRODUCT_IMAGE_NOT_FOUND` (`404`).
-4. Solo en `removeProductImage`: no es la última imagen de un producto `active` →
-   `LAST_IMAGE_OF_ACTIVE_PRODUCT` (`422`).
+
+**Orden de evaluación** (`removeProductImage`):
+1. El producto existe → `PRODUCT_NOT_FOUND` (`404`). El producto de la ruta sí tiene que existir:
+   la idempotencia alcanza a la imagen, no al contenedor.
+2. El producto no está descatalogado → `PRODUCT_DISCONTINUED` (`409`).
+3. Si `imageId` no está en la galería de ese producto, no hay guarda que falle: `204` sin efecto.
+   `removeProductImage` **no** declara `PRODUCT_IMAGE_NOT_FOUND`, a diferencia de
+   `setPrimaryProductImage`.
+4. No es la última imagen de un producto `active` → `LAST_IMAGE_OF_ACTIVE_PRODUCT` (`422`). Solo
+   se evalúa si la imagen existe: sobre una imagen ausente gana la guarda 3.
 
 **Orden de evaluación** (`reorderProductImages`):
 1. El producto existe → `PRODUCT_NOT_FOUND` (`404`).
@@ -653,8 +682,15 @@ distintas
 - Subir una 11.ª imagen → `422`, `code: TOO_MANY_PRODUCT_IMAGES`.
 - Un PDF sobre un producto inexistente → `404`, `code: PRODUCT_NOT_FOUND`: la guarda 1 precede a la 4.
 - `altText` ausente → `400`; `altText` de 161 caracteres → `400`.
-- `removeProductImage` con un `imageId` de **otro** producto → `404`,
-  `code: PRODUCT_IMAGE_NOT_FOUND`.
+- `removeProductImage` con un `imageId` de **otro** producto → `204`, sin cuerpo y sin evento: no
+  está en la galería del producto de la ruta, y la operación no distingue ese caso de una imagen ya
+  borrada. La imagen ajena **no** se elimina: `getProduct` sobre su producto sigue devolviéndola.
+- `setPrimaryProductImage` con un `imageId` de **otro** producto → `404`,
+  `code: PRODUCT_IMAGE_NOT_FOUND`: esa operación no es idempotente y sí distingue el caso.
+- `removeProductImage` sobre un producto **descatalogado**, con un `imageId` inexistente → `409`,
+  `code: PRODUCT_DISCONTINUED`: la guarda 2 precede a la 3, y la idempotencia no la salta.
+- `removeProductImage` sobre un `productId` inexistente → `404`, `code: PRODUCT_NOT_FOUND`, incluso
+  con un `imageId` también inexistente: el contenedor de la ruta queda fuera de la idempotencia.
 - `reorderProductImages` con la lista a la que le falta una imagen, o con una repetida, o con una
   ajena → `422`, `code: IMAGE_SET_MISMATCH` en los tres casos.
 - `reorderProductImages` con `imageIds: []` → `400` (`required` sobre una lista significa presente

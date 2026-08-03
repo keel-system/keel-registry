@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.0 -->
+<!-- keel:version 0.2.0 -->
 <!--
   Visor de contratos Keel — plantilla de forma fija, común a OpenAPI y AsyncAPI.
   NO edites el markup, el CSS ni el JS al generar. Copia este archivo tal cual y sustituye
@@ -107,7 +107,7 @@ var KEEL_SPEC = {
   "openapi": "3.1.0",
   "info": {
     "title": "catalog",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.\n\nContrato HTTP derivado del diseño Keel. Tres superficies separadas por prefijo de ruta:\n\n- `/products`, `/brands`, `/categories` — tienda, sin credencial, solo productos a la venta.\n- `/management/...` — back-office, token de usuario con el permiso de la operación.\n- `/services/...` — otros servidores, credencial de máquina con el scope `product:read`.\n\nEl host, el proveedor de identidad y el motor de persistencia se deciden al generar, no aquí.",
     "license": {
       "name": "Apache-2.0",
@@ -495,7 +495,7 @@ var KEEL_SPEC = {
         "tags": [
           "Back-office"
         ],
-        "description": "**Precondiciones**\n\n- La marca existe y ningún producto la referencia.\n\n**Reglas**\n\n- La referencia producto-marca es una restricción de integridad: si un producto se crea con esa marca mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a BRAND_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera.\n\n**Eventos emitidos**: `BrandDeleted` (ver `asyncapi.yaml`).",
+        "description": "**Precondiciones**\n\n- Ningún producto referencia la marca.\n\n**Reglas**\n\n- El borrado es idempotente: si no existe una marca con ese id la operación no hace nada y responde igual que si la hubiera borrado.\n- La referencia producto-marca es una restricción de integridad: si un producto se crea con esa marca mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a BRAND_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera.\n- BrandDeleted se publica solo si se eliminó una marca; una repetición que no cambia nada no emite evento.\n\n**Eventos emitidos**: `BrandDeleted` (ver `asyncapi.yaml`).",
         "parameters": [
           {
             "name": "brandId",
@@ -527,26 +527,6 @@ var KEEL_SPEC = {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`BRAND_NOT_FOUND` — No existe una marca con ese id.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "examples": {
-                  "BRAND_NOT_FOUND": {
-                    "summary": "No existe una marca con ese id.",
-                    "value": {
-                      "status": 404,
-                      "code": "BRAND_NOT_FOUND",
-                      "message": "No existe una marca con ese id."
-                    }
-                  }
                 }
               }
             }
@@ -822,7 +802,7 @@ var KEEL_SPEC = {
         "tags": [
           "Back-office"
         ],
-        "description": "**Precondiciones**\n\n- La categoría existe y ningún producto la referencia.\n\n**Reglas**\n\n- La referencia producto-categoría es una restricción de integridad: si un producto se crea con esa categoría mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a CATEGORY_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera.\n\n**Eventos emitidos**: `CategoryDeleted` (ver `asyncapi.yaml`).",
+        "description": "**Precondiciones**\n\n- Ningún producto referencia la categoría.\n\n**Reglas**\n\n- El borrado es idempotente: si no existe una categoría con ese id la operación no hace nada y responde igual que si la hubiera borrado.\n- La referencia producto-categoría es una restricción de integridad: si un producto se crea con esa categoría mientras se borra, una de las dos escrituras falla y el borrado se traduce igualmente a CATEGORY_IN_USE. Comprobar y borrar sin esa garantía deja una ventana de carrera.\n- CategoryDeleted se publica solo si se eliminó una categoría; una repetición que no cambia nada no emite evento.\n\n**Eventos emitidos**: `CategoryDeleted` (ver `asyncapi.yaml`).",
         "parameters": [
           {
             "name": "categoryId",
@@ -854,26 +834,6 @@ var KEEL_SPEC = {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "examples": {
-                  "CATEGORY_NOT_FOUND": {
-                    "summary": "No existe una categoría con ese id.",
-                    "value": {
-                      "status": 404,
-                      "code": "CATEGORY_NOT_FOUND",
-                      "message": "No existe una categoría con ese id."
-                    }
-                  }
                 }
               }
             }
@@ -1898,7 +1858,7 @@ var KEEL_SPEC = {
         "tags": [
           "Back-office"
         ],
-        "description": "**Precondiciones**\n\n- El producto existe, no está descatalogado y la imagen pertenece a ese producto.\n\n**Reglas**\n\n- Las position de las imágenes restantes se recompactan para no dejar huecos.\n- Si se elimina la imagen isPrimary y quedan otras, la de menor position pasa a ser la principal.\n- El archivo se elimina del bucket junto con la imagen; no se conservan objetos huérfanos.\n\n**Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).",
+        "description": "**Precondiciones**\n\n- El producto existe y no está descatalogado.\n\n**Reglas**\n\n- El borrado es idempotente: si imageId no está en la galería del producto —porque ya se borró o porque pertenece a otro producto— la operación no hace nada y responde igual que si hubiera borrado.\n- Las position de las imágenes restantes se recompactan para no dejar huecos.\n- Si se elimina la imagen isPrimary y quedan otras, la de menor position pasa a ser la principal.\n- El archivo se elimina del bucket junto con la imagen; no se conservan objetos huérfanos.\n- ProductUpdated se publica solo si se eliminó una imagen; una repetición que no cambia nada no emite evento.\n\n**Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).",
         "parameters": [
           {
             "name": "productId",
@@ -1944,7 +1904,7 @@ var KEEL_SPEC = {
             }
           },
           "404": {
-            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.\n`PRODUCT_IMAGE_NOT_FOUND` — La imagen indicada no pertenece a ese producto.",
+            "description": "`PRODUCT_NOT_FOUND` — No existe un producto con ese id.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1957,14 +1917,6 @@ var KEEL_SPEC = {
                       "status": 404,
                       "code": "PRODUCT_NOT_FOUND",
                       "message": "No existe un producto con ese id."
-                    }
-                  },
-                  "PRODUCT_IMAGE_NOT_FOUND": {
-                    "summary": "La imagen indicada no pertenece a ese producto.",
-                    "value": {
-                      "status": 404,
-                      "code": "PRODUCT_IMAGE_NOT_FOUND",
-                      "message": "La imagen indicada no pertenece a ese producto."
                     }
                   }
                 }
