@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.3.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.3.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -25,13 +25,16 @@ kebab-case), `Price` (decimal ≥ 0 con escala 2) y `ProductStatus` (enum `draft
 
 | Entidad | Campos | Notas |
 |---|---|---|
-| `Product` | `id`, `sku` (único), `name`, `slug` (único), `description`, `price`, `status`, `lockVersion`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy` | `slug` es `computed`; `id`, `lockVersion` y los cuatro de auditoría son `generated`. Relaciones: `brand` y `category` (many-to-one, obligatorias) e `images` (one-to-many) |
+| `Product` | `id`, `sku` (único), `name`, `slug` (único), `description`, `price`, `status`, `slugFrozen`, `lockVersion`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy` | `slug` es `computed`; `id`, `slugFrozen`, `lockVersion` y los cuatro de auditoría son `generated`. `slugFrozen` es además el **único campo `sensitive`** del servicio. Relaciones: `brand` y `category` (many-to-one, obligatorias) e `images` (one-to-many) |
 | `ProductImage` | `id`, `file` (bucket `productImages`), `altText`, `position`, `isPrimary` | Entidad hija: tiene identidad propia porque se referencia, se reordena y se borra una a una |
 | `Brand` | `id`, `name` (único), `slug` (único, `computed`), `description` | Sin campos de auditoría, a propósito (ver § 6) |
 | `Category` | `id`, `name` (único), `slug` (único, `computed`), `description` | Ídem |
 
-No hay ningún campo `sensitive`: el catálogo no guarda secretos. La protección de los datos internos
-—quién editó cada ficha— se hace recortando la proyección por superficie, no marcando campos.
+El catálogo no guarda secretos, y la protección de los datos internos —quién editó cada ficha— se
+hace recortando la proyección por superficie, no marcando campos. El único `sensitive` es
+`slugFrozen`, y no por confidencialidad: es **estado interno** que ninguna de las tres superficies
+necesita ver, y marcarlo lo mantiene fuera de los outputs y de los payloads de evento sin tener que
+recordarlo en cada `exclude`.
 
 **Agregados.** Tres: `Product` (raíz, con `ProductImage` dentro), `Brand` y `Category`. El producto
 y sus imágenes cambian siempre en la misma transacción; la marca y la categoría son fronteras
@@ -57,8 +60,11 @@ Del dominio:
 - El `sku` es **inmutable** una vez creado el producto.
 - Un producto `active` tiene `price` mayor que cero **y al menos una imagen**.
 - Solo los productos `active` son visibles en la superficie pública.
-- El `slug` de un producto que ya se publicó alguna vez **no vuelve a cambiar**, aunque cambie su
-  nombre.
+- `slugFrozen` **nunca pasa de verdadero a falso**: se echa la primera vez que el producto alcanza
+  `active` y sigue echado aunque después se despublique o se descatalogue.
+- Mientras `slugFrozen` es falso el `slug` se recalcula al cambiar el `name`; en cuanto es verdadero,
+  el `slug` **no vuelve a cambiar**. El congelado depende de la **historia** del producto, no de su
+  estado actual: dos productos en `draft` se comportan distinto según hayan pasado o no por `active`.
 - Un producto `discontinued` no admite cambios en su ficha ni en su galería.
 - Un producto con imágenes tiene **exactamente una** `isPrimary`, y no hay dos imágenes con la
   misma `position`.
@@ -156,7 +162,8 @@ lo que expone es suyo. Las fronteras son de salida.
 | **Superficie M2M** | Operaciones propias con `audience: services` | Los dos contratos ya divergen: el M2M devuelve productos en cualquier estado, cosa que la tienda nunca debe ver. Compartir endpoint sería compartir output, errores y scopes | `audience: both` |
 | **Auditoría** | `declared` en `Product`; **ninguna** en `Brand` y `Category` | Los cuatro campos son contrato porque el back-office muestra quién tocó cada ficha. Se quitaron de la taxonomía porque el DSL **no permite recortar un objeto `embed`**: con ellos, la marca anidada en cada ficha pública habría filtrado el nombre del operador que la creó | Mantener la auditoría en la taxonomía y aceptar la fuga; quitar el `embed` de las superficies públicas |
 | **Visibilidad del bucket** | `public` | Material de catálogo pensado para verse, servible y cacheable en el borde. Riesgo asumido: la foto de un producto en `draft` es visible para quien acierte con su URL | `private` con URL firmada: impide cachear en el borde y añade una operación de lectura |
-| **Slug congelado al publicar** | Se recalcula solo mientras el producto está en `draft` | Una corrección ortográfica del título no debe romper los enlaces compartidos ni el posicionamiento de una ficha ya publicada | Recalcular siempre; mantener un historial de slugs con redirección |
+| **Slug congelado al publicar** | Se recalcula solo mientras el pestillo `slugFrozen` está abierto, es decir, hasta la **primera** vez que el producto alcanza `active` | Una corrección ortográfica del título no debe romper los enlaces compartidos ni el posicionamiento de una ficha ya publicada | Recalcular siempre; mantener un historial de slugs con redirección |
+| **El congelado es histórico, no de estado** | `slugFrozen` es un campo persistido (`generated`, `sensitive`) que solo transiciona de falso a verdadero, en vez de derivar el congelado de `status` | Despublicar devuelve el producto a `draft`, y con la regla leída del estado actual el slug se reabriría: renombrar entonces cambiaría una URL que la tienda y los buscadores ya habían indexado. El congelado responde a «¿se publicó **alguna vez**?», que no es derivable de ningún campo actual — de ahí que sea `generated` y no `computed`, marcador este último que prometería una derivación que no existe e invitaría al generador a recalcularlo en cada escritura | Marcarlo `computed` y confiar la monotonicidad a la prosa de la regla; derivar el congelado de `status` sin campo propio (la que produce el bug de la URL reabierta) |
 | **Producto descatalogado inmutable** | `PRODUCT_DISCONTINUED` (409) en las cinco operaciones de edición | La ficha que un pedido histórico referencia no debe cambiar de precio ni de fotos después de vendido. Para tocarla hay que reactivar el producto | Editable como cualquiera |
 | **Sin borrado de productos** | Solo `discontinueProduct` | Un borrado real dejaría referencias rotas en todo consumidor con copia, sin vía de reparación | Borrado real; borrado solo en `draft` |
 | **Borrado de taxonomía bloqueado** | `BRAND_IN_USE` / `CATEGORY_IN_USE` (409) | Ningún producto queda huérfano y ningún consumidor ve una referencia rota. La garantía es de integridad referencial, no un `SELECT` previo, para cerrar la carrera | Cascada (una acción de mantenimiento sacaría cientos de productos de la tienda); baja lógica |
@@ -180,6 +187,10 @@ filtros; el prefijo `/api/v1` (una ruptura abre `/api/v2`, que convive con la an
 tres consumidores migran); los nombres de rol y permiso; el nombre lógico de los canales y del
 bucket; y la **semántica idempotente de los tres `DELETE`** —un cliente que trate el `204` repetido
 como éxito se rompe si algún derivado vuelve a introducir el `404`.
+
+`slugFrozen` **no es contrato**: es `sensitive`, no sale en ninguna respuesta ni payload, y un
+derivado puede sustituirlo por otro mecanismo. Lo que sí es contrato es su efecto observable —que el
+`slug` de un producto publicado no cambia nunca más—, fijado en FL-PRD-020.
 
 **Adaptable** sin romper a nadie: las `rules` y `preconditions` de los casos de uso; los TTL y las
 vías de invalidación de la caché; la ventana de idempotencia; los límites del bucket

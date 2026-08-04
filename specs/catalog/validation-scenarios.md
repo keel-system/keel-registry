@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.3.0. Contrato de validación para la fase de generación.
+> specs/catalog v0.3.1. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -30,6 +30,14 @@ Valen para **todo** el servicio y ningún escenario las repite.
   exacta sobre el valor ya normalizado.
 - **Slug**: se deriva del `name` normalizado a kebab-case (minúsculas, acentos plegados, todo lo que
   no sea `[a-z0-9]` colapsado a un solo guión, sin guiones al principio ni al final).
+- **Congelado del slug de producto**: `Product.slugFrozen` es un **pestillo histórico**, no una
+  función del estado actual. Empieza en falso, se echa la primera vez que el producto alcanza
+  `active` y **no vuelve a abrirse nunca**, ni al despublicar ni al descatalogar. Mientras está
+  abierto, el `slug` se recalcula al cambiar el `name`; una vez echado, el `slug` es inmutable. La
+  distinción es observable y FL-PRD-020 la fija: una implementación que decida el congelado leyendo
+  `status` —recalculando siempre que el producto esté en `draft`— cambia la URL pública de un
+  producto que ya se había indexado. El campo es `sensitive`: **no aparece en ninguna respuesta ni
+  en ningún payload de evento**, así que solo se observa por su efecto sobre el `slug`.
 - **Forma del cuerpo de error**: el servicio tiene **una** forma de error, la que impone el
   generador — `{timestamp, status, error, code, message, details}` más `correlationId`. Los
   escenarios solo fijan el `code` y el status HTTP; el resto de campos se verifica por presencia.
@@ -85,7 +93,9 @@ Derivada de los artefactos; **ninguna enumeración de este documento se aparta d
 **nada más**: la taxonomía no lleva campos de auditoría en ninguna superficie. `images[]` es una
 lista de `{ id, file, altText, position, isPrimary }` ordenada por `position` ascendente.
 `status` tiene `default: draft`, así que **viaja siempre**, incluso en la respuesta de un alta que
-no lo mandó.
+no lo mandó. `slugFrozen`, en cambio, es `sensitive` y **no aparece en ninguna de las tres
+superficies** ni en ningún payload de evento: las cláusulas «ningún campo adicional» de este
+documento lo excluyen igual que a cualquier otro campo no enumerado.
 
 ## Matriz de cobertura
 
@@ -374,8 +384,8 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 **Then**:
 1. Status `200`.
 2. El cuerpo trae `sku: "SKU-001"` **sin cambios** (el sku es inmutable y no está en la entrada),
-   `name: "Zapatilla Runner Pro"`, `slug: "zapatilla-runner-pro"` (recalculado: el producto sigue
-   en `draft` y nunca se publicó), `description: null`, `price: 99.00`, `status: "draft"`,
+   `name: "Zapatilla Runner Pro"`, `slug: "zapatilla-runner-pro"` (recalculado: el pestillo sigue
+   abierto porque el producto nunca alcanzó `active`), `description: null`, `price: 99.00`, `status: "draft"`,
    `brand.id: <b2>` y `brand.name: "Adidas"`.
 3. `lockVersion` es **distinto** del enviado.
 4. `updatedAt` es posterior a `createdAt`; `createdAt` y `createdBy` **no** cambiaron.
@@ -396,14 +406,14 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 4. La categoría existe → `CATEGORY_NOT_FOUND` (`422`).
 5. Si el producto está `active`, el nuevo `price` es mayor que cero → `PRODUCT_NOT_PUBLISHABLE` (`422`).
 6. El `lockVersion` coincide con el vigente → `PRODUCT_VERSION_CONFLICT` (`409`).
-7. Si el `name` cambió y el producto sigue en `draft` sin publicar nunca (el slug se recalcula): el
-   slug derivado sigue libre en el instante de escribir → `PRODUCT_SLUG_CONFLICT` (`409`). No aplica
-   si el slug está congelado (producto ya publicado alguna vez): entonces no hay recálculo y esta
-   guarda no se evalúa.
+7. Si el `name` cambió y el pestillo `slugFrozen` sigue abierto (el slug se recalcula): el slug
+   derivado sigue libre en el instante de escribir → `PRODUCT_SLUG_CONFLICT` (`409`). No aplica con
+   el pestillo echado: entonces no hay recálculo y esta guarda no se evalúa.
 
 **Ramas condicionales**:
-- El `slug` **solo** se recalcula si el producto sigue en `draft` y nunca se publicó. Un producto
-  que ya pasó por `active` conserva su slug aunque cambie el `name` (validado en FL-PRD-020).
+- El `slug` **solo** se recalcula con `slugFrozen` abierto, es decir, mientras el producto no haya
+  alcanzado `active` **ni una sola vez**. Un producto que ya pasó por `active` conserva su slug
+  aunque cambie el `name` y aunque en ese momento esté de vuelta en `draft` (validado en FL-PRD-020).
 - `description` omitida o `null` deja el campo a `null`: la edición es reemplazo completo, nunca
   fusión.
 
@@ -414,10 +424,10 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 - `categoryId` inexistente **y** `lockVersion` viejo → `422`, `code: CATEGORY_NOT_FOUND`: la guarda
   4 precede a la 6.
 - `lockVersion` ausente → `400`.
-- Dos ediciones en paralelo sobre dos productos `draft` distintos, ambos aún sin publicar, que
-  cambian su `name` al mismo valor: una responde `200` con el slug recalculado y la otra `409`,
+- Dos ediciones en paralelo sobre dos productos `draft` distintos, ambos con el pestillo abierto,
+  que cambian su `name` al mismo valor: una responde `200` con el slug recalculado y la otra `409`,
   `code: PRODUCT_SLUG_CONFLICT` — misma carrera que en el alta (FL-PRD-001), aplicada al recálculo.
-  Un producto ya publicado alguna vez nunca entra en esta carrera: su slug está congelado.
+  Un producto que ya alcanzó `active` alguna vez nunca entra en esta carrera: su slug está congelado.
 
 ---
 
@@ -425,8 +435,10 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 
 ### FL-PRD-020: publicar, despublicar, descatalogar y reactivar
 
-**Given**: existen `b1`, `c1` y el producto `p1` (`sku: "SKU-001"`, `name: "Zapatilla Runner"`,
-`price: 89.90`, `status: "draft"`), **sin ninguna imagen**, creados dentro de este flujo.
+**Given**: existen `b1`, `c1`, el producto `p1` (`sku: "SKU-001"`, `name: "Zapatilla Runner"`,
+`price: 89.90`, `status: "draft"`), **sin ninguna imagen**, y el producto `p2`
+(`sku: "SKU-002"`, `name: "Camiseta Básica"`, `slug: "camiseta-basica"`, `status: "draft"`, que
+**nunca se publicará** y sirve de contraste con el pestillo abierto), creados dentro de este flujo.
 
 **When**: `publishProduct` — `POST /api/v1/management/products/{p1}/publish`, token con
 `product:publish`
@@ -449,7 +461,7 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 
 **Then**:
 7. Status `200` con `name: "Zapatilla Runner Elite"` y `slug: "zapatilla-runner"` **sin cambiar**:
-   el slug queda congelado en cuanto el producto se publica por primera vez.
+   la primera publicación echó el pestillo `slugFrozen` y el slug ya no sigue al `name`.
 8. `getPublicProduct` por `slug: "zapatilla-runner-elite"` responde `404`,
    `code: PRODUCT_NOT_FOUND`; por `"zapatilla-runner"` sigue respondiendo `200`.
 
@@ -466,38 +478,61 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 12. `getPublicProduct` por `"zapatilla-runner"` responde `404`, `code: PRODUCT_NOT_FOUND`: solo los
     `active` son visibles para la tienda.
 
+**When**: `updateProduct` sobre `p1`, **ahora de vuelta en `draft`**, con
+`name: "Zapatilla Runner Ultra"` y el `lockVersion` vigente
+
+**Then**:
+13. Status `200` con `name: "Zapatilla Runner Ultra"` y `slug: "zapatilla-runner"` **otra vez sin
+    cambiar**. Es la aserción que distingue las dos implementaciones plausibles: una que decida el
+    congelado leyendo el **estado actual** ve `status: "draft"`, recalcula y devuelve
+    `"zapatilla-runner-ultra"`; solo la que consulta el **pestillo histórico** conserva
+    `"zapatilla-runner"`. Despublicar no reabre el slug.
+14. Se publica `ProductUpdated` con el `name` nuevo y el `slug` viejo.
+15. `lockVersion` cambió y `updatedAt` avanzó: la edición sí ocurrió — lo único que no se movió es
+    el `slug`.
+
 **When**: `discontinueProduct` — `POST /api/v1/management/products/{p1}/discontinue` sobre un
 producto en `draft`
 
 **Then**:
-13. Status `409`, `code: INVALID_STATUS_TRANSITION`: solo se descataloga desde `active`.
+16. Status `409`, `code: INVALID_STATUS_TRANSITION`: solo se descataloga desde `active`.
 
-**When**: se vuelve a publicar `p1` y se ejecuta `discontinueProduct`
+**When**: se vuelve a publicar `p1`
 
 **Then**:
-14. Status `200`, `status: "discontinued"`.
-15. Se publica `ProductStatusChanged` con `previousStatus: "active"`, `newStatus: "discontinued"`.
-16. `getPublicProduct` por su slug responde `404`.
-17. `getProductForServices` sobre `{p1}` con credencial de máquina responde `200` con
+17. Status `200`, `status: "active"` y `slug: "zapatilla-runner"`.
+18. `getPublicProduct` por `"zapatilla-runner"` responde `200` y por `"zapatilla-runner-ultra"`
+    responde `404`: la URL que la tienda y los buscadores indexaron sobrevive al ciclo completo
+    publicar → despublicar → renombrar → volver a publicar.
+
+**When**: `discontinueProduct` sobre `p1`, ya `active`
+
+**Then**:
+19. Status `200`, `status: "discontinued"`.
+20. Se publica `ProductStatusChanged` con `previousStatus: "active"`, `newStatus: "discontinued"`.
+21. `getPublicProduct` por su slug responde `404`.
+22. `getProductForServices` sobre `{p1}` con credencial de máquina responde `200` con
     `status: "discontinued"`: el M2M sí ve los descatalogados.
 
 **When**: `updateProduct` sobre `p1`, descatalogado, con `lockVersion` vigente
 
 **Then**:
-18. Status `409`, `code: PRODUCT_DISCONTINUED`.
+23. Status `409`, `code: PRODUCT_DISCONTINUED`.
 
 **When**: `addProductImage` sobre `p1`, descatalogado
 
 **Then**:
-19. Status `409`, `code: PRODUCT_DISCONTINUED`.
+24. Status `409`, `code: PRODUCT_DISCONTINUED`.
 
 **When**: `reactivateProduct` — `POST /api/v1/management/products/{p1}/reactivate`
 
 **Then**:
-20. Status `200`, `status: "active"`.
-21. Se publica `ProductStatusChanged` con `previousStatus: "discontinued"`,
+25. Status `200`, `status: "active"`.
+26. Se publica `ProductStatusChanged` con `previousStatus: "discontinued"`,
     `newStatus: "active"`.
-22. `getPublicProduct` por `"zapatilla-runner"` vuelve a responder `200`.
+27. `getPublicProduct` por `"zapatilla-runner"` vuelve a responder `200`.
+28. El `slug` sigue siendo `"zapatilla-runner"` tras el ciclo completo de cinco transiciones: el
+    pestillo nunca se reabrió.
 
 **Orden de evaluación** (las cuatro transiciones):
 1. El producto existe → `PRODUCT_NOT_FOUND` (`404`).
@@ -510,6 +545,20 @@ producto en `draft`
 - `reactivateProduct` sobre un producto `draft` → `409`, `code: INVALID_STATUS_TRANSITION`.
 - `publishProduct` sobre un id inexistente **y** sin imágenes → `404`,
   `code: PRODUCT_NOT_FOUND`: la guarda 1 precede a la 3.
+- Contraste con el pestillo abierto, ejecutado **en el mismo instante** que la aserción 13: con
+  `p1` en `draft` (pestillo echado) y `p2` en `draft` (pestillo abierto), `updateProduct` sobre `p2`
+  con `name: "Camiseta Técnica"` responde `200` con `slug: "camiseta-tecnica"` **recalculado**,
+  mientras que la misma operación sobre `p1` conserva el suyo. Dos productos en el mismo `status`
+  con comportamiento distinto: la diferencia es su historia, no su estado, y es exactamente por eso
+  que `slugFrozen` no se puede derivar de `status`.
+- Ni `unpublishProduct` ni `discontinueProduct` ni `reactivateProduct` reabren el pestillo: tras las
+  cinco transiciones de este flujo el `slug` sigue siendo el derivado del `name` original.
+- Inmunidad a la carrera de slug con el pestillo echado: estando `p1` en `draft` con `slugFrozen`
+  echado, se crea `p3` con `name: "Zapatilla Runner Ultra"` (que deriva
+  `slug: "zapatilla-runner-ultra"`) y a continuación se renombra `p1` a ese mismo
+  `name: "Zapatilla Runner Ultra"` → `200`, **sin** `PRODUCT_SLUG_CONFLICT`. Los dos productos
+  acaban con el mismo `name` y slugs distintos (`"zapatilla-runner-ultra"` y `"zapatilla-runner"`):
+  `name` no es único y el slug de `p1` no se recalcula, así que no hay candidato que pueda colisionar.
 - Los tres estados del ciclo de vida (`draft`, `active`, `discontinued`) quedan alcanzados por este
   flujo, y las cuatro transiciones declaradas quedan ejecutadas.
 

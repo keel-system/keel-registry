@@ -50,10 +50,16 @@ entities:
       id:          { type: uuid, id: true, generated: true }
       sku:         { type: SKU, required: true, unique: true }
       name:        { type: string, required: true, constraints: { maxLength: 140 } }
-      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case, con sufijo numérico si colisiona; se recalcula solo mientras el producto está en draft y queda congelado en cuanto se publica por primera vez." }
+      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case, con sufijo numérico si colisiona; se recalcula solo mientras slugFrozen es falso." }
       description: { type: text, constraints: { maxLength: 4000 }, description: Descripción comercial larga que la tienda muestra en la ficha. }
       price:       { type: Price, required: true }
       status:      { type: ProductStatus, default: draft }
+      # Estado interno: no viaja en ningún output ni payload de evento (sensitive), pero hay que
+      # persistirlo porque el congelado del slug sobrevive a un unpublish (active → draft).
+      # generated y no computed a propósito: no se deriva de ningún otro campo, es historia. Un
+      # producto en draft con el pestillo echado es indistinguible de uno que nunca se publicó
+      # mirando status, name o slug; recalcularlo desde status reabriría el slug al despublicar.
+      slugFrozen:  { type: boolean, default: false, sensitive: true, generated: true, description: "Pestillo interno: mientras es falso el slug sigue al name; cuando se echa, el slug queda fijo para siempre." }
       lockVersion: { type: int, generated: true }
       createdAt:   { type: timestamp, generated: true }
       updatedAt:   { type: timestamp, generated: true }
@@ -74,7 +80,8 @@ entities:
       - Un producto en estado active tiene price mayor que cero.
       - Un producto en estado active tiene al menos una imagen.
       - Solo los productos en estado active son visibles en la superficie pública del catálogo.
-      - El slug de un producto que ya se publicó alguna vez no vuelve a cambiar, aunque cambie su name.
+      - "slugFrozen nunca pasa de verdadero a falso: una vez que el producto alcanza active por primera vez, queda echado aunque después se despublique o se descatalogue."
+      - Mientras slugFrozen es falso el slug se recalcula al cambiar el name; en cuanto es verdadero, el slug no vuelve a cambiar.
       - Un producto en estado discontinued no admite cambios en su ficha ni en su galería de imágenes.
 
   ProductImage:

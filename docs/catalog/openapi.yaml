@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: catalog
-  version: 0.3.0
+  version: 0.3.1
   description: 'Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías,
     los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores
     por consulta directa y por eventos.
@@ -711,6 +711,8 @@ paths:
 
         - El producto nace siempre en estado draft, sea cual sea el resto de la petición.
 
+        - El producto nace con slugFrozen en falso, así que su slug sigue el name hasta la primera publicación.
+
 
         **Eventos emitidos**: `ProductCreated` (ver `asyncapi.yaml`).
 
@@ -881,8 +883,8 @@ paths:
 
         - Es un reemplazo completo de la ficha: todo campo opcional que no venga en la petición queda a nulo.
 
-        - El slug se recalcula cuando cambia el name solo si el producto sigue en draft y nunca se publicó; una
-        vez publicado, queda congelado.
+        - El slug se recalcula cuando cambia el name solo si slugFrozen es falso; en cuanto es verdadero, queda
+        congelado.
 
         - El recálculo deriva el sufijo igual que el alta, así que hereda su misma ventana de carrera: se resuelve
         con PRODUCT_SLUG_CONFLICT.
@@ -1562,6 +1564,13 @@ paths:
         - El producto tiene al menos una imagen y un price mayor que cero.
 
 
+        **Reglas**
+
+
+        - La primera publicación fija slugFrozen a verdadero; a partir de ahí el slug es inmutable aunque cambie
+        el name.
+
+
         **Eventos emitidos**: `ProductStatusChanged` (ver `asyncapi.yaml`).'
       parameters:
       - name: productId
@@ -1726,6 +1735,12 @@ paths:
 
 
         - El producto existe y está en estado active.
+
+
+        **Reglas**
+
+
+        - Volver a draft no reabre el slug: slugFrozen se conserva en verdadero.
 
 
         **Eventos emitidos**: `ProductStatusChanged` (ver `asyncapi.yaml`).'

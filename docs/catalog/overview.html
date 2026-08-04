@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.3.0 -->
+<!-- keel:version 0.3.1 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,7 +188,7 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.",
     "domain": "commerce",
     "generatedAt": "2026-08-03"
@@ -452,7 +452,8 @@ const KEEL = {
         "El sku se normaliza a mayúsculas antes de validar su unicidad.",
         "El slug se deriva del name y se le añade un sufijo numérico si ya existe otro producto con ese slug.",
         "La derivación del sufijo es una lectura seguida de una escritura: dos altas simultáneas del mismo name pueden calcular el mismo sufijo y solo una llega a escribir. Esa carrera se resuelve con PRODUCT_SLUG_CONFLICT, no reintentando en silencio.",
-        "El producto nace siempre en estado draft, sea cual sea el resto de la petición."
+        "El producto nace siempre en estado draft, sea cual sea el resto de la petición.",
+        "El producto nace con slugFrozen en falso, así que su slug sigue el name hasta la primera publicación."
       ],
       "errors": [
         {
@@ -562,7 +563,7 @@ const KEEL = {
       "rules": [
         "El sku no se puede modificar: no forma parte de la entrada.",
         "Es un reemplazo completo de la ficha: todo campo opcional que no venga en la petición queda a nulo.",
-        "El slug se recalcula cuando cambia el name solo si el producto sigue en draft y nunca se publicó; una vez publicado, queda congelado.",
+        "El slug se recalcula cuando cambia el name solo si slugFrozen es falso; en cuanto es verdadero, queda congelado.",
         "El recálculo deriva el sufijo igual que el alta, así que hereda su misma ventana de carrera: se resuelve con PRODUCT_SLUG_CONFLICT.",
         "Si el producto está en estado active y el nuevo price no es mayor que cero, la operación se rechaza."
       ],
@@ -647,6 +648,9 @@ const KEEL = {
         "El producto existe y está en estado draft.",
         "El producto tiene al menos una imagen y un price mayor que cero."
       ],
+      "rules": [
+        "La primera publicación fija slugFrozen a verdadero; a partir de ahí el slug es inmutable aunque cambie el name."
+      ],
       "errors": [
         {
           "code": "PRODUCT_NOT_FOUND",
@@ -706,6 +710,9 @@ const KEEL = {
       },
       "preconditions": [
         "El producto existe y está en estado active."
+      ],
+      "rules": [
+        "Volver a draft no reabre el slug: slugFrozen se conserva en verdadero."
       ],
       "errors": [
         {
@@ -2422,7 +2429,7 @@ const KEEL = {
               "único",
               "calculado"
             ],
-            "description": "Se deriva del name normalizado a kebab-case, con sufijo numérico si colisiona; se recalcula solo mientras el producto está en draft y queda congelado en cuanto se publica por primera vez."
+            "description": "Se deriva del name normalizado a kebab-case, con sufijo numérico si colisiona; se recalcula solo mientras slugFrozen es falso."
           },
           {
             "name": "description",
@@ -2443,6 +2450,16 @@ const KEEL = {
             "flags": [
               "default: draft"
             ]
+          },
+          {
+            "name": "slugFrozen",
+            "type": "boolean",
+            "flags": [
+              "default: false",
+              "generado",
+              "sensible"
+            ],
+            "description": "Pestillo interno: mientras es falso el slug sigue al name; cuando se echa, el slug queda fijo para siempre."
           },
           {
             "name": "lockVersion",
@@ -2517,7 +2534,8 @@ const KEEL = {
           "Un producto en estado active tiene price mayor que cero.",
           "Un producto en estado active tiene al menos una imagen.",
           "Solo los productos en estado active son visibles en la superficie pública del catálogo.",
-          "El slug de un producto que ya se publicó alguna vez no vuelve a cambiar, aunque cambie su name.",
+          "slugFrozen nunca pasa de verdadero a falso: una vez que el producto alcanza active por primera vez, queda echado aunque después se despublique o se descatalogue.",
+          "Mientras slugFrozen es falso el slug se recalcula al cambiar el name; en cuanto es verdadero, el slug no vuelve a cambiar.",
           "Un producto en estado discontinued no admite cambios en su ficha ni en su galería de imágenes."
         ]
       },

@@ -24,9 +24,11 @@ operations:
     idempotency: { keySource: client-key, ttlSeconds: 86400 }
     rules:
       - El sku se normaliza a mayúsculas antes de validar su unicidad.
+      - "Un sku con formato inválido lo rechaza la validación de forma con 400 genérico y sin code de negocio: la cota vive en el type SKU y no se duplica como error declarado."
       - El slug se deriva del name y se le añade un sufijo numérico si ya existe otro producto con ese slug.
       - "La derivación del sufijo es una lectura seguida de una escritura: dos altas simultáneas del mismo name pueden calcular el mismo sufijo y solo una llega a escribir. Esa carrera se resuelve con PRODUCT_SLUG_CONFLICT, no reintentando en silencio."
       - El producto nace siempre en estado draft, sea cual sea el resto de la petición.
+      - El producto nace con slugFrozen en falso, así que su slug sigue el name hasta la primera publicación.
     errors:
       - { code: SKU_ALREADY_EXISTS, when: Ya existe un producto con ese sku., http: 409 }
       - { code: PRODUCT_SLUG_CONFLICT, when: Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre., http: 409 }
@@ -53,7 +55,7 @@ operations:
     rules:
       - "El sku no se puede modificar: no forma parte de la entrada."
       - "Es un reemplazo completo de la ficha: todo campo opcional que no venga en la petición queda a nulo."
-      - El slug se recalcula cuando cambia el name solo si el producto sigue en draft y nunca se publicó; una vez publicado, queda congelado.
+      - El slug se recalcula cuando cambia el name solo si slugFrozen es falso; en cuanto es verdadero, queda congelado.
       - "El recálculo deriva el sufijo igual que el alta, así que hereda su misma ventana de carrera: se resuelve con PRODUCT_SLUG_CONFLICT."
       - Si el producto está en estado active y el nuevo price no es mayor que cero, la operación se rechaza.
     errors:
@@ -76,6 +78,8 @@ operations:
     preconditions:
       - El producto existe y está en estado draft.
       - El producto tiene al menos una imagen y un price mayor que cero.
+    rules:
+      - La primera publicación fija slugFrozen a verdadero; a partir de ahí el slug es inmutable aunque cambie el name.
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: INVALID_STATUS_TRANSITION, when: El producto no está en un estado desde el que se pueda publicar., http: 409 }
@@ -91,6 +95,8 @@ operations:
     output: { entity: Product, embed: [brand, category] }
     preconditions:
       - El producto existe y está en estado active.
+    rules:
+      - "Volver a draft no reabre el slug: slugFrozen se conserva en verdadero."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: INVALID_STATUS_TRANSITION, when: El producto no está active y no se puede despublicar., http: 409 }
