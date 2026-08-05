@@ -14,7 +14,7 @@
       "service": {
         "name": "catalog",
         "version": "0.3.1",
-        "dsl": "2.4",
+        "dsl": "2.5",
         "domain": "commerce",
         "basedOn": null,
         "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.\n"
@@ -67,9 +67,9 @@
         "buckets": 1
       },
       "status": {
-        "ok": false,
+        "ok": true,
         "pending": 0,
-        "errors": 1
+        "errors": 0
       },
       "derivatives": {
         "fresh": 9,
