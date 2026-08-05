@@ -3,7 +3,7 @@
   "generatedBy": {
     "keelCore": "0.3.0",
     "dsl": [
-      "2.4"
+      "2.5"
     ]
   },
   "designs": [
@@ -67,9 +67,9 @@
         "buckets": 1
       },
       "status": {
-        "ok": true,
+        "ok": false,
         "pending": 0,
-        "errors": 0
+        "errors": 1
       },
       "derivatives": {
         "fresh": 9,
