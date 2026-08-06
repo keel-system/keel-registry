@@ -2152,7 +2152,8 @@ components:
           format: uuid
         file:
           type: string
-          description: Referencia al objeto en el bucket lógico `productImages`; viaja la referencia, no el binario.
+          format: uri
+          description: URL absoluta del objeto en el bucket público `productImages`; se resuelve antes de serializar, no viaja el binario.
         altText:
           type: string
           maxLength: 160
@@ -2165,17 +2166,12 @@ components:
           type: boolean
           description: Marca la imagen que representa al producto en listados y resultados de búsqueda.
           default: false
-        productId:
-          type: string
-          format: uuid
-          description: Producto al que pertenece la imagen.
       required:
       - id
       - file
       - altText
       - position
       - isPrimary
-      - productId
     Product:
       type: object
       description: Ficha completa del producto tal como la ve el back-office, con su rastro de auditoría.
