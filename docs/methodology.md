@@ -60,6 +60,8 @@ La regla que sostiene todo: **si un cambio es funcional, se hace en el spec y se
 
 Y la regla que gobierna el reparto de la palabra dentro del diseño: **el agente recomienda, el diseñador decide el comportamiento estructural.** Hay una clase de decisiones —qué se pierde ante un fallo (outbox), qué se puede repetir sin daño (idempotencia), qué puede llegar rancio (caché), quién consume el contrato (superficie M2M), qué transacción envuelve qué, cómo se degrada una dependencia caída— que no son preguntas técnicas: cambian lo que el servicio puede **prometer** a sus clientes y el coste de operarlo. El agente conoce el mecanismo y propone siempre una opción concreta con su porqué; el humano conoce el negocio que lo paga y tiene la última palabra, en el momento de diseñar la capa. Ninguna se escribe en silencio, ni siquiera cuando la respuesta parece obvia: un default tácito es una decisión que tomó el agente sin decirlo, y el análisis de huecos la caza precisamente por eso — contra el registro de decisiones con el que cierra cada capa, no contra la memoria de la sesión: un valor decidido y uno asumido se escriben igual en el YAML. El catálogo con los ejes de decisión de cada una vive en `references/structural-decisions.md` de la skill `keel-design`.
 
+Ese registro tiene además un **artefacto**, y no por burocracia: mientras vivió solo en la conversación, un contexto compactado o un diseño heredado lo borraban entero. Las decisiones que el diseño deja **sin tomar** las levanta `keel validate` como **obligaciones**, cada una con un id estable, y se cierran de dos maneras —declarándolas en el DSL, o aceptándolas por escrito en `specs/<servicio>/decisions.yaml` con su motivo—. Lo que no vale es dejarlas sin contestar: una obligación abierta bloquea igual que un error, porque su desenlace es el mismo — alguien decidirá por el diseño, más tarde y sin dejar rastro. Detalle en [design-obligations.md](design-obligations.md).
+
 El versionado sigue la misma separación: el repo del workspace versiona solo el diseño (`specs/`, schemas, docs) — el `.gitignore` sembrado por `keel init` excluye `services/` — y cada servicio generado vive en su propio repo git dentro de `services/<servicio>-<tech>/`, con su ciclo de vida independiente.
 
 ## Diseño por capas
@@ -93,7 +95,7 @@ service (manifiesto)
 |-------------|---------------|
 | `keel`, `service` | `service.keel.yaml` (+ bloque `layers`) |
 | `types`, `entities` | `domain.keel.yaml` (+ `aggregates`) |
-| `operations` | `use-cases.keel.yaml` (+ `idempotency`, `cache`, `schedule`, `internal` por operación) |
+| `operations` | `use-cases.keel.yaml` (+ `idempotency`, `cache`, `schedule`, `transitions`, `internal` por operación) |
 | `api` | `api.keel.yaml` |
 | `policies.auth` | `security.keel.yaml` (`access`, ahora con `roles`/`permissions`) |
 | `policies.pagination` | `api.keel.yaml` (`pagination`) |
@@ -104,6 +106,7 @@ service (manifiesto)
 | `integrations` que expresan **dependencia de otro servidor** | `dependencies.keel.yaml`: `needs` si se le lee un dato (el porqué y la estrategia), `activations` si se le encarga trabajo (el porqué y el efecto) + `http-clients`/`messaging` como canales |
 | `integrations` kind `storage` (BD) | `persistence.keel.yaml` |
 | `integrations` kind `storage` (archivos/blobs) | `storage.keel.yaml` (buckets) + campos `file` en `domain.keel.yaml` |
+| correo saliente propio (SMTP) | `mail.keel.yaml` (transporte, remitente, plantillas y las operaciones que lo mandan) |
 
 ## División de responsabilidades
 

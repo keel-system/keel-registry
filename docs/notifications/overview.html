@@ -1,0 +1,3265 @@
+<!doctype html>
+<!-- keel:version 1.5.0 -->
+<!--
+  Panel de servicio Keel — plantilla de forma fija.
+  NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
+  únicamente el marcador de datos de la constante KEEL (más abajo) por el objeto JSON derivado
+  del diseño. Contrato del objeto y token exacto a sustituir: ../overview-html-guide.md
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel del servicio</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #fbfcfd;
+    --border: #dfe3e8;
+    --text: #1b1f24;
+    --muted: #5c6773;
+    --accent: #2f6feb;
+    --ok-bg: #e7f5ed; --ok-fg: #17663a;
+    --off-bg: #f0f1f3; --off-fg: #6b7280;
+    --warn-bg: #fdf3e0; --warn-fg: #8a5a00;
+    --tag-bg: #eef2ff; --tag-fg: #33409e;
+    --code-bg: #f2f4f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --panel: #191d24; --panel-2: #1e232b; --border: #2c333d;
+      --text: #e6e9ee; --muted: #9aa5b1; --accent: #6ea0ff;
+      --ok-bg: #17311f; --ok-fg: #7fd6a0;
+      --off-bg: #23272e; --off-fg: #8b95a1;
+      --warn-bg: #362a11; --warn-fg: #e5bf74;
+      --tag-bg: #222a44; --tag-fg: #9fb2ff;
+      --code-bg: #12161c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+  a { color: var(--accent); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+
+  header.top { margin-bottom: 22px; }
+  .eyebrow { color: var(--muted); font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+  h1 { margin: 6px 0 8px; font-size: 30px; }
+  .lead { color: var(--muted); max-width: 72ch; margin: 0 0 12px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  h2 { font-size: 20px; margin: 34px 0 12px; }
+  h3 { font-size: 16px; margin: 22px 0 8px; }
+
+  .chip, .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 999px; font-size: 12px; white-space: nowrap;
+    background: var(--off-bg); color: var(--off-fg); border: 1px solid transparent;
+  }
+  .chip.on, .badge.on { background: var(--ok-bg); color: var(--ok-fg); }
+  .chip.tag, .badge.tag { background: var(--tag-bg); color: var(--tag-fg); }
+  .chip.warn, .badge.warn { background: var(--warn-bg); color: var(--warn-fg); }
+
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .links a {
+    display: inline-block; padding: 7px 13px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--panel); text-decoration: none; font-size: 14px;
+  }
+  .links a:hover { border-color: var(--accent); }
+
+  .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; }
+  .card.off { opacity: .62; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .card-label { font-weight: 600; }
+  .card-headline { color: var(--text); margin: 0 0 8px; font-size: 14px; }
+  .facts { margin: 0; font-size: 13px; color: var(--muted); }
+  .facts div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  .facts .k { color: var(--muted); }
+  .facts .v { color: var(--text); text-align: right; }
+  .card .note { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 14px; }
+  .toolbar input[type=search] {
+    flex: 1 1 240px; min-width: 200px; padding: 8px 11px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit;
+  }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tabs button {
+    padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font: inherit; cursor: pointer;
+  }
+  .tabs button[aria-selected=true] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  details.item {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  details.item > summary {
+    list-style: none; cursor: pointer; padding: 11px 14px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  }
+  details.item > summary::-webkit-details-marker { display: none; }
+  details.item > summary::before { content: "▸"; color: var(--muted); }
+  details.item[open] > summary::before { content: "▾"; }
+  details.item[open] > summary { border-bottom: 1px solid var(--border); background: var(--panel-2); }
+  .item-name { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .item-desc { color: var(--muted); font-size: 13px; flex: 1 1 200px; }
+  .body { padding: 12px 14px 16px; }
+  .body > section { margin-bottom: 14px; }
+  .body > section:last-child { margin-bottom: 0; }
+  .body h4 { margin: 0 0 6px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .body ul { margin: 0; padding-left: 20px; }
+  .body p { margin: 0 0 6px; }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  td.mono, th.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; font-size: 13.5px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+
+  .empty { color: var(--muted); font-style: italic; }
+  .gaps { background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 12px 16px; }
+  .gaps ul { margin: 6px 0 0; }
+  footer { margin-top: 44px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 12px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Servicio Keel</div>
+    <h1 id="svc-name">—</h1>
+    <p class="lead" id="svc-desc"></p>
+    <div class="meta" id="svc-meta"></div>
+    <nav class="links" id="links"></nav>
+  </header>
+
+  <section id="gaps-wrap" hidden>
+    <h2>Huecos del diseño</h2>
+    <div class="gaps">
+      <strong>Estos datos no se pudieron derivar del diseño:</strong>
+      <ul id="gaps"></ul>
+    </div>
+  </section>
+
+  <h2>Capacidades</h2>
+  <div class="cards" id="capabilities"></div>
+
+  <h2>Casos de uso</h2>
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Filtrar por nombre, descripción, campo, error…" aria-label="Filtrar">
+    <div class="tabs" id="tabs" role="tablist"></div>
+  </div>
+  <div id="use-cases"></div>
+
+  <section id="events-wrap" hidden>
+    <h2>Eventos</h2>
+    <div id="events"></div>
+  </section>
+
+  <section id="clients-wrap" hidden>
+    <h2>Clientes HTTP salientes</h2>
+    <div id="clients"></div>
+  </section>
+
+  <section id="domain-wrap" hidden>
+    <h2>Modelo de dominio</h2>
+    <div id="domain"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Datos del servicio. `/keel-docs` sustituye el marcador de la línea siguiente por el
+// objeto derivado del diseño (contrato y token exacto: ../overview-html-guide.md).
+// ---------------------------------------------------------------------------
+const KEEL = {
+  "service": {
+    "name": "notifications",
+    "version": "1.5.0",
+    "description": "Emite el correo transaccional de notificación de las aplicaciones consumidoras, a partir de plantillas versionadas que gestiona negocio, aceptando peticiones por evento y por contrato servidor-a-servidor.",
+    "domain": null,
+    "generatedAt": "2026-08-20"
+  },
+  "links": [
+    {
+      "label": "OpenAPI (visor)",
+      "href": "openapi.html",
+      "description": "El contrato HTTP renderizado."
+    },
+    {
+      "label": "AsyncAPI (visor)",
+      "href": "asyncapi.html",
+      "description": "El contrato de eventos renderizado."
+    },
+    {
+      "label": "openapi.yaml",
+      "href": "openapi.yaml",
+      "description": "Contrato HTTP en YAML."
+    },
+    {
+      "label": "asyncapi.yaml",
+      "href": "asyncapi.yaml",
+      "description": "Contrato de eventos en YAML."
+    },
+    {
+      "label": "Colecciones Postman",
+      "href": "postman/",
+      "description": "Importa antes auth-collection.json: publica las globals de token."
+    },
+    {
+      "label": "Contrato de integracion",
+      "href": "INTEGRATION.md",
+      "description": "Como otro servidor consume este servicio."
+    },
+    {
+      "label": "Documento de diseno",
+      "href": "DESIGN.md",
+      "description": "El diseno y el porque de cada decision."
+    }
+  ],
+  "gaps": [],
+  "capabilities": [
+    {
+      "id": "persistence",
+      "label": "Persistencia",
+      "active": true,
+      "state": "si",
+      "headline": "El servicio guarda estado propio: aplicaciones, plantillas, mensajes y supresiones.",
+      "facts": [
+        [
+          "Modelo",
+          "relational"
+        ],
+        [
+          "Entidades persistidas",
+          "5"
+        ],
+        [
+          "Frontera transaccional",
+          "per-aggregate"
+        ],
+        [
+          "Bloqueo optimista",
+          "all"
+        ],
+        [
+          "Claves naturales",
+          "5"
+        ],
+        [
+          "Indices",
+          "12"
+        ],
+        [
+          "Auditoria",
+          "cuando: all - quien: all"
+        ]
+      ],
+      "note": "La fila de un mensaje se conserva para siempre aunque se purguen sus datos personales: es lo que sostiene la guarda permanente contra el doble envio."
+    },
+    {
+      "id": "messaging",
+      "label": "Broker de mensajeria",
+      "active": true,
+      "state": "si",
+      "headline": "Una puerta de entrada de encargos y una salida informativa de desenlaces.",
+      "facts": [
+        [
+          "Canales",
+          "2 (0 externos)"
+        ],
+        [
+          "Eventos publicados",
+          "2"
+        ],
+        [
+          "Suscripciones",
+          "1"
+        ]
+      ],
+      "note": "El broker concreto y los nombres fisicos de topic/cola se deciden al generar, nunca en el diseno."
+    },
+    {
+      "id": "outbox",
+      "label": "Patron outbox",
+      "active": false,
+      "state": "best-effort",
+      "headline": "La publicacion es best-effort y admite perdida ante fallos: si la transaccion confirma con el broker caido, el correo salio y el evento no existe. Es deliberado - los dos eventos son informativos y la fuente de verdad del desenlace es la API.",
+      "facts": [
+        [
+          "Fiabilidad",
+          "best-effort"
+        ],
+        [
+          "Fuente de verdad del desenlace",
+          "findMessageByIdempotencyKey / listMessages"
+        ]
+      ]
+    },
+    {
+      "id": "cache",
+      "label": "Cache de respuestas",
+      "active": false,
+      "state": "si",
+      "headline": "Ninguna query declara cache, incluida la resolucion de la version activa que corre en cada aceptacion de envio: son busquedas por indice de igualdad sobre tablas pequenas, y una cache ahi solo anade riesgo de dato rancio.",
+      "facts": []
+    },
+    {
+      "id": "storage",
+      "label": "Almacenamiento de archivos",
+      "active": false,
+      "state": "no",
+      "headline": "El servicio no declara capa storage: los correos no llevan adjuntos (delivery.attachments: false) y ninguna entidad tiene campos de tipo file.",
+      "facts": []
+    },
+    {
+      "id": "httpClients",
+      "label": "Integraciones HTTP salientes",
+      "active": false,
+      "state": "no",
+      "headline": "El servicio no llama por HTTP a ningun tercero ni depende de ningun otro servidor. El relay SMTP no es una dependencia: es su salida propia por la capa mail.",
+      "facts": []
+    },
+    {
+      "id": "mail",
+      "label": "Correo saliente",
+      "active": true,
+      "state": "smtp",
+      "headline": "Este servicio es quien manda el correo de verdad. Es su unico efecto que llega a una persona y no lo deshace ninguna transaccion.",
+      "facts": [
+        [
+          "Transporte",
+          "smtp"
+        ],
+        [
+          "Partes del cuerpo",
+          "html, text"
+        ],
+        [
+          "Adjuntos",
+          "no"
+        ],
+        [
+          "Remitente",
+          "del dato (Application.senderAddress + senderName) - sin respaldo: falla cerrado"
+        ],
+        [
+          "Plantillas",
+          "en la BD del servicio - variables declaradas y validadas antes de renderizar"
+        ],
+        [
+          "sendQueuedMessage",
+          "guarda de repeticion: transicion irrepetible queued -> sending"
+        ]
+      ],
+      "note": "Proveedor, host, puerto y credenciales del relay son datos de despliegue, nunca del diseno."
+    },
+    {
+      "id": "security",
+      "label": "Seguridad",
+      "active": true,
+      "state": "oidc + m2m",
+      "headline": "Dos publicos: personas que gestionan plantillas desde el back-office y servidores que piden envios con credencial de maquina.",
+      "facts": [
+        [
+          "Protocolo",
+          "oidc"
+        ],
+        [
+          "M2M",
+          "client-credentials"
+        ],
+        [
+          "Validar audiencia",
+          "True"
+        ],
+        [
+          "Roles",
+          "4"
+        ],
+        [
+          "Permisos",
+          "10"
+        ],
+        [
+          "Clientes maquina",
+          "4"
+        ],
+        [
+          "CORS",
+          "declarado (SPA de back-office)"
+        ]
+      ],
+      "note": "El alcance por aplicacion lo lleva el claim `applications` del token; la guarda que lo comprueba vive en las reglas de cada operacion, no en accessRule."
+    },
+    {
+      "id": "schedule",
+      "label": "Trabajos programados",
+      "active": true,
+      "state": "si",
+      "headline": "Dos ciclos: el despacho de la cola y la purga de datos personales.",
+      "facts": [
+        [
+          "dispatchQueuedMessages",
+          "* * * * *"
+        ],
+        [
+          "purgeMessagePersonalData",
+          "0 3 * * *"
+        ]
+      ],
+      "note": "El calendario vive en UTC."
+    }
+  ],
+  "useCases": [
+    {
+      "name": "registerApplication",
+      "kind": "command",
+      "description": "Da de alta una aplicación autorizada a pedir envíos, con su remitente verificado.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/applications"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "code",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "senderAddress",
+            "type": "EmailAddress",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "senderName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "replyToAddress",
+            "type": "EmailAddress",
+            "required": false,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Application",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "admin",
+        "roles": [
+          "notifications-admin"
+        ],
+        "permissions": [
+          "application:write"
+        ]
+      },
+      "rules": [
+        "El código se normaliza a minúsculas antes de comprobar su unicidad.",
+        "La aplicación nace en estado active."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_CODE_ALREADY_EXISTS",
+          "http": 409,
+          "when": "Ya existe una aplicación registrada con ese código."
+        }
+      ]
+    },
+    {
+      "name": "updateApplication",
+      "kind": "command",
+      "description": "Actualiza los datos de contacto y el remitente de una aplicación ya registrada.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "PATCH",
+        "path": "/api/v1/applications/{code}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "code",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "senderAddress",
+            "type": "EmailAddress",
+            "required": false,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "senderName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "replyToAddress",
+            "type": "EmailAddress",
+            "required": false,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Application",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "admin",
+        "roles": [
+          "notifications-admin"
+        ],
+        "permissions": [
+          "application:write"
+        ]
+      },
+      "rules": [
+        "El código de la aplicación identifica el registro y nunca se modifica.",
+        "Los campos omitidos conservan su valor anterior.",
+        "Un campo opcional enviado vacío se borra; es la única forma de quitar el replyToAddress de una aplicación que ya lo tenía.",
+        "Solo son vaciables los campos que la aplicación puede no tener: replyToAddress y senderName. name y senderAddress son requeridos en el dominio, así que enviarlos PRESENTES y en blanco no los borra: se rechaza con APPLICATION_FIELD_REQUIRED. Omitirlos sigue siendo lo que conserva su valor — la distinción es entre «no lo mando» y «lo mando vacío», y solo la segunda es un intento de dejar la aplicación sin remitente o sin nombre.",
+        "Cambiar el remitente no reescribe el remitente de los mensajes ya emitidos."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FIELD_REQUIRED",
+          "http": 400,
+          "when": "Se envió name o senderAddress presentes y en blanco; son requeridos y no admiten el vaciado."
+        }
+      ]
+    },
+    {
+      "name": "suspendApplication",
+      "kind": "command",
+      "description": "Suspende una aplicación, que deja de poder originar envíos.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/applications/{code}/suspend"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "code",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "reason",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Application",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "admin",
+        "roles": [
+          "notifications-admin"
+        ],
+        "permissions": [
+          "application:write"
+        ]
+      },
+      "rules": [
+        "Los mensajes ya encolados de la aplicación se siguen enviando; la suspensión solo cierra la entrada.",
+        "Una aplicación suspendida se sigue gestionando con normalidad, incluidas sus plantillas, porque suspender cierra el envío y no la administración."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_ALREADY_SUSPENDED",
+          "http": 409,
+          "when": "La aplicación ya estaba suspendida."
+        }
+      ]
+    },
+    {
+      "name": "reactivateApplication",
+      "kind": "command",
+      "description": "Devuelve al servicio una aplicación suspendida.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/applications/{code}/reactivate"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "code",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Application",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "admin",
+        "roles": [
+          "notifications-admin"
+        ],
+        "permissions": [
+          "application:write"
+        ]
+      },
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_NOT_SUSPENDED",
+          "http": 409,
+          "when": "La aplicación no estaba suspendida."
+        }
+      ]
+    },
+    {
+      "name": "getApplication",
+      "kind": "query",
+      "description": "Recupera una aplicación por su código.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/applications/{code}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "code",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Application",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "application:read"
+        ]
+      },
+      "rules": [
+        "El code de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos: su función es transversal a todas las aplicaciones por diseño.",
+        "La comprobación de alcance va DESPUÉS de la de existencia: un código que no existe da 404 aunque el solicitante no lo tuviera en su alcance, porque negar la existencia de algo que no existe no filtra nada."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        }
+      ]
+    },
+    {
+      "name": "listApplications",
+      "kind": "query",
+      "description": "Lista las aplicaciones registradas dentro del alcance del solicitante, opcionalmente filtradas por estado.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/applications"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "status",
+            "type": "ApplicationStatus",
+            "required": false,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Application",
+        "list": false,
+        "paginated": true,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "application:read"
+        ]
+      },
+      "rules": [
+        "El resultado se acota a las aplicaciones que el claim applications del token nombra; las de fuera del alcance no aparecen, no se devuelve error. Los roles notifications-admin y notifications-auditor ven todas.",
+        "El orden es total: name puede empatar entre dos aplicaciones distintas, así que desempata code, que es único. Sin ese desempate la paginación repetiría o se saltaría filas.",
+        "Un solicitante cuyo claim no nombra ninguna aplicación recibe una página vacía, no un error."
+      ],
+      "errors": []
+    },
+    {
+      "name": "createTemplate",
+      "kind": "command",
+      "description": "Crea el contenedor de una plantilla dentro de una aplicación; todavía sin contenido publicable.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/applications/{applicationCode}/templates"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "code",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailTemplate",
+        "list": false,
+        "paginated": false,
+        "exclude": [
+          "versions"
+        ]
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "template:write"
+        ]
+      },
+      "rules": [
+        "El código de la plantilla se normaliza a minúsculas antes de comprobar su unicidad, igual que el de la aplicación.",
+        "Una plantilla recién creada no tiene ninguna versión, así que no puede usarse para enviar hasta que se publique una.",
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        },
+        {
+          "code": "TEMPLATE_CODE_ALREADY_EXISTS",
+          "http": 409,
+          "when": "Esa aplicación ya tiene una plantilla con ese código."
+        }
+      ]
+    },
+    {
+      "name": "publishTemplateVersion",
+      "kind": "command",
+      "description": "Publica contenido nuevo para una plantilla: crea una versión y la deja activa, archivando en la misma transacción la que estuviera activa.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/applications/{applicationCode}/templates/{templateCode}/versions"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "subject",
+            "type": "string",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "htmlBody",
+            "type": "text",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "textBody",
+            "type": "text",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "variables",
+            "type": "TemplateVariable",
+            "required": false,
+            "list": true,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailTemplateVersion",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "template:write"
+        ]
+      },
+      "rules": [
+        "El código de la plantilla se normaliza a minúsculas antes de resolverla, igual que en el resto de operaciones.",
+        "El número de la nueva versión es el mayor existente en la plantilla más uno, y nunca se reutiliza.",
+        "La nueva versión nace activa; la que estuviera activa pasa a archived en la misma transacción.",
+        "Se rechaza el contenido cuyo asunto o cuerpos referencien variables que no estén declaradas en variables.",
+        "Los nombres de variable declarados no se repiten dentro de la misma versión.",
+        "EmailTemplate.hasActiveVersion se recalcula en esta misma transacción y queda cierto.",
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        },
+        {
+          "code": "TEMPLATE_NOT_FOUND",
+          "http": 404,
+          "when": "La aplicación no tiene ninguna plantilla con ese código."
+        },
+        {
+          "code": "UNDECLARED_TEMPLATE_VARIABLE",
+          "http": 422,
+          "when": "El asunto o los cuerpos usan una variable que la versión no declara."
+        },
+        {
+          "code": "DUPLICATE_TEMPLATE_VARIABLE",
+          "http": 422,
+          "when": "La versión declara dos veces la misma variable."
+        }
+      ]
+    },
+    {
+      "name": "activateTemplateVersion",
+      "kind": "command",
+      "description": "Vuelve a poner activa una versión archivada, para revertir una publicación sin recomponerla a mano.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}/activate"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "versionNumber",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailTemplateVersion",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "template:write"
+        ]
+      },
+      "rules": [
+        "La versión indicada pasa a active y la que estuviera activa pasa a archived, en la misma transacción.",
+        "Reactivar no crea una versión nueva ni cambia su contenido.",
+        "EmailTemplate.hasActiveVersion se recalcula en esta misma transacción y queda cierto.",
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        },
+        {
+          "code": "TEMPLATE_NOT_FOUND",
+          "http": 404,
+          "when": "La aplicación no tiene ninguna plantilla con ese código."
+        },
+        {
+          "code": "TEMPLATE_VERSION_NOT_FOUND",
+          "http": 404,
+          "when": "La plantilla no tiene ninguna versión con ese número."
+        },
+        {
+          "code": "TEMPLATE_VERSION_ALREADY_ACTIVE",
+          "http": 409,
+          "when": "La versión indicada ya era la activa."
+        }
+      ]
+    },
+    {
+      "name": "retireTemplate",
+      "kind": "command",
+      "description": "Retira una plantilla de circulación archivando su versión activa; la plantilla y su historia se conservan.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/applications/{applicationCode}/templates/{templateCode}/retire"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailTemplate",
+        "list": false,
+        "paginated": false,
+        "exclude": [
+          "versions"
+        ]
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "template:write"
+        ]
+      },
+      "rules": [
+        "Una plantilla retirada sigue siendo consultable y sus mensajes históricos conservan su referencia.",
+        "Retirarla no borra nada; volver a ponerla en circulación se hace con activateTemplateVersion o publicando una versión nueva.",
+        "EmailTemplate.hasActiveVersion se recalcula en esta misma transacción y queda falso.",
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        },
+        {
+          "code": "TEMPLATE_NOT_FOUND",
+          "http": 404,
+          "when": "La aplicación no tiene ninguna plantilla con ese código."
+        },
+        {
+          "code": "TEMPLATE_NOT_PUBLISHED",
+          "http": 409,
+          "when": "La plantilla no tenía ninguna versión activa que retirar."
+        }
+      ]
+    },
+    {
+      "name": "getTemplate",
+      "kind": "query",
+      "description": "Recupera una plantilla de una aplicación por su código.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/applications/{applicationCode}/templates/{templateCode}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailTemplate",
+        "list": false,
+        "paginated": false,
+        "exclude": [
+          "versions"
+        ]
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "template:read"
+        ]
+      },
+      "rules": [
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        },
+        {
+          "code": "TEMPLATE_NOT_FOUND",
+          "http": 404,
+          "when": "La aplicación no tiene ninguna plantilla con ese código."
+        }
+      ]
+    },
+    {
+      "name": "listTemplates",
+      "kind": "query",
+      "description": "Lista las plantillas de una aplicación, distinguiendo las que están en circulación de las retiradas.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/applications/{applicationCode}/templates"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "hasActiveVersion",
+            "type": "boolean",
+            "required": false,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailTemplate",
+        "list": false,
+        "paginated": true,
+        "exclude": [
+          "versions"
+        ]
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "template:read"
+        ]
+      },
+      "rules": [
+        "Sin el filtro hasActiveVersion se devuelven todas las plantillas, en circulación y retiradas.",
+        "El orden por code es total sin desempate: el código de una plantilla es único dentro de su aplicación y la query siempre está acotada a una.",
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        }
+      ]
+    },
+    {
+      "name": "getTemplateVersion",
+      "kind": "query",
+      "description": "Recupera el contenido exacto de una versión concreta de una plantilla.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "versionNumber",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailTemplateVersion",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "template:read"
+        ]
+      },
+      "rules": [
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        },
+        {
+          "code": "TEMPLATE_NOT_FOUND",
+          "http": 404,
+          "when": "La aplicación no tiene ninguna plantilla con ese código."
+        },
+        {
+          "code": "TEMPLATE_VERSION_NOT_FOUND",
+          "http": 404,
+          "when": "La plantilla no tiene ninguna versión con ese número."
+        }
+      ]
+    },
+    {
+      "name": "listTemplateVersions",
+      "kind": "query",
+      "description": "Lista el historial de versiones de una plantilla, de la más reciente a la más antigua.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/applications/{applicationCode}/templates/{templateCode}/versions"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailTemplateVersion",
+        "list": false,
+        "paginated": true,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "template:read"
+        ]
+      },
+      "rules": [
+        "El orden por versionNumber es total sin desempate: el número de versión es único dentro de su plantilla y la query siempre está acotada a una.",
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        },
+        {
+          "code": "TEMPLATE_NOT_FOUND",
+          "http": 404,
+          "when": "La aplicación no tiene ninguna plantilla con ese código."
+        }
+      ]
+    },
+    {
+      "name": "requestNotification",
+      "kind": "command",
+      "description": "Acepta una petición de envío: resuelve quién la pide, valida la plantilla, comprueba las variables y los destinatarios, renderiza el asunto y deja el mensaje encolado. No envía.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/notifications"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": false,
+            "list": false,
+            "description": "NO lo elige el solicitante y NO viaja en el cuerpo: lo estampa el servidor desde la identidad del llamante — el serviceClient de su credencial por HTTP (security.authentication.callerIdentity) y metadata.source del sobre por el canal de eventos (messaging.subscriptions.NotificationRequested.identity). Las dos puertas lo dejan en este mismo campo, que es lo que hace que la operación decida igual venga por donde venga."
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "idempotencyKey",
+            "type": "IdempotencyKey",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "recipients",
+            "type": "EmailAddress",
+            "required": true,
+            "list": true,
+            "description": ""
+          },
+          {
+            "name": "variables",
+            "type": "TemplateVariableValue",
+            "required": false,
+            "list": true,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailMessage",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "service",
+        "scopes": [
+          "notification:send"
+        ]
+      },
+      "rules": [
+        "La aplicación solicitante llega ya resuelta en applicationCode: la estampa el servidor desde la credencial (HTTP) o desde metadata.source (eventos), según security.authentication.callerIdentity y messaging.subscriptions.NotificationRequested.identity. El solicitante no puede elegirla, así que no hay nada que comprobar: el campo no viaja en el cuerpo.",
+        "La aplicación se resuelve PRIMERO, porque la comprobación de repetición busca el duplicado dentro de esa aplicación: no hay forma de mirar la pareja aplicación+clave sin haber resuelto antes la aplicación. Es la guarda inmediatamente siguiente, antes que la plantilla y las variables.",
+        "Todos los destinatarios se normalizan a minúsculas ANTES de deduplicar, de comprobar la supresión y de guardarlos, igual que ya se normalizan los códigos y las direcciones suprimidas. Sin esa normalización una dirección escrita con otra coloración esquivaría su propio registro de supresión y contaría como destinatario distinto de sí misma.",
+        "Si ya existe un mensaje de esa aplicación con esa clave y el mismo contenido, se devuelve ese mismo mensaje sin encolar ninguno nuevo y sin error, aunque la aplicación se haya suspendido o la plantilla se haya retirado entre medias.",
+        "«El mismo contenido» son exactamente tres cosas, y ninguna más: el templateCode; el CONJUNTO de destinatarios ya normalizados y deduplicados; y el CONJUNTO de pares nombre/valor de las variables, descartadas las que la versión no declara. La comparación es por igualdad exacta de valores y NO depende del orden en que llegaron: reordenar los destinatarios o las variables no es contenido distinto. Todo lo demás que viaje en la petición se ignora al comparar.",
+        "Que la comparación ignore el orden es deliberado: un cliente que reintenta tras un timeout puede recomponer su petición desde una estructura sin orden estable, y devolverle un 409 por eso convertiría un reintento legítimo en un correo que nunca sale.",
+        "La comprobación de repetición es permanente: la pareja de aplicación y clave nunca caduca.",
+        "Cuando dos peticiones con la misma clave entran a la vez, las dos pasan la comprobación previa y la segunda choca contra la clave natural (application, idempotencyKey) en la base. Ese choque ES el IDEMPOTENCY_KEY_IN_PROGRESS que esta operación ya declara, y no un conflicto distinto: se traduce a ese código, no a uno de unicidad inventado. Se deja escrito porque el generador no puede deducir que esta clave natural es la de idempotencia — ve una constraint única más — y sin esta frase el conflicto sale con un código que el contrato no promete.",
+        "Los destinatarios repetidos dentro de la misma petición se deduplican antes de encolar, de modo que una dirección recibe un solo correo.",
+        "Se rechaza la petición si alguno de los destinatarios tiene un registro de supresión active en esa aplicación, sin encolar nada; uno released no cuenta.",
+        "Se resuelve la versión active de la plantilla y su identificador, número y código se copian al mensaje, para que una publicación posterior no reescriba lo que se envió.",
+        "Toda variable declarada como required por la versión activa debe venir en la petición con valor no vacío.",
+        "Las variables aportadas que la versión no declara se descartan sin error.",
+        "El asunto se renderiza en el momento de aceptar y se guarda ya resuelto.",
+        "El remitente efectivo se copia de la aplicación en este momento.",
+        "El mensaje queda en estado queued: la respuesta no afirma que el correo se haya entregado."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "La identidad del solicitante no corresponde a ninguna aplicación registrada."
+        },
+        {
+          "code": "IDEMPOTENCY_KEY_REUSED",
+          "http": 409,
+          "when": "La clave ya se usó en esa aplicación para una petición con contenido distinto."
+        },
+        {
+          "code": "IDEMPOTENCY_KEY_IN_PROGRESS",
+          "http": 409,
+          "when": "Otra petición con la misma clave se está procesando en este mismo instante y aún no ha confirmado."
+        },
+        {
+          "code": "APPLICATION_SUSPENDED",
+          "http": 409,
+          "when": "La aplicación está suspendida y no puede originar envíos."
+        },
+        {
+          "code": "TEMPLATE_NOT_FOUND",
+          "http": 404,
+          "when": "La aplicación no tiene ninguna plantilla con ese código."
+        },
+        {
+          "code": "TEMPLATE_NOT_PUBLISHED",
+          "http": 409,
+          "when": "La plantilla existe pero no tiene ninguna versión activa con la que componer el mensaje."
+        },
+        {
+          "code": "RECIPIENT_SUPPRESSED",
+          "http": 422,
+          "when": "Alguno de los destinatarios está en la lista de supresión de la aplicación por un rebote duro o una queja previa."
+        },
+        {
+          "code": "MISSING_TEMPLATE_VARIABLES",
+          "http": 422,
+          "when": "Falta el valor de alguna variable que la versión activa declara como required."
+        }
+      ],
+      "idempotency": {
+        "keySource": "payload-field",
+        "keyField": "idempotencyKey"
+      }
+    },
+    {
+      "name": "dispatchQueuedMessages",
+      "kind": "command",
+      "description": "Recorre periódicamente los mensajes encolados y los entrega al relay de correo.",
+      "audience": "internal",
+      "trigger": {
+        "type": "schedule",
+        "cron": "* * * * *"
+      },
+      "input": {
+        "kind": "void"
+      },
+      "output": {
+        "kind": "void"
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "application:read"
+        ]
+      },
+      "rules": [
+        "Por cada mensaje de la tanda, el ciclo invoca sendQueuedMessage con su identificador: es la única operación del servicio que compone y entrega un correo, y este ciclo es su único llamante.",
+        "Cada ciclo toma como mucho 200 mensajes en estado queued, del más antiguo al más reciente por requestedAt.",
+        "Un mensaje tomado por un ciclo queda marcado como sending antes de intentar la entrega, de modo que un ciclo solapado no lo vuelva a tomar.",
+        "Un mensaje failed no se recupera nunca, porque el fallo es terminal por diseño.",
+        "Un ciclo que se detiene a medias deja el resto de mensajes en queued y el ciclo siguiente los recoge.",
+        "Antes de tomar la tanda, el ciclo rescata los mensajes que llevan más de 15 minutos en sending y los pasa a failed con el motivo del rescate, porque un proceso caído los dejaría ahí para siempre y ninguna otra vía los saca de ese estado.",
+        "El rescate NO reenvía: si la caída ocurrió después de que el relay aceptara el mensaje, se marca como fallido un correo que sí salió. Se prefiere ese falso negativo visible a un segundo correo a una persona real.",
+        "El rescate procesa como mucho 200 mensajes por ciclo, igual que el envío."
+      ],
+      "schedule": {
+        "cron": "* * * * *"
+      },
+      "errors": []
+    },
+    {
+      "name": "sendQueuedMessage",
+      "kind": "command",
+      "description": "Compone y entrega al relay un mensaje encolado, y registra el desenlace. Es la única operación del servicio que produce un correo real.",
+      "audience": "internal",
+      "trigger": {
+        "type": "internal"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "messageId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailMessage",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "application:read"
+        ]
+      },
+      "rules": [
+        "La transición de queued a sending es la guarda contra el doble envío: un mensaje que ya no está queued no se vuelve a componer.",
+        "Al pasar a sending se estampa sendingSince con ese instante, en la misma transición. Es lo que después permite al rescate saber cuánto lleva atascado.",
+        "El cuerpo se renderiza a partir de la versión de plantilla registrada en el mensaje, no de la versión activa del momento.",
+        "El mensaje sale con las dos partes, HTML y texto plano.",
+        "Si el relay acepta el mensaje, pasa a sent con sentAt informado y se publica EmailSent.",
+        "Si el relay lo rechaza o no responde, pasa a failed con failureReason informado y se publica EmailDeliveryFailed; no se reintenta.",
+        "Si —y solo si— el rechazo del relay identifica un rebote duro sobre una dirección CONCRETA, esa dirección se añade a la lista de supresión de la aplicación, para que las peticiones siguientes no vuelvan a insistir sobre ella. Es un aprovechamiento oportunista de lo que el relay diga en el momento del rechazo, no una obligación: un relay que rechace el envío sin desglosar por destinatario —el caso normal, y el único que ofrecen los relays de prueba— deja el mensaje en failed y no suprime nada, que es el comportamiento correcto. Suprimir una dirección exige saber CUÁL rebotó, y adivinarla castigaría a destinatarios sanos del mismo mensaje. El camino determinista para el rebote duro es reportEmailBounce, que lo recibe del proveedor con dirección y permanencia explícitas; esta regla solo adelanta el trabajo cuando el dato ya viene en el rechazo síncrono.",
+        "Esa supresión automática sigue las MISMAS reglas que reportEmailBounce: no duplica registro, no hace nada si la dirección ya está active, y REACTIVA una que estuviera released — por el mismo motivo escrito allí, que la reputación del remitente la comparten todas las aplicaciones del servicio.",
+        "Y nunca hace fallar el envío: el desenlace del mensaje es failed con supresión o sin ella. Una colisión al escribir la lista no se propaga como error, porque esta operación es interna y no hay ningún cliente a quien devolverle un 409 — a diferencia de reportEmailBounce, que sí lo declara porque entra por HTTP."
+      ],
+      "errors": [
+        {
+          "code": "MESSAGE_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un mensaje con ese identificador."
+        },
+        {
+          "code": "MESSAGE_NOT_QUEUED",
+          "http": 409,
+          "when": "El mensaje ya no está en estado queued y otro ciclo lo tomó."
+        }
+      ],
+      "emits": [
+        "EmailSent",
+        "EmailDeliveryFailed"
+      ]
+    },
+    {
+      "name": "getMessage",
+      "kind": "query",
+      "description": "Recupera el registro de un correo por su identificador, para saber qué pasó con él.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/messages/{id}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailMessage",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "message:read"
+        ]
+      },
+      "rules": [
+        "La aplicación del mensaje debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos: su función es transversal por diseño.",
+        "El alcance importa aquí más que en ninguna otra query: la respuesta lleva recipients y renderedSubject, que son datos personales de los clientes de esa aplicación.",
+        "La comprobación de alcance va después de la de existencia, así que un identificador que no existe da 404."
+      ],
+      "errors": [
+        {
+          "code": "MESSAGE_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un mensaje con ese identificador."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El mensaje pertenece a una aplicación que el solicitante no tiene dentro de su alcance."
+        }
+      ]
+    },
+    {
+      "name": "findMessageByIdempotencyKey",
+      "kind": "query",
+      "description": "Recupera el mensaje que una aplicación originó con una clave de idempotencia dada, para que el consumidor confirme si su petición ya se aceptó.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/notifications/{applicationCode}/{idempotencyKey}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "idempotencyKey",
+            "type": "IdempotencyKey",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailMessage",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "service",
+        "scopes": [
+          "message:read"
+        ]
+      },
+      "rules": [
+        "Un cliente máquina solo consulta mensajes de la aplicación que su credencial representa; pedir los de otra se rechaza, no se responde vacío."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "La credencial del solicitante no representa a esa aplicación."
+        },
+        {
+          "code": "MESSAGE_NOT_FOUND",
+          "http": 404,
+          "when": "Esa aplicación no ha originado ningún mensaje con esa clave."
+        }
+      ]
+    },
+    {
+      "name": "listMessages",
+      "kind": "query",
+      "description": "Lista los correos emitidos, filtrables por aplicación, estado y ventana temporal. Es el único camino para descubrir los envíos fallidos, que el servicio no reintenta.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/messages"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": false,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "status",
+            "type": "MessageStatus",
+            "required": false,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": false,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "recipient",
+            "type": "EmailAddress",
+            "required": false,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "requestedFrom",
+            "type": "timestamp",
+            "required": false,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "requestedTo",
+            "type": "timestamp",
+            "required": false,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "EmailMessage",
+        "list": false,
+        "paginated": true,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "message:read"
+        ]
+      },
+      "rules": [
+        "El resultado se acota SIEMPRE a las aplicaciones que el claim applications del token nombra, se pase o no el filtro applicationCode; las de fuera del alcance no aparecen, y no se devuelve error. Los roles notifications-admin y notifications-auditor ven todas. Sin esa acotación esta query es una fuga de datos personales entre aplicaciones.",
+        "El orden es total: dos mensajes aceptados en el mismo instante empatarían por requestedAt, así que desempata id. Sin ese desempate la paginación de una tanda encolada a la vez repetiría o se saltaría filas.",
+        "Los filtros omitidos no acotan el resultado.",
+        "El filtro recipient se normaliza a minúsculas antes de comparar, igual que se normalizaron los destinatarios al aceptar la petición.",
+        "El filtro recipient devuelve los mensajes que llevaban esa dirección entre sus destinatarios, y es lo que permite responder si a una persona concreta le llegó un correo.",
+        "Un mensaje cuyos datos personales ya se purgaron no lo devuelve el filtro recipient, porque ya no conserva a quién se envió.",
+        "Una ventana temporal con requestedFrom posterior a requestedTo devuelve una página vacía, no un error."
+      ],
+      "errors": []
+    },
+    {
+      "name": "suppressAddress",
+      "kind": "command",
+      "description": "Marca una dirección como no escribible para una aplicación. La alimenta el desenlace de un envío rechazado y también una decisión manual (una queja, una baja).",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/applications/{applicationCode}/suppressions"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "address",
+            "type": "EmailAddress",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "reason",
+            "type": "SuppressionReason",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "SuppressedAddress",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "suppression:write"
+        ]
+      },
+      "rules": [
+        "La dirección se normaliza a minúsculas antes de comprobar si ya tiene registro.",
+        "Suprimir una dirección ya active no es un error, pero tampoco crea un segundo registro ni pisa el motivo original.",
+        "Suprimir una dirección released reactiva el mismo registro a active con el reason y las notes de esta petición, en vez de crear una fila nueva; releasedAt se limpia.",
+        "La supresión no afecta a los mensajes ya encolados para esa dirección.",
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        },
+        {
+          "code": "APPLICATION_ADDRESS_ALREADY_EXISTS",
+          "http": 409,
+          "when": "Dos peticiones simultáneas suprimieron la misma dirección de la misma aplicación y la segunda chocó con la clave natural."
+        }
+      ]
+    },
+    {
+      "name": "releaseAddress",
+      "kind": "command",
+      "description": "Retira una dirección de la lista de supresión, para volver a escribirle. Es una decisión deliberada: la dirección se suprimió por un rebote o una queja.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "DELETE",
+        "path": "/api/v1/applications/{applicationCode}/suppressions/{address}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "address",
+            "type": "EmailAddress",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "suppression:write"
+        ]
+      },
+      "rules": [
+        "Liberar una dirección no borra el registro ni el rastro de por qué se suprimió: pasa a released con releasedAt informado, y se conserva para auditoría y para poder reactivarse si vuelve a rebotar.",
+        "Una dirección sin ningún registro de supresión, o cuyo registro ya está released, devuelve SUPPRESSED_ADDRESS_NOT_FOUND: liberar algo ya liberado no es la operación inversa de suprimir dos veces, que sí es un no-op válido.",
+        "La dirección se normaliza a minúsculas antes de buscar su registro, igual que al suprimirla.",
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        },
+        {
+          "code": "SUPPRESSED_ADDRESS_NOT_FOUND",
+          "http": 404,
+          "when": "Esa dirección no está actualmente suprimida para esa aplicación: no existe registro, o su registro ya está released."
+        }
+      ]
+    },
+    {
+      "name": "listSuppressedAddresses",
+      "kind": "query",
+      "description": "Lista las direcciones suprimidas de una aplicación, de la más reciente a la más antigua.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/applications/{applicationCode}/suppressions"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "reason",
+            "type": "SuppressionReason",
+            "required": false,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "SuppressedAddress",
+        "list": false,
+        "paginated": true,
+        "exclude": []
+      },
+      "security": {
+        "level": "required",
+        "permissions": [
+          "suppression:read"
+        ]
+      },
+      "rules": [
+        "Solo devuelve los registros en estado active; uno released ya no cuenta como supresión vigente aunque el registro se conserve.",
+        "El orden es total: dos direcciones suprimidas en el mismo instante empatarían por suppressedAt, así que desempata address, que es única dentro de la aplicación.",
+        "El applicationCode de la petición debe estar en el claim applications del token del solicitante; si no lo está se devuelve APPLICATION_FORBIDDEN. Los roles notifications-admin y notifications-auditor quedan exentos de esa comprobación: su función es transversal a todas las aplicaciones por diseño."
+      ],
+      "errors": [
+        {
+          "code": "APPLICATION_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una aplicación con ese código."
+        },
+        {
+          "code": "APPLICATION_FORBIDDEN",
+          "http": 403,
+          "when": "El solicitante no tiene esa aplicación dentro de su alcance."
+        }
+      ]
+    },
+    {
+      "name": "reportEmailBounce",
+      "kind": "command",
+      "description": "Registra que el proveedor de correo notificó, de forma asíncrona, el rebote de una dirección para un mensaje que ya se había entregado al relay. Es la puerta explícita y determinista para un rebote que llega DESPUÉS de la aceptación —la notificación real del proveedor, o su simulación en un arnés de pruebas—, distinta del rechazo síncrono que sendQueuedMessage ya detecta en el momento del envío.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/messages/{messageId}/bounces"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "messageId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "address",
+            "type": "EmailAddress",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "permanent",
+            "type": "boolean",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "reason",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "security": {
+        "level": "service",
+        "scopes": [
+          "bounce:report"
+        ]
+      },
+      "rules": [
+        "La dirección se normaliza a minúsculas antes de buscar su registro, igual que en suppressAddress.",
+        "messageId identifica el mensaje que el relay ya había aceptado; el rebote es un hecho posterior y no exige que el mensaje siga en ningún estado concreto, ni le cambia el status.",
+        "Un rebote permanent añade la dirección a la lista de supresión de la aplicación del mensaje con reason hard-bounce, siguiendo las mismas reglas que suppressAddress (no duplica registro, reactiva uno released).",
+        "Que un rebote permanente REACTIVE un registro released es deliberado y va contra la decisión humana que lo liberó: el proveedor de correo acaba de confirmar que la dirección sigue muerta, y la reputación del remitente es compartida por todas las aplicaciones del servicio. Quien la liberó puede volver a liberarla; insistir sobre una dirección que rebota duro perjudica a los envíos de todos los demás.",
+        "Un rebote no permanent (blando) se registra en el motivo pero no suprime la dirección."
+      ],
+      "errors": [
+        {
+          "code": "MESSAGE_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un mensaje con ese identificador."
+        },
+        {
+          "code": "APPLICATION_ADDRESS_ALREADY_EXISTS",
+          "http": 409,
+          "when": "Dos rebotes simultáneos sobre la misma dirección de la misma aplicación y el segundo chocó con la clave natural."
+        }
+      ]
+    },
+    {
+      "name": "purgeMessagePersonalData",
+      "kind": "command",
+      "description": "Borra los datos personales de los mensajes antiguos conservando la fila y su clave de idempotencia, para que la retención no rompa la guarda permanente contra el doble envío.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/messages/purge"
+      },
+      "input": {
+        "kind": "void"
+      },
+      "output": {
+        "kind": "void"
+      },
+      "security": {
+        "level": "admin",
+        "roles": [
+          "notifications-admin"
+        ],
+        "permissions": [
+          "retention:purge"
+        ]
+      },
+      "rules": [
+        "El calendario de este ciclo vive en UTC: «las 3» son las 3 UTC, y el umbral de los 18 meses se calcula también en UTC. Todo instante del servicio es UTC, así que la retención no depende de dónde se despliegue ni salta con los cambios de hora.",
+        "Se purgan los mensajes cuyo requestedAt tiene más de 18 meses y que aún no llevan personalDataPurgedAt.",
+        "La purga vacía recipients, renderedSubject y variableValues, y sella personalDataPurgedAt: la fila, su clave de idempotencia, su estado y su desenlace se conservan para siempre.",
+        "Un mensaje purgado sigue impidiendo que la misma clave vuelva a enviar un correo, que es la razón de no borrar la fila.",
+        "Cada ciclo purga como mucho 5000 mensajes; lo que no entre en un ciclo lo recoge el siguiente.",
+        "La purga es repetible sin daño porque solo toma mensajes sin personalDataPurgedAt."
+      ],
+      "schedule": {
+        "cron": "0 3 * * *"
+      },
+      "errors": []
+    }
+  ],
+  "events": {
+    "envelope": "keel",
+    "reliability": "best-effort",
+    "published": [
+      {
+        "name": "EmailSent",
+        "description": "El relay aceptó el mensaje para su entrega. Es informativo y NO es fuente de verdad: con reliability best-effort este evento puede perderse aunque el correo sí haya salido, así que quien necesite certeza debe consultar findMessageByIdempotencyKey o listMessages. Hoy no tiene ningún consumidor conocido y se publica igualmente: el payload es CONTRATO ESTABLE desde ya, para que un consumidor futuro pueda reaccionar al desenlace sin sondear.",
+        "channel": "notificationEvents",
+        "emittedBy": [
+          "sendQueuedMessage"
+        ],
+        "payload": [
+          {
+            "name": "messageId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "idempotencyKey",
+            "type": "IdempotencyKey",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "recipientCount",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "sentAt",
+            "type": "timestamp",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      },
+      {
+        "name": "EmailDeliveryFailed",
+        "description": "El relay rechazó el mensaje o no respondió. El fallo es TERMINAL por diseño: este servicio no reintenta, así que quien quiera recuperar el aviso debe volver a pedirlo con otra clave de idempotencia. Con reliability best-effort tampoco este evento está garantizado. Hoy no tiene ningún consumidor conocido y se publica igualmente: el payload es CONTRATO ESTABLE desde ya, porque el fallo es el único desenlace que exige acción de alguien.",
+        "channel": "notificationEvents",
+        "emittedBy": [
+          "sendQueuedMessage"
+        ],
+        "payload": [
+          {
+            "name": "messageId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "applicationCode",
+            "type": "ApplicationCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "idempotencyKey",
+            "type": "IdempotencyKey",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "failureReason",
+            "type": "string",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "failedAt",
+            "type": "timestamp",
+            "required": true,
+            "list": false,
+            "description": ""
+          }
+        ]
+      }
+    ],
+    "subscriptions": [
+      {
+        "name": "NotificationRequested",
+        "description": "Un servidor registrado nos encarga enviar un correo. El payload es nuestra firma de entrada, no el hecho de nadie: es el mismo contrato que sirve POST /notifications.",
+        "source": "any-registered-system",
+        "channel": "notificationRequests",
+        "triggers": "requestNotification",
+        "contract": {
+          "envelope": "keel",
+          "format": "json",
+          "unknownFields": "ignore",
+          "messageId": "field metadata.eventId (implicito en el sobre keel)"
+        },
+        "payload": [
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "idempotencyKey",
+            "type": "IdempotencyKey",
+            "required": true,
+            "list": false,
+            "description": ""
+          },
+          {
+            "name": "recipients",
+            "type": "EmailAddress",
+            "required": true,
+            "list": true,
+            "description": ""
+          },
+          {
+            "name": "variables",
+            "type": "TemplateVariableValue",
+            "required": false,
+            "list": true,
+            "description": ""
+          }
+        ],
+        "onFailure": {
+          "retry": "3 intentos - exponential - 1000 ms",
+          "deadLetter": true
+        },
+        "identity": "applicationCode <- field metadata.source - sin resolver: deadLetter"
+      }
+    ]
+  },
+  "domain": {
+    "entities": [
+      {
+        "name": "Application",
+        "description": "Aplicación o servidor autorizado a pedir envíos. Posee sus propias plantillas y aporta el remitente verificado desde el que salen sus correos.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "description": "",
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "code",
+            "type": "ApplicationCode",
+            "list": false,
+            "description": "",
+            "flags": [
+              "requerido",
+              "unico"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "list": false,
+            "description": "",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "senderAddress",
+            "type": "EmailAddress",
+            "list": false,
+            "description": "Dirección remitente verificada ante el proveedor de correo desde la que salen los mensajes de esta aplicación.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "senderName",
+            "type": "string",
+            "list": false,
+            "description": "Nombre visible que acompaña al remitente en el cliente de correo del destinatario.",
+            "flags": []
+          },
+          {
+            "name": "replyToAddress",
+            "type": "EmailAddress",
+            "list": false,
+            "description": "Dirección a la que responde el destinatario, si es distinta del remitente.",
+            "flags": []
+          },
+          {
+            "name": "status",
+            "type": "ApplicationStatus",
+            "list": false,
+            "description": "",
+            "flags": [
+              "default: active"
+            ]
+          }
+        ],
+        "lifecycle": {
+          "field": "status",
+          "transitions": {
+            "active": [
+              "suspended"
+            ],
+            "suspended": [
+              "active"
+            ]
+          }
+        },
+        "invariants": [
+          "Una aplicación suspended no puede originar nuevos envíos.",
+          "El código de una aplicación no cambia una vez registrada."
+        ]
+      },
+      {
+        "name": "EmailTemplate",
+        "description": "Plantilla de correo de una aplicación, identificada por su código. Es el contenedor estable: el contenido concreto vive en sus versiones.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "description": "",
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "code",
+            "type": "TemplateCode",
+            "list": false,
+            "description": "",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "list": false,
+            "description": "",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "description",
+            "type": "string",
+            "list": false,
+            "description": "",
+            "flags": []
+          },
+          {
+            "name": "hasActiveVersion",
+            "type": "boolean",
+            "list": false,
+            "description": "Distingue una plantilla en circulación de una retirada, sin duplicar el estado que ya viven las versiones.",
+            "flags": [
+              "calculado"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "application",
+            "entity": "Application",
+            "cardinality": "many-to-one"
+          },
+          {
+            "name": "versions",
+            "entity": "EmailTemplateVersion",
+            "cardinality": "one-to-many"
+          }
+        ],
+        "invariants": [
+          "El código de una plantilla es único dentro de su aplicación.",
+          "Una plantilla tiene como mucho una versión en estado active.",
+          "Una plantilla sin ninguna versión active no puede usarse para enviar."
+        ]
+      },
+      {
+        "name": "EmailTemplateVersion",
+        "description": "Contenido concreto e inmutable de una plantilla en un momento dado. Publicar contenido nuevo crea una versión nueva; la anterior queda archivada y sigue siendo consultable.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "description": "",
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "versionNumber",
+            "type": "int",
+            "list": false,
+            "description": "Número correlativo dentro de la plantilla, empezando en 1.",
+            "flags": [
+              "requerido",
+              "calculado"
+            ]
+          },
+          {
+            "name": "subject",
+            "type": "string",
+            "list": false,
+            "description": "Asunto del correo, con las mismas variables que el cuerpo.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "htmlBody",
+            "type": "text",
+            "list": false,
+            "description": "Cuerpo HTML de la plantilla. La cota deja sitio de sobra a una plantilla transaccional con estilos en línea y se queda muy por debajo del tamaño a partir del cual los clientes de correo recortan el HTML al mostrarlo.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "textBody",
+            "type": "text",
+            "list": false,
+            "description": "Alternativa en texto plano del mismo mensaje; sin ella los filtros antispam desconfían del HTML.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "variables",
+            "type": "TemplateVariable",
+            "list": true,
+            "description": "Variables que esta versión declara y contra las que se valida toda petición de envío antes de renderizar.",
+            "flags": []
+          },
+          {
+            "name": "status",
+            "type": "TemplateVersionStatus",
+            "list": false,
+            "description": "",
+            "flags": [
+              "default: active"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "template",
+            "entity": "EmailTemplate",
+            "cardinality": "many-to-one"
+          }
+        ],
+        "lifecycle": {
+          "field": "status",
+          "transitions": {
+            "active": [
+              "archived"
+            ],
+            "archived": [
+              "active"
+            ]
+          }
+        },
+        "invariants": [
+          "El contenido de una versión (asunto, cuerpos y variables declaradas) no se modifica una vez creada.",
+          "El número de versión es único dentro de su plantilla y nunca se reutiliza.",
+          "Toda variable referenciada en el asunto o en los cuerpos está declarada en variables."
+        ]
+      },
+      {
+        "name": "EmailMessage",
+        "description": "Registro de un correo que el servicio ha aceptado emitir, con el resultado de su envío. Es la unidad de trazabilidad y la guarda contra repeticiones.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "description": "",
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "idempotencyKey",
+            "type": "IdempotencyKey",
+            "list": false,
+            "description": "Clave aportada por el solicitante; una repetición con la misma clave devuelve este mismo registro sin volver a enviar.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "recipients",
+            "type": "EmailAddress",
+            "list": true,
+            "description": "Destinatarios directos del mensaje, deduplicados al aceptar la petición. Queda vacío tras la purga de datos personales.",
+            "flags": []
+          },
+          {
+            "name": "renderedSubject",
+            "type": "string",
+            "list": false,
+            "description": "Asunto ya resuelto, tal como lo recibió el destinatario. Queda vacío tras la purga de datos personales.",
+            "flags": [
+              "calculado"
+            ]
+          },
+          {
+            "name": "variableValues",
+            "type": "TemplateVariableValue",
+            "list": true,
+            "description": "Valores aportados para renderizar; pueden contener datos personales, así que no salen en ninguna respuesta y se borran en la purga.",
+            "flags": [
+              "sensible"
+            ]
+          },
+          {
+            "name": "senderAddress",
+            "type": "EmailAddress",
+            "list": false,
+            "description": "Se copia de Application.senderAddress al aceptar la petición, para que un cambio posterior no reescriba el histórico.",
+            "flags": [
+              "requerido",
+              "calculado"
+            ]
+          },
+          {
+            "name": "senderName",
+            "type": "string",
+            "list": false,
+            "description": "Nombre visible que acompañó al remitente, tal como salió en el correo. Se copia de Application.senderName al aceptar la petición, junto con senderAddress: las dos mitades del From se congelan a la vez, porque componerlo con la dirección de entonces y el nombre de ahora produce una cabecera que nunca existió. Vacío si la aplicación no declara nombre visible.",
+            "flags": [
+              "calculado"
+            ]
+          },
+          {
+            "name": "templateCode",
+            "type": "TemplateCode",
+            "list": false,
+            "description": "Se copia del código de la plantilla resuelta al aceptar la petición.",
+            "flags": [
+              "requerido",
+              "calculado"
+            ]
+          },
+          {
+            "name": "templateVersionNumber",
+            "type": "int",
+            "list": false,
+            "description": "Se copia del versionNumber de la versión activa resuelta al aceptar la petición.",
+            "flags": [
+              "requerido",
+              "calculado"
+            ]
+          },
+          {
+            "name": "templateVersionId",
+            "type": "uuid",
+            "list": false,
+            "description": "Se copia del id de la versión activa resuelta al aceptar la petición; apunta al agregado Application y se referencia por id.",
+            "flags": [
+              "requerido",
+              "calculado"
+            ]
+          },
+          {
+            "name": "status",
+            "type": "MessageStatus",
+            "list": false,
+            "description": "",
+            "flags": [
+              "default: queued"
+            ]
+          },
+          {
+            "name": "failureReason",
+            "type": "string",
+            "list": false,
+            "description": "Motivo por el que el envío no pudo completarse, tal como lo reportó el relay, o el motivo del rescate si el envío se quedó atascado.",
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "requestedAt",
+            "type": "timestamp",
+            "list": false,
+            "description": "Momento en que el servicio aceptó la petición de envío.",
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "sendingSince",
+            "type": "timestamp",
+            "list": false,
+            "description": "Momento en que el mensaje pasó a sending, es decir en que un ciclo de despacho lo tomó. Es la marca que el rescate mira para decidir si lleva demasiado tiempo atascado. Queda vacío mientras el mensaje está en queued y se conserva después, como huella de cuándo se intentó.",
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "sentAt",
+            "type": "timestamp",
+            "list": false,
+            "description": "Momento en que el relay aceptó el mensaje para su entrega.",
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "personalDataPurgedAt",
+            "type": "timestamp",
+            "list": false,
+            "description": "Momento en que se borraron los datos personales del mensaje conservando la fila y su clave de idempotencia.",
+            "flags": [
+              "generado"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "application",
+            "entity": "Application",
+            "cardinality": "many-to-one"
+          }
+        ],
+        "lifecycle": {
+          "field": "status",
+          "transitions": {
+            "queued": [
+              "sending"
+            ],
+            "sending": [
+              "sent",
+              "failed"
+            ],
+            "sent": [],
+            "failed": []
+          }
+        },
+        "invariants": [
+          "La pareja de aplicación y clave de idempotencia es única en todo el servicio, y se conserva aunque se purguen los datos personales del mensaje.",
+          "Un mensaje sin personalDataPurgedAt tiene siempre recipients y renderedSubject informados; tras la purga los dos quedan vacíos y la fila se conserva.",
+          "Un mensaje sent tiene siempre sentAt informado.",
+          "Un mensaje failed tiene siempre failureReason informado.",
+          "La versión de plantilla de un mensaje no cambia aunque después se publique una versión nueva."
+        ]
+      },
+      {
+        "name": "SuppressedAddress",
+        "description": "Dirección a la que esta aplicación no debe volver a escribir. La reputación del remitente es compartida por todos los consumidores del servicio, así que insistir sobre una dirección que rebotó duro perjudica a los envíos de todos los demás. Liberarla no borra el registro: lo conserva para auditoría y para poder reactivarlo si la dirección vuelve a rebotar.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "description": "",
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "address",
+            "type": "EmailAddress",
+            "list": false,
+            "description": "",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "reason",
+            "type": "SuppressionReason",
+            "list": false,
+            "description": "",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "notes",
+            "type": "string",
+            "list": false,
+            "description": "Detalle del rebote o de la queja, tal como lo reportó el relay, o el motivo de la supresión manual.",
+            "flags": []
+          },
+          {
+            "name": "status",
+            "type": "SuppressionStatus",
+            "list": false,
+            "description": "",
+            "flags": [
+              "default: active"
+            ]
+          },
+          {
+            "name": "suppressedAt",
+            "type": "timestamp",
+            "list": false,
+            "description": "",
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "releasedAt",
+            "type": "timestamp",
+            "list": false,
+            "description": "Momento en que se liberó la dirección; vacío mientras la supresión sigue vigente.",
+            "flags": [
+              "generado"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "application",
+            "entity": "Application",
+            "cardinality": "many-to-one"
+          }
+        ],
+        "lifecycle": {
+          "field": "status",
+          "transitions": {
+            "active": [
+              "released"
+            ],
+            "released": [
+              "active"
+            ]
+          }
+        },
+        "invariants": [
+          "La pareja de aplicación y dirección es única en todo el servicio para siempre; liberar no abre hueco para un segundo registro, y una dirección liberada que vuelve a rebotar reactiva el mismo registro en vez de crear otro.",
+          "Un registro released tiene releasedAt informado; uno active no.",
+          "La supresión vale solo dentro de su aplicación y no es global, así que una dirección que rebotó para una aplicación puede seguir siendo válida para otra."
+        ]
+      }
+    ],
+    "aggregates": [
+      {
+        "name": "Application",
+        "root": "Application",
+        "entities": [
+          "EmailTemplate",
+          "EmailTemplateVersion"
+        ],
+        "description": "La aplicación posee sus plantillas y el contenido de cada versión; publicar una versión nueva archiva la anterior en la misma transacción."
+      },
+      {
+        "name": "EmailMessage",
+        "root": "EmailMessage",
+        "entities": [],
+        "description": "Cada mensaje es su propia frontera; referencia a la aplicación y a la versión de plantilla por id."
+      },
+      {
+        "name": "SuppressedAddress",
+        "root": "SuppressedAddress",
+        "entities": [],
+        "description": "Frontera propia: se escribe desde el desenlace de un envío, que es otra transacción que la del agregado Application, y se consulta al aceptar cada petición."
+      }
+    ],
+    "types": [
+      {
+        "name": "EmailAddress",
+        "kind": "escalar",
+        "detail": "string - pattern ^[^@\\s]+@[^@\\s]+\\.[A-Za-z]{2,}$ - maxLength 254",
+        "description": "Dirección de correo electrónico."
+      },
+      {
+        "name": "ApplicationCode",
+        "kind": "escalar",
+        "detail": "string - pattern ^[a-z][a-z0-9-]{2,47}$",
+        "description": "Identificador estable y legible de una aplicación consumidora, usado en eventos y peticiones M2M."
+      },
+      {
+        "name": "TemplateCode",
+        "kind": "escalar",
+        "detail": "string - pattern ^[a-z][a-z0-9-]{2,63}$",
+        "description": "Identificador estable de una plantilla dentro de su aplicación; es lo que el consumidor nombra al pedir un envío."
+      },
+      {
+        "name": "IdempotencyKey",
+        "kind": "escalar",
+        "detail": "string - minLength 8 - maxLength 128",
+        "description": "Clave con la que quien pide el envío distingue una petición nueva de un reintento de la misma."
+      },
+      {
+        "name": "ApplicationStatus",
+        "kind": "enum",
+        "detail": "active | suspended",
+        "description": ""
+      },
+      {
+        "name": "TemplateVersionStatus",
+        "kind": "enum",
+        "detail": "active | archived",
+        "description": ""
+      },
+      {
+        "name": "MessageStatus",
+        "kind": "enum",
+        "detail": "queued | sending | sent | failed",
+        "description": ""
+      },
+      {
+        "name": "SuppressionReason",
+        "kind": "enum",
+        "detail": "hard-bounce | complaint | manual",
+        "description": ""
+      },
+      {
+        "name": "SuppressionStatus",
+        "kind": "enum",
+        "detail": "active | released",
+        "description": ""
+      },
+      {
+        "name": "TemplateVariable",
+        "kind": "value object",
+        "detail": "name: string, description: string, required: boolean",
+        "description": "Declaración de una variable que la plantilla espera recibir para poder renderizarse."
+      },
+      {
+        "name": "TemplateVariableValue",
+        "kind": "value object",
+        "detail": "name: string, value: string",
+        "description": "Valor concreto que el solicitante aporta para una variable declarada por la plantilla."
+      }
+    ]
+  }
+};
+
+(function () {
+  'use strict';
+
+  if (!KEEL) {
+    document.getElementById('svc-name').textContent = 'Plantilla sin datos';
+    document.getElementById('svc-desc').textContent =
+      'Este archivo es la plantilla de /keel-docs: el placeholder KEEL_DATA no fue sustituido.';
+    return;
+  }
+
+  var AUDIENCES = [
+    { id: 'users',    label: 'Usuarios' },
+    { id: 'services', label: 'Servidores (M2M)' },
+    { id: 'both',     label: 'Ambos' },
+    { id: 'internal', label: 'Internos' }
+  ];
+  var LEVEL_LABEL = { public: 'pública', required: 'protegida', admin: 'admin', service: 'M2M' };
+
+  // -- helpers --------------------------------------------------------------
+  function el(tag, attrs, children) {
+    var n = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (k === 'class') n.className = attrs[k];
+      else if (k === 'text') n.textContent = attrs[k];
+      else if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) n.appendChild(c); });
+    return n;
+  }
+  function txt(tag, s, cls) { return el(tag, cls ? { class: cls, text: s } : { text: s }); }
+  function badge(label, kind) { return el('span', { class: 'badge' + (kind ? ' ' + kind : ''), text: label }); }
+  function list(arr) { return (arr && arr.length) ? arr.join(', ') : null; }
+  function has(x) { return x !== null && x !== undefined && x !== '' && !(Array.isArray(x) && !x.length); }
+  function section(title, node) { return el('section', {}, [txt('h4', title), node]); }
+  function ul(items) { return el('ul', {}, (items || []).map(function (i) { return txt('li', i); })); }
+  function kv(pairs) {
+    var d = el('dl', { class: 'kv' });
+    pairs.forEach(function (p) {
+      if (!has(p[1])) return;
+      d.appendChild(txt('dt', p[0]));
+      d.appendChild(txt('dd', String(p[1])));
+    });
+    return d.children.length ? d : null;
+  }
+  function table(headers, rows, monoCols) {
+    if (!rows || !rows.length) return null;
+    var thead = el('tr', {}, headers.map(function (h) { return txt('th', h); }));
+    var tb = el('tbody', {}, rows.map(function (r) {
+      return el('tr', {}, r.map(function (c, i) {
+        return el('td', { class: (monoCols || []).indexOf(i) >= 0 ? 'mono' : null, text: c === null || c === undefined ? '—' : String(c) });
+      }));
+    }));
+    return el('div', { class: 'scroll' }, [el('table', {}, [el('thead', {}, [thead]), tb])]);
+  }
+  function fieldsTable(fields) {
+    return table(['Campo', 'Tipo', 'Requerido', 'Descripción'], (fields || []).map(function (f) {
+      return [f.name, f.type + (f.list ? '[]' : ''), f.required ? 'sí' : 'no', f.description || '—'];
+    }), [0, 1]);
+  }
+  function payloadNode(p) {
+    if (!p) return txt('p', 'void', 'empty');
+    if (p.kind === 'void') return txt('p', 'void', 'empty');
+    if (p.kind === 'entity') {
+      var s = p.entity + (p.list ? '[] (lista)' : '') + (p.paginated ? ' — paginado' : '');
+      if (has(p.exclude)) s += ' · excluye: ' + p.exclude.join(', ');
+      return txt('p', s, 'mono');
+    }
+    return fieldsTable(p.fields) || txt('p', 'sin campos declarados', 'empty');
+  }
+
+  // -- cabecera -------------------------------------------------------------
+  var svc = KEEL.service || {};
+  document.title = svc.name ? 'Panel · ' + svc.name : 'Panel del servicio';
+  document.getElementById('svc-name').textContent = svc.name || '—';
+  document.getElementById('svc-desc').textContent = svc.description || '';
+  var meta = document.getElementById('svc-meta');
+  [['versión ' + (svc.version || '—'), 'tag'], svc.domain ? ['dominio: ' + svc.domain, null] : null,
+   svc.basedOn ? ['derivado de ' + svc.basedOn, null] : null]
+    .forEach(function (m) { if (m) meta.appendChild(badge(m[0], m[1])); });
+
+  var links = document.getElementById('links');
+  (KEEL.links || []).forEach(function (l) {
+    links.appendChild(el('a', { href: l.href, title: l.description || '', text: l.label }));
+  });
+
+  // -- huecos ---------------------------------------------------------------
+  if (has(KEEL.gaps)) {
+    document.getElementById('gaps-wrap').hidden = false;
+    var g = document.getElementById('gaps');
+    KEEL.gaps.forEach(function (s) { g.appendChild(txt('li', s)); });
+  }
+
+  // -- capacidades ----------------------------------------------------------
+  var caps = document.getElementById('capabilities');
+  (KEEL.capabilities || []).forEach(function (c) {
+    var card = el('div', { class: 'card' + (c.active ? '' : ' off') }, [
+      el('div', { class: 'card-head' }, [
+        txt('span', c.label, 'card-label'),
+        badge(c.active ? (c.state || 'sí') : 'no aplica', c.active ? 'on' : null)
+      ]),
+      c.headline ? txt('p', c.headline, 'card-headline') : null
+    ]);
+    if (has(c.facts)) {
+      var f = el('div', { class: 'facts' });
+      c.facts.forEach(function (p) {
+        f.appendChild(el('div', {}, [txt('span', p[0], 'k'), txt('span', String(p[1]), 'v')]));
+      });
+      card.appendChild(f);
+    }
+    if (c.note) card.appendChild(txt('p', c.note, 'note'));
+    caps.appendChild(card);
+  });
+
+  // -- casos de uso ---------------------------------------------------------
+  var ucs = KEEL.useCases || [];
+  var host = document.getElementById('use-cases');
+  var present = AUDIENCES.filter(function (a) {
+    return ucs.some(function (u) { return (u.audience || 'internal') === a.id; });
+  });
+  var tabs = document.getElementById('tabs');
+  var current = 'all';
+  [{ id: 'all', label: 'Todos (' + ucs.length + ')' }].concat(present.map(function (a) {
+    var n = ucs.filter(function (u) { return (u.audience || 'internal') === a.id; }).length;
+    return { id: a.id, label: a.label + ' (' + n + ')' };
+  })).forEach(function (t) {
+    var b = el('button', { type: 'button', role: 'tab', 'data-aud': t.id, text: t.label });
+    b.setAttribute('aria-selected', t.id === 'all' ? 'true' : 'false');
+    b.addEventListener('click', function () {
+      current = t.id;
+      Array.prototype.forEach.call(tabs.children, function (o) {
+        o.setAttribute('aria-selected', String(o.getAttribute('data-aud') === current));
+      });
+      applyFilter();
+    });
+    tabs.appendChild(b);
+  });
+
+  function triggerText(t) {
+    if (!t) return '—';
+    if (t.type === 'http') return (t.method || '') + ' ' + (t.path || '');
+    if (t.type === 'event') return 'evento ' + (t.event || '');
+    if (t.type === 'schedule') return 'programado · ' + (t.cron || '');
+    return 'interna';
+  }
+
+  ucs.forEach(function (u) {
+    var d = el('details', { class: 'item', 'data-aud': u.audience || 'internal' });
+    var sum = el('summary', {}, [
+      txt('span', u.name, 'item-name'),
+      badge(u.kind || 'command', 'tag'),
+      u.trigger && u.trigger.type === 'http' ? badge(triggerText(u.trigger)) : null,
+      u.trigger && u.trigger.type === 'event' ? badge('por evento') : null,
+      u.trigger && u.trigger.type === 'schedule' ? badge('programado') : null,
+      u.idempotency ? badge('idempotente', 'on') : null,
+      u.cache ? badge('cacheada', 'on') : null,
+      u.security ? badge(LEVEL_LABEL[u.security.level] || u.security.level,
+        u.security.level === 'public' ? 'warn' : 'tag') : null,
+      txt('span', u.description || '', 'item-desc')
+    ]);
+    var body = el('div', { class: 'body' });
+    if (u.description) body.appendChild(section('Qué hace', txt('p', u.description)));
+    body.appendChild(section('Disparador', txt('p', triggerText(u.trigger), 'mono')));
+    body.appendChild(section('Entrada', payloadNode(u.input)));
+    body.appendChild(section('Salida', payloadNode(u.output)));
+    if (has(u.preconditions)) body.appendChild(section('Precondiciones', ul(u.preconditions)));
+    if (has(u.rules)) body.appendChild(section('Reglas', ul(u.rules)));
+    if (has(u.errors)) {
+      body.appendChild(section('Errores', table(['Código', 'HTTP', 'Cuándo'], u.errors.map(function (e) {
+        return [e.code, e.http || '—', e.when || '—'];
+      }), [0])));
+    }
+    var pol = [];
+    if (u.idempotency) pol.push(['Idempotencia', 'keySource: ' + u.idempotency.keySource +
+      (has(u.idempotency.ttlSeconds) ? ' · TTL ' + u.idempotency.ttlSeconds + 's' : '')]);
+    if (u.cache) pol.push(['Caché', 'TTL ' + u.cache.ttlSeconds + 's' +
+      (has(u.cache.keyFields) ? ' · clave: ' + u.cache.keyFields.join(', ') : '') +
+      (has(u.cache.invalidatedBy) ? ' · invalida: ' + u.cache.invalidatedBy.join(', ') : '')]);
+    if (u.schedule) pol.push(['Programación', u.schedule.cron]);
+    if (pol.length) body.appendChild(section('Políticas', kv(pol)));
+    if (u.security) {
+      body.appendChild(section('Seguridad', kv([
+        ['Nivel', (LEVEL_LABEL[u.security.level] || u.security.level) + ' (' + u.security.level + ')'],
+        ['Roles', list(u.security.roles)],
+        ['Permisos', list(u.security.permissions)],
+        ['Scopes', list(u.security.scopes)]
+      ])));
+    }
+    if (has(u.emits)) body.appendChild(section('Eventos que emite', txt('p', u.emits.join(', '), 'mono')));
+    d.appendChild(sum);
+    d.appendChild(body);
+    d.setAttribute('data-text', (u.name + ' ' + (u.description || '') + ' ' + JSON.stringify(u)).toLowerCase());
+    host.appendChild(d);
+  });
+  if (!ucs.length) host.appendChild(txt('p', 'El diseño no declara operaciones.', 'empty'));
+
+  var q = document.getElementById('q');
+  function applyFilter() {
+    var needle = q.value.trim().toLowerCase();
+    Array.prototype.forEach.call(host.children, function (n) {
+      if (!n.getAttribute) return;
+      var okAud = current === 'all' || n.getAttribute('data-aud') === current;
+      var okTxt = !needle || (n.getAttribute('data-text') || '').indexOf(needle) >= 0;
+      n.hidden = !(okAud && okTxt);
+    });
+  }
+  q.addEventListener('input', applyFilter);
+
+  // -- eventos --------------------------------------------------------------
+  var ev = KEEL.events;
+  if (ev && (has(ev.published) || has(ev.subscriptions))) {
+    document.getElementById('events-wrap').hidden = false;
+    var eh = document.getElementById('events');
+    eh.appendChild(txt('p', 'Envoltura: ' + (ev.envelope || 'keel') +
+      ' (metadata + data)' + (ev.reliability ? ' · fiabilidad de publicación: ' + ev.reliability : ''),
+      'item-desc'));
+    if (has(ev.published)) {
+      eh.appendChild(txt('h3', 'Publicados'));
+      ev.published.forEach(function (e) {
+        var b = el('div', { class: 'body' }, [
+          e.description ? section('Descripción', txt('p', e.description)) : null,
+          section('Payload (data)', fieldsTable(e.payload) || txt('p', 'sin campos', 'empty')),
+          section('Detalles', kv([
+            ['Canal', e.channel || 'por convención del generador'],
+            ['Emitido por', list(e.emittedBy)],
+            ['Entrega', e.reliability || ev.reliability]
+          ]))
+        ]);
+        eh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', e.name, 'item-name'), badge('publicado', 'on'),
+            e.channel ? badge(e.channel) : null, txt('span', e.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+    if (has(ev.subscriptions)) {
+      eh.appendChild(txt('h3', 'Suscripciones'));
+      ev.subscriptions.forEach(function (s) {
+        var c = s.contract || {};
+        var b = el('div', { class: 'body' }, [
+          s.description ? section('Descripción', txt('p', s.description)) : null,
+          section('Payload esperado', fieldsTable(s.payload) || txt('p', 'sin campos', 'empty')),
+          section('Contrato de recepción', kv([
+            ['Origen', s.source],
+            ['Canal', s.channel],
+            ['Envoltura', c.envelope],
+            ['Ruta del payload', c.payloadPath],
+            ['Formato', c.format],
+            ['Discriminador', c.discriminator],
+            ['Clave de dedupe', c.messageId],
+            ['Campos desconocidos', c.unknownFields]
+          ])),
+          section('Al fallar', kv([
+            ['Reintentos', s.onFailure && s.onFailure.retry],
+            ['Dead letter', s.onFailure && (s.onFailure.deadLetter ? 'sí' : 'no')]
+          ]) || txt('p', 'sin política declarada', 'empty'))
+        ]);
+        eh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', s.name, 'item-name'), badge('consumido', 'tag'),
+            s.source ? badge('de ' + s.source) : null,
+            s.triggers ? badge('→ ' + s.triggers) : null,
+            txt('span', s.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+  }
+
+  // -- clientes HTTP --------------------------------------------------------
+  if (has(KEEL.httpClients)) {
+    document.getElementById('clients-wrap').hidden = false;
+    var ch = document.getElementById('clients');
+    KEEL.httpClients.forEach(function (c) {
+      var b = el('div', { class: 'body' }, [
+        c.purpose ? section('Propósito', txt('p', c.purpose)) : null,
+        section('Autenticación saliente', txt('p', c.auth || 'none', 'mono')),
+        section('Llamadas', table(
+          ['Llamada', 'Método y ruta', 'Timeout', 'Retry', 'Circuit breaker', 'Fallback'],
+          (c.calls || []).map(function (k) {
+            return [k.name, has(k.method) ? k.method + ' ' + (k.path || '') : (k.contract || '—'),
+              has(k.timeoutMs) ? k.timeoutMs + ' ms' : '—', k.retry || '—',
+              k.circuitBreaker || '—', k.fallback || '—'];
+          }), [0, 1]) || txt('p', 'sin llamadas declaradas', 'empty'))
+      ]);
+      ch.appendChild(el('details', { class: 'item' }, [
+        el('summary', {}, [txt('span', c.name, 'item-name'),
+          badge((c.calls || []).length + ' llamada(s)', 'tag'),
+          txt('span', c.purpose || '', 'item-desc')]),
+        b
+      ]));
+    });
+  }
+
+  // -- dominio --------------------------------------------------------------
+  var dom = KEEL.domain;
+  if (dom && (has(dom.entities) || has(dom.aggregates) || has(dom.types))) {
+    document.getElementById('domain-wrap').hidden = false;
+    var dh = document.getElementById('domain');
+    if (has(dom.aggregates)) {
+      dh.appendChild(txt('h3', 'Agregados'));
+      dh.appendChild(table(['Agregado', 'Raíz', 'Entidades internas', 'Descripción'],
+        dom.aggregates.map(function (a) {
+          return [a.name, a.root, list(a.entities) || '—', a.description || '—'];
+        }), [0, 1, 2]));
+    }
+    if (has(dom.entities)) {
+      dh.appendChild(txt('h3', 'Entidades'));
+      dom.entities.forEach(function (e) {
+        var b = el('div', { class: 'body' }, [
+          e.description ? section('Descripción', txt('p', e.description)) : null,
+          section('Campos', table(['Campo', 'Tipo', 'Atributos', 'Descripción'],
+            (e.fields || []).map(function (f) {
+              return [f.name, f.type + (f.list ? '[]' : ''), list(f.flags) || '—', f.description || '—'];
+            }), [0, 1]) || txt('p', 'sin campos', 'empty')),
+          has(e.relations) ? section('Relaciones', table(['Relación', 'Entidad', 'Cardinalidad'],
+            e.relations.map(function (r) { return [r.name, r.entity, r.cardinality]; }), [0, 1])) : null,
+          e.lifecycle ? section('Ciclo de vida (' + e.lifecycle.field + ')',
+            table(['Estado', 'Transiciona a'], Object.keys(e.lifecycle.transitions || {}).map(function (k) {
+              return [k, list(e.lifecycle.transitions[k]) || 'terminal'];
+            }), [0, 1])) : null,
+          has(e.invariants) ? section('Invariantes', ul(e.invariants)) : null
+        ]);
+        dh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', e.name, 'item-name'),
+            badge((e.fields || []).length + ' campo(s)', 'tag'),
+            e.persisted ? badge('persistida', 'on') : null,
+            txt('span', e.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+    if (has(dom.types)) {
+      dh.appendChild(txt('h3', 'Value types'));
+      dh.appendChild(table(['Tipo', 'Forma', 'Detalle', 'Descripción'], dom.types.map(function (t) {
+        return [t.name, t.kind, t.detail || '—', t.description || '—'];
+      }), [0, 1, 2]));
+    }
+  }
+
+  document.getElementById('footer').textContent =
+    'Derivado del diseño Keel de ' + (svc.name || '—') + ' v' + (svc.version || '—') +
+    (svc.generatedAt ? ' · generado el ' + svc.generatedAt : '') +
+    ' · La fuente de verdad son los artefactos de specs/. No edites este archivo a mano: regenéralo con /keel-docs.';
+})();
+</script>
+</body>
+</html>

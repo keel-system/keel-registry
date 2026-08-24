@@ -1,0 +1,116 @@
+# Capa messaging del servicio de notificaciones por correo.
+# Una puerta de entrada (peticiones de envío que otros servidores nos encargan) y
+# una salida informativa (el desenlace de cada correo).
+
+channels:
+  notificationRequests:
+    description: >-
+      Canal propio por el que cualquier servidor registrado encarga un envío de correo.
+      El contrato del mensaje lo posee este servicio, no los emisores.
+  notificationEvents:
+    description: Desenlace de los correos que este servicio emite, para quien quiera reaccionar sin sondear.
+
+publishing:
+  reliability: best-effort
+  events:
+    EmailSent:
+      description: >-
+        El relay aceptó el mensaje para su entrega. Es informativo y NO es fuente de verdad:
+        con reliability best-effort este evento puede perderse aunque el correo sí haya salido,
+        así que quien necesite certeza debe consultar findMessageByIdempotencyKey o listMessages.
+        Hoy no tiene ningún consumidor conocido y se publica igualmente: el payload es CONTRATO
+        ESTABLE desde ya, para que un consumidor futuro pueda reaccionar al desenlace sin sondear.
+      channel: notificationEvents
+      payload:
+        messageId:       { type: uuid, required: true }
+        applicationCode: { type: ApplicationCode, required: true }
+        templateCode:    { type: TemplateCode, required: true }
+        idempotencyKey:  { type: IdempotencyKey, required: true }
+        recipientCount:  { type: int, required: true, constraints: { min: 1 } }
+        sentAt:          { type: timestamp, required: true }
+    EmailDeliveryFailed:
+      description: >-
+        El relay rechazó el mensaje o no respondió. El fallo es TERMINAL por diseño: este servicio
+        no reintenta, así que quien quiera recuperar el aviso debe volver a pedirlo con otra clave
+        de idempotencia. Con reliability best-effort tampoco este evento está garantizado.
+        Hoy no tiene ningún consumidor conocido y se publica igualmente: el payload es CONTRATO
+        ESTABLE desde ya, porque el fallo es el único desenlace que exige acción de alguien.
+      channel: notificationEvents
+      payload:
+        messageId:       { type: uuid, required: true }
+        applicationCode: { type: ApplicationCode, required: true }
+        templateCode:    { type: TemplateCode, required: true }
+        idempotencyKey:  { type: IdempotencyKey, required: true }
+        failureReason:   { type: string, required: true, constraints: { maxLength: 500 } }
+        failedAt:        { type: timestamp, required: true }
+
+subscriptions:
+  NotificationRequested:
+    description: >-
+      Un servidor registrado nos encarga enviar un correo. El payload es nuestra firma de entrada,
+      no el hecho de nadie: es el mismo contrato que sirve POST /notifications.
+    source: any-registered-system
+    nature: request
+    channel: notificationRequests
+    contract:
+      envelope: keel
+      format: json
+      unknownFields: ignore
+      # DEDUPLICACIÓN ANTE REENTREGA — dos barreras, ninguna declarada aquí y por buenas razones:
+      #   1) el sobre keel ya trae metadata.eventId, que el emisor estampa al publicar y viaja
+      #      intacto; es la identidad del mensaje y corta la reentrega del broker antes de tocar el
+      #      dominio. Declarar un messageId aparte apuntaría a un dato que ningún emisor Keel
+      #      escribe, y el listener lo leería vacío (ese campo es para envelope none/wrapped,
+      #      canales external o fuentes con propiedad nativa del broker).
+      #   2) la idempotencyKey del payload, permanente, que protege además del caso que el eventId
+      #      no cubre: un emisor que republique el mismo encargo con un sobre nuevo.
+      # Con retry activo esto no es opcional: el canal es at-least-once por definición.
+    identity:
+      field: applicationCode
+      from: { location: field, name: metadata.source }
+      trustedPublishers: >-
+        Nadie publica anónimamente en este canal: el broker autentica a los emisores en el momento
+        de publicar, lo que acota el riesgo a sistemas que ya están dentro del perímetro. Sobre esa
+        base se acepta que cada emisor estampe su propio nombre en metadata.source, que es política
+        de desarrollo y no un control técnico: un emisor registrado podría pedir un envío en nombre
+        de otra aplicación y usar su remitente verificado. Se asume a sabiendas mientras todos los
+        emisores sean sistemas propios. El día que se integre un tercero, o que haga falta no-repudio
+        del origen, se pasa a location: header y lo garantiza el broker.
+        Un mensaje cuyo emisor no corresponda a ninguna Application registrada no se descarta en
+        silencio: va a la cola de descartes, porque el caso frecuente es un equipo que integra su
+        servicio y olvida registrar su aplicación, y en silencio eso son correos que no salen sin
+        que nada dé error en ningún sitio.
+      onUnresolved: deadLetter
+    payload:
+      templateCode:   { type: TemplateCode, required: true }
+      idempotencyKey: { type: IdempotencyKey, required: true }
+      recipients:
+        type: EmailAddress
+        list: true
+        required: true
+        constraints: { minItems: 1, maxItems: 20 }
+      variables:
+        type: TemplateVariableValue
+        list: true
+        constraints: { maxItems: 50 }
+    triggers: requestNotification
+    input:
+      templateCode: templateCode
+      idempotencyKey: idempotencyKey
+      recipients: recipients
+      variables: variables
+    # POLÍTICA DE FALLO — los reintentos son SOLO para lo transitorio.
+    # Un fallo de negocio de requestNotification no se cura reintentándolo: la plantilla seguirá sin
+    # existir, el destinatario seguirá suprimido y la variable seguirá faltando. Esos van directos a
+    # la cola de descartes, sin consumir ningún intento, para que el equipo emisor vea el problema en
+    # segundos en vez de en cuatro intentos — y para que un emisor que publique en bucle no
+    # multiplique ese ruido por cuatro.
+    # Van a la cola de descartes SIN reintentar: TEMPLATE_NOT_FOUND, TEMPLATE_NOT_PUBLISHED,
+    # RECIPIENT_SUPPRESSED, MISSING_TEMPLATE_VARIABLES, APPLICATION_SUSPENDED, IDEMPOTENCY_KEY_REUSED
+    # y APPLICATION_NOT_FOUND (emisor sin aplicación registrada, que ya cubre onUnresolved).
+    # Se reintenta todo lo demás: indisponibilidad de la base de datos, IDEMPOTENCY_KEY_IN_PROGRESS
+    # (otra petición con la misma clave está confirmando justo ahora) y cualquier fallo de
+    # infraestructura.
+    onFailure:
+      retry: { maxAttempts: 3, backoff: exponential, initialDelayMs: 1000, maxDelayMs: 10000 }
+      deadLetter: true

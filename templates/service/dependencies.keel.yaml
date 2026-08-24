@@ -27,6 +27,12 @@ dependencies:
   #     productPricing:
   #       description: Precio y estado del producto al construir un pedido.
   #       usedBy: [createOrder, repriceOrder]      # operaciones de use-cases que lo necesitan
+  #       # exposedAs: pricing                     # el dato, además de servir para DECIDIR, viaja
+  #                                                # en la salida de esas operaciones con ese nombre.
+  #                                                # Sin él no sale del servicio. Su forma sale de
+  #                                                # response.fields de la llamada (on-demand) o de la
+  #                                                # entidad réplica; nunca es obligatorio en el
+  #                                                # contrato, porque el fallback puede dejarlo vacío
   #       strategy: replicated                     # on-demand | replicated
   #       fetchedFrom:                             # llamada de http-clients que resuelve el dato
   #         client: catalog                        # obligatorio con on-demand y con onMiss: fetch
@@ -44,6 +50,13 @@ dependencies:
   #     - onEvent: OrderPaymentFailed              # suscripción existente en messaging
   #       description: Al fallar el cobro se revierte la reserva hecha contra catalog.
   #       # undoes: reserveStock                   # activación de este proveedor que se deshace
+  #     # La operación que la ejecuta vive en messaging: subscriptions.<evento>.triggers, y
+  #     # tiene dos obligaciones que `keel validate` comprueba: NO poder aplicarse dos veces
+  #     # (la clave del listener —metadata.eventId con envoltura Keel, contract.messageId si
+  #     # la fuente es ajena— o una transición de lifecycle irrepetible; `idempotency` NO
+  #     # vale aquí: su clave llega por cabecera HTTP y el broker no la manda — deshacer
+  #     # dos veces el mismo trabajo no es deshacerlo) y devolver con `transitions` el
+  #     # estado propio que movió el trabajo que se encargó.
   #
   # notifications:
   #   description: Servicio de avisos. No le leemos nada: le pedimos que envíe.
@@ -58,6 +71,15 @@ dependencies:
   #       # via: { client: notifications, call: sendEmail }   # …o llamada de http-clients
   #       effect: Sale un correo de confirmación hacia el comprador.
   #       awaits: nothing                          # outcome | acknowledgement | nothing
+  #       # reconciledBy: sweepPendingDeliveries   # operación propia con `schedule`: barre los
+  #       #   encargos que nunca recibieron desenlace. Aplica cuando el encargo SÍ tiene un
+  #       #   desenlace que esperar (no en este `awaits: nothing`); sin ella, un proveedor que
+  #       #   cae o pierde el mensaje deja el trabajo colgado y nada lo detecta.
+  #       # unansweredAfterSeconds: 1800           # cuánto silencio de ESTE proveedor se tolera
+  #       # awaitingSince: sendEmailAwaitingSince  # obligatorio con reconciledBy: el campo de la
+  #       #   entidad que dice DESDE CUÁNDO espera. El estado dice que espera, no cuánto lleva.
+  #       #   Campo propio, estampado al encargar: `createdAt` es cuándo nació la entidad y un
+  #       #   `updatedAt` de auditoría rejuvenece y la deja invisible al barrido para siempre.
   #       # onFailure:                             # obligatorio solo con via de http-clients
   #       #   action: degrade                      # fail | degrade | ignore
   #       #   degradedTo: El pedido se confirma y el aviso se reintenta aparte.

@@ -1,0 +1,16 @@
+# Obligaciones de diseño que este servicio deja abiertas a sabiendas.
+# No es una capa del DSL: no describe lo que el servicio hace, sino qué se decidió
+# no declarar y por qué. Ver docs/design-obligations.md.
+
+decisions:
+  - id: OBL-CONCURRENCY-CODE
+    scope: persistence
+    reason: >
+      El conflicto de escritura concurrente sobre la raíz Application es un desenlace del
+      mecanismo, no del dominio: no distingue publicar una versión de suspender la aplicación,
+      y darle un code por operación multiplicaría el contrato sin añadir información que el
+      integrador pueda usar —su reacción es la misma en todos los casos, releer y reintentar.
+      Se acepta CONCURRENT_MODIFICATION (409) como contrato público del servicio; es el código
+      que validation-scenarios.md ya afirma en la convención de status y en el flujo de
+      publicación concurrente sobre la misma plantilla.
+    since: 1.5.0

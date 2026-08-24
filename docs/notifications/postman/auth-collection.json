@@ -1,0 +1,534 @@
+{
+  "info": {
+    "name": "notifications — tokens",
+    "description": "Obtencion de credenciales para la coleccion de negocio. Ejecuta estas requests PRIMERO: cada una publica una global `token_<rol>` o `token_<cliente>` que la otra coleccion referencia.\n\nEl diseno Keel es agnostico del proveedor de identidad: rellena `tokenUrl`, los client id/secret y los usuarios de prueba segun el stack con el que se haya generado el servicio.\n\nEste archivo NO se regenera: si lo ajustas a mano, /keel-docs lo respeta.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Token — notifications-admin",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Administra las aplicaciones consumidoras, sus remitentes y la suspensión del servicio.  IMPORTANTE: para las operaciones acotadas por aplicacion, este token debe llevar el claim `applications` con los codigos a los que el usuario alcanza. Los roles notifications-admin y notifications-auditor estan exentos de esa acotacion.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_notifications-admin}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_notifications-admin}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_notifications-admin', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — template-editor",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Redacta y publica el contenido de las plantillas de correo de las aplicaciones dentro de su alcance (claim applications del token); no toca el alta de aplicaciones ni actúa fuera de ese alcance.  IMPORTANTE: para las operaciones acotadas por aplicacion, este token debe llevar el claim `applications` con los codigos a los que el usuario alcanza. Los roles notifications-admin y notifications-auditor estan exentos de esa acotacion.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_template-editor}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_template-editor}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_template-editor', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token · application-operator",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Opera UNA aplicacion consumidora de extremo a extremo: consulta sus plantillas y los correos que ha emitido, dentro de su alcance. Es el unico rol que combina alcance por aplicacion con message:read, y por eso es el que ejercita FL-SEC-020. IMPORTANTE: este token DEBE llevar el claim `applications` acotado (p. ej. solo `billing`); si llega sin acotar, el escenario no prueba nada.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_application-operator}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_application-operator}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_application-operator', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — notifications-auditor",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Consulta los correos emitidos y su desenlace, sin poder modificar nada.  IMPORTANTE: para las operaciones acotadas por aplicacion, este token debe llevar el claim `applications` con los codigos a los que el usuario alcanza. Los roles notifications-admin y notifications-auditor estan exentos de esa acotacion.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_notifications-auditor}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_notifications-auditor}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_notifications-auditor', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — billing (notification:send message:read)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Consumidor de facturación; pide envíos de notificación transaccional y consulta el desenlace de los suyos.  El claim `aud` del token debe nombrar a `notifications`: el servicio valida la audiencia y responde 403 si no coincide.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_billing}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_billing}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scopes_billing}}"
+            },
+            {
+              "key": "audience",
+              "value": "notifications"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_billing', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — shipping (notification:send message:read)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Consumidor de logística; pide envíos de notificación transaccional y consulta el desenlace de los suyos.  El claim `aud` del token debe nombrar a `notifications`: el servicio valida la audiencia y responde 403 si no coincide.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_shipping}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_shipping}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scopes_shipping}}"
+            },
+            {
+              "key": "audience",
+              "value": "notifications"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_shipping', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — dispatch-only (notification:send)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Consumidor que solo dispara notificaciones y nunca necesita consultarlas: publica el aviso y no reacciona a su desenlace, así que no se le concede message:read. Es mínimo privilegio aplicado de verdad — pedir un envío y leer los mensajes de una aplicación son capacidades distintas, y la segunda expone datos personales de los destinatarios.  El claim `aud` del token debe nombrar a `notifications`: el servicio valida la audiencia y responde 403 si no coincide.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_dispatch-only}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_dispatch-only}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scopes_dispatch-only}}"
+            },
+            {
+              "key": "audience",
+              "value": "notifications"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_dispatch-only', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — mail-provider (bounce:report)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "El relay de correo (o su simulador de pruebas), que notifica de forma asíncrona el rebote de un mensaje ya entregado.  El claim `aud` del token debe nombrar a `notifications`: el servicio valida la audiencia y responde 403 si no coincide.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_mail-provider}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_mail-provider}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scopes_mail-provider}}"
+            },
+            {
+              "key": "audience",
+              "value": "notifications"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_mail-provider', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "tokenUrl",
+      "value": "",
+      "description": "Endpoint de token del proveedor de identidad. Parametro de despliegue. Con Keycloak: http://localhost:8180/realms/<realm>/protocol/openid-connect/token"
+    },
+    {
+      "key": "clientId",
+      "value": "",
+      "description": "Client del proveedor que emite los tokens de usuario."
+    },
+    {
+      "key": "clientSecret",
+      "value": "",
+      "description": "Secreto de ese client."
+    },
+    {
+      "key": "username_notifications-admin",
+      "value": "",
+      "description": "Usuario de prueba con el rol notifications-admin."
+    },
+    {
+      "key": "password_notifications-admin",
+      "value": "",
+      "description": "Su contrasena."
+    },
+    {
+      "key": "username_template-editor",
+      "value": "",
+      "description": "Usuario de prueba con el rol template-editor."
+    },
+    {
+      "key": "password_template-editor",
+      "value": "",
+      "description": "Su contrasena."
+    },
+    {
+      "key": "username_application-operator",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "password_application-operator",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "username_notifications-auditor",
+      "value": "",
+      "description": "Usuario de prueba con el rol notifications-auditor."
+    },
+    {
+      "key": "password_notifications-auditor",
+      "value": "",
+      "description": "Su contrasena."
+    },
+    {
+      "key": "clientId_billing",
+      "value": "billing",
+      "description": "Client id del consumidor billing. Su nombre se corresponde con el `code` de la Application en cuyo nombre pide envios."
+    },
+    {
+      "key": "clientSecret_billing",
+      "value": "",
+      "description": "Su secreto."
+    },
+    {
+      "key": "scopes_billing",
+      "value": "notification:send message:read",
+      "description": "Scopes de minimo privilegio de este cliente."
+    },
+    {
+      "key": "clientId_shipping",
+      "value": "shipping",
+      "description": "Client id del consumidor shipping. Su nombre se corresponde con el `code` de la Application en cuyo nombre pide envios."
+    },
+    {
+      "key": "clientSecret_shipping",
+      "value": "",
+      "description": "Su secreto."
+    },
+    {
+      "key": "scopes_shipping",
+      "value": "notification:send message:read",
+      "description": "Scopes de minimo privilegio de este cliente."
+    },
+    {
+      "key": "clientId_dispatch-only",
+      "value": "dispatch-only",
+      "description": "Client id del consumidor dispatch-only. Su nombre se corresponde con el `code` de la Application en cuyo nombre pide envios."
+    },
+    {
+      "key": "clientSecret_dispatch-only",
+      "value": "",
+      "description": "Su secreto."
+    },
+    {
+      "key": "scopes_dispatch-only",
+      "value": "notification:send",
+      "description": "Scopes de minimo privilegio de este cliente."
+    },
+    {
+      "key": "clientId_mail-provider",
+      "value": "mail-provider",
+      "description": "Client id del consumidor mail-provider. Su nombre se corresponde con el `code` de la Application en cuyo nombre pide envios."
+    },
+    {
+      "key": "clientSecret_mail-provider",
+      "value": "",
+      "description": "Su secreto."
+    },
+    {
+      "key": "scopes_mail-provider",
+      "value": "bounce:report",
+      "description": "Scopes de minimo privilegio de este cliente."
+    }
+  ]
+}

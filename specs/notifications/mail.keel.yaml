@@ -1,0 +1,38 @@
+# Capa mail del servicio de notificaciones por correo.
+# Este servicio es quien manda el correo de verdad: el relay SMTP no es una dependencia
+# (no publica contrato ni es un servicio Keel), es su salida propia.
+# Proveedor, host, puerto y credenciales son datos de despliegue, nunca del diseño.
+
+delivery:
+  transport: smtp
+  parts: [html, text]
+  attachments: false
+
+sentBy:
+  # Única operación del servicio que produce un correo real. Su guarda contra el doble envío
+  # es la transición irrepetible queued → sending, no una clave de idempotencia HTTP:
+  # esta operación es interna y ninguna cabecera llega hasta ella.
+  - sendQueuedMessage
+
+sender:
+  source: data
+  description: >-
+    Sale del remitente verificado que cada aplicación consumidora tiene registrado en
+    Application.senderAddress, copiado al mensaje —junto con su senderName— en el momento de
+    aceptar la petición.
+    Sin fallback a propósito, y falla cerrado: antes que enviar desde una dirección que nadie
+    verificó, no se envía. Un mensaje cuyo remitente no resuelva pasa a failed con su motivo y
+    se descubre por listMessages, porque quemar la reputación del dominio no se deshace.
+
+replyTo:
+  source: data
+  description: Sale de Application.replyToAddress; si la aplicación no declara ninguna, el correo no lleva Reply-To.
+
+templating:
+  source: data
+  declaredVariables: true
+  # El original de cada plantilla vive en la base de datos del servicio, no en el repositorio:
+  # lo edita negocio por API sin desplegar. Cada versión declara sus variables y toda petición de
+  # envío se valida contra ellas antes de renderizar, para que no salga un correo con huecos sin
+  # resolver. Como el cuerpo es entrada de origen externo, no puede renderizarse con un motor que
+  # evalúe expresiones arbitrarias.

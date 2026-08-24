@@ -1,0 +1,94 @@
+# Capa persistence del servicio de notificaciones por correo.
+
+default:
+  model: relational
+
+entities:
+
+  Application:
+    persisted: true
+    naturalKey: [code]
+    indexes:
+      - [status]
+
+  EmailTemplate:
+    persisted: true
+    naturalKey: [application, code]
+    indexes:
+      - [application, code]
+      # listTemplates filtra por hasActiveVersion (guardado, recalculado en la misma transacción que
+      # publicar/reactivar/retirar) y ordena por code. Sin este índice el filtro que separa las
+      # plantillas en circulación de las retiradas recorre todas las de la aplicación.
+      - [application, hasActiveVersion, code]
+
+  EmailTemplateVersion:
+    persisted: true
+    naturalKey: [template, versionNumber]
+    indexes:
+      # Resolver la versión activa es la lectura del camino de envío: igualdad por plantilla y estado.
+      - [template, status]
+      # Historial y reactivación por número de versión.
+      - [template, versionNumber]
+
+  EmailMessage:
+    persisted: true
+    # La guarda de repetición es esta clave, y es permanente: no caduca como caducaría un TTL.
+    naturalKey: [application, idempotencyKey]
+    indexes:
+      # El barrido de dispatchQueuedMessages: igualdad por estado primero, rango por fecha después,
+      # que es el único orden que un índice aprovecha entero. Sin él, cada ciclo del minuto recorre
+      # la tabla de mensajes, que crece con cada correo enviado.
+      - [status, requestedAt]
+      # listMessages, que es el único camino para descubrir los envíos fallidos.
+      - [application, status, requestedAt]
+      - [application, templateCode, requestedAt]
+      # El filtro recipient de listMessages, que es lo que responde si a una persona concreta le
+      # llegó un correo. recipients es una LISTA, así que este índice recorre sus elementos: el
+      # generador debe materializarlo como índice invertido o como tabla de destinatarios, según el
+      # motor. No es rendimiento, es cota: sin él, ese filtro recorre entera la tabla que crece con
+      # cada correo y cuyas filas se conservan para siempre.
+      - fields: [recipients]
+        description: >-
+          Búsqueda por destinatario. recipients es una lista y el índice debe cubrir CADA uno de sus
+          elementos, no la lista como valor único. El índice nombra solo la lista, a propósito: el
+          acotado por aplicación y el orden por fecha los aporta [application, status, requestedAt]
+          sobre el propio mensaje. Un compuesto que mezclara la lista con application o requestedAt
+          no es materializable en un modelo relacional —los elementos de la lista no viven en la
+          misma tabla que esos campos— y el generador solo puede indexar lo que cabe en una.
+      # El barrido de purgeMessagePersonalData: igualdad por 'ya purgado' y rango por fecha.
+      - [personalDataPurgedAt, requestedAt]
+
+  SuppressedAddress:
+    persisted: true
+    naturalKey: [application, address]
+    indexes:
+      # La comprobación que corre en cada aceptación de envío, y la reactivación al volver a suprimir.
+      - [application, address]
+      # listSuppressedAddresses filtra por active y ordena por fecha.
+      - [application, status, suppressedAt]
+
+audit:
+  timestamps: all
+  # Se registra quién escribió, y el actor es el REAL de cada vía, nunca uno inventado:
+  #   - petición de un humano  -> la identidad del usuario del token;
+  #   - petición de una máquina -> el nombre del serviceClient de la credencial;
+  #   - ciclo programado (dispatchQueuedMessages, purgeMessagePersonalData) o escritura interna
+  #     (sendQueuedMessage) -> el identificador de correlación de esa ejecución;
+  #   - requestNotification llegado por el canal de eventos -> el identificador de correlación del
+  #     mensaje recibido.
+  # Cuatro de las escrituras del servicio no tienen usuario detrás, y la respuesta honesta a "quién
+  # lo hizo" en esas es la correlación, no un actor de sistema que las haría indistinguibles.
+  authorship: all
+
+consistency:
+  # Casi toda operación escribe dentro de un único agregado: publicar o revertir una versión toca
+  # solo Application; aceptar un correo, solo EmailMessage.
+  # La única escritura que cruza es la supresión automática de sendQueuedMessage, que marca el
+  # mensaje failed (agregado EmailMessage) y añade la dirección a la lista (agregado
+  # SuppressedAddress) en dos transacciones distintas. Consecuencia aceptada: si el proceso cae
+  # entre las dos, el mensaje queda failed y la dirección sin suprimir — el rebote siguiente la
+  # suprime. Se prefiere eso a ensanchar la frontera para un efecto que se corrige solo.
+  transactionalBoundary: per-aggregate
+  # Publicar una versión calcula el número a partir del mayor existente y archiva la activa:
+  # sin conflicto explícito, dos publicaciones simultáneas romperían la invariante de una sola activa.
+  optimisticLocking: all

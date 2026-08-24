@@ -34,6 +34,7 @@ Distinción operativa:
    | `dependencies[].needs` · `http-clients` `calls` | … | 8, 16 |
    | `security.access` / operaciones sobre datos de un titular | … | 9 |
    | `storage.buckets` | … | 10, 16 |
+   | `mail.sentBy` (las operaciones que mandan correo) | … | 17, 2, 16 |
    | `api.endpoints` `audience: services`/`both` | … | 11, 15 |
    | `persistence.entities` · `consistency` | … | 14, 16 |
    | todo el servicio | — | 12 |
@@ -53,6 +54,7 @@ Distinción operativa:
    | 5. Consultas | sí | `listOrders`, `searchOrders`, `getOrderHistory` | 1 hueco (#2), 2 ok |
    | 9. Autorización a nivel de dato | sí | 11/11 operaciones | 2 huecos (#1, #4) |
    | 10. Archivos | no — sin capa `storage` | — | — |
+   | 17. Correo saliente | no — sin capa `mail` | — | — |
 
    **Hallazgos** — todo lo encontrado, ordenado por severidad:
 
@@ -89,8 +91,8 @@ Por cada entidad con `lifecycle`:
 
 - ¿Qué estado tiene la entidad **recién creada**? ¿Lo dice el diseño (`default` del campo) o hay que adivinarlo?
 - Por cada estado: ¿hay alguna operación que **lleve** a él? Un estado inalcanzable es diseño muerto o una operación olvidada.
-- Por cada transición declarada: ¿qué operación la ejecuta? Una transición que nadie ejecuta no es contrato, es intención.
-- ¿Hay estados **terminales**? ¿Es correcto que no tengan salida, o el negocio necesita revertirlos (cancelar, reactivar, devolver)?
+- Por cada transición declarada: ¿qué operación la ejecuta, y **lo declara con `transitions`**? Una transición que nadie ejecuta no es contrato, es intención — `keel validate` lo avisa, pero quién debería ejecutarla es respuesta de diseño.
+- ¿Hay estados **terminales**? ¿Es correcto que no tengan salida, o el negocio necesita revertirlos (cancelar, reactivar, devolver)? **Cruza esta pregunta con las `compensations`**: una compensación que tiene que devolver la entidad a un estado anterior necesita esa arista de vuelta declarada aquí, y el estado terminal es justo donde se olvida (clase 8).
 - ¿Qué operaciones están **prohibidas** en cada estado, y con qué error? Modificar un pedido entregado suele ser un error declarado que nadie declara.
 
 ### 2. Guardas ↔ errores
@@ -103,6 +105,7 @@ Por cada `command`, cruzando `preconditions`, `rules`, `errors` y las constraint
 - Por cada guarda: ¿tiene error propio? Dos guardas distintas compartiendo `code` hacen indistinguibles dos fallos distintos para el cliente.
 - ¿El command declara **al menos un** error? Si "no puede fallar", pregunta por: no encontrado, ya existe, estado inválido, sin permiso.
 - ¿El **orden** de las guardas es el que el negocio quiere? El orden del array es el contrato de implementación (qué error ve el cliente cuando fallan dos a la vez) y es lo único que lo fija.
+- Y antes que eso: ¿es **implementable**? Cada guarda solo puede mirar datos que ya estén resueltos cuando le toca. Buscar un duplicado «dentro de la aplicación» no puede ir antes de resolver esa aplicación, por mucho que el negocio lo prefiera. Un orden imposible lo invierte quien implemente —no tiene otra salida—, y a partir de ahí el diseño y sus escenarios de precedencia describen un servidor que no existe.
 - ¿Cada `error` lleva `http`? Es opcional en el schema, pero el escenario lo exige. Si el status no es evidente, **decídelo aquí** — no en el markdown de escenarios. No admite cierre `aceptado`: sin `http`, cada generador elige el suyo.
 - ¿El mismo `code` aparece en operaciones distintas con status distinto? Es legítimo, pero debe ser deliberado y quedar declarado en ambas.
 
@@ -124,7 +127,7 @@ Campo a campo, en `domain`:
 
 - Por cada `unique` en `domain` o `persistence`: ¿hay un `error` de colisión declarado en las operaciones que escriben ese campo?
 - ¿Qué pasa si **dos peticiones concurrentes** ejecutan el mismo command sobre la misma entidad? ¿Último gana, o conflicto explícito? Si el negocio no tolera la pérdida de actualizaciones, hay que declararlo — y el sitio donde se declara es `persistence.consistency.optimisticLocking` (clase 14), no la prosa de `rules`.
-- Operaciones con `retry` que las alcanzan (subscription con reintentos, `http-clients` con `retry`): ¿la operación destino es idempotente? ¿lo declara (`idempotency`)?
+- Operaciones con `retry` que las alcanzan: ¿la operación destino es idempotente, y **con el mecanismo del eje correcto**? Si quien reintenta es una subscription, es `contract.messageId` o una transición irrepetible; si es un cliente HTTP contra un endpoint nuestro, es `idempotency`. Declarar el de un eje contra la repetición del otro no protege nada.
 - ¿Hay operaciones que **leen y luego escriben** en función de lo leído (reservar stock, asignar numeración)? Ese patrón sin política de concurrencia es una condición de carrera declarada.
 
 ### 5. Consultas
@@ -179,8 +182,13 @@ Por cada cliente de `http-clients`, cada suscripción, cada `need` y cada `activ
 
 - Cuando la dependencia **cae o tarda**, ¿qué ve el llamante de nuestra API? ¿Un error declarado con `code` propio, o un fallo genérico? Un timeout sin traducción a error de negocio es un hueco de contrato.
 - El `fallback` del circuit breaker: ¿produce un resultado **correcto** (valor por defecto aceptable para el negocio) o solo evita el error? Un fallback que devuelve datos falsos silenciosamente es peor que fallar. **Mismo criterio para `onMiss.action: degrade`**: si el cliente no puede distinguir la respuesta degradada de la normal, no es degradación, es un bug declarado.
+- Y la pregunta que traslada esa respuesta al YAML en vez de dejarla en la conversación: ¿está declarada en `onUnavailable`? Un `need` con `fetchedFrom` y sin ella deja la política en manos de quien construya (`keel validate` lo avisa). Si la elegida es `lastKnown`, lo que cierra la decisión no es «¿podemos servir el último valor?» sino **¿durante cuánto deja de ser cierto?** (`maxAgeSeconds`) y **¿qué pasa la primera vez, cuando no hay ningún valor que servir?** (el `error`): un servidor recién arrancado no tiene último valor conocido, y una política sin esa segunda respuesta degrada a fallar siempre justo el día que más se la necesita.
 - ¿La llamada externa ocurre **dentro** de una transacción de escritura? Si sí, un timeout deja la transacción abierta: hay que separar. Ojo con los `need` de `strategy: on-demand` usados por un `command`.
 - Si la llamada externa es una **escritura** que no podemos deshacer y luego fallamos, ¿queda inconsistencia? ¿Hay compensación? Si la hay, ¿está declarada en `dependencies.<dep>.compensations` (con su `undoes` apuntando a la activación que revierte) y respaldada por una suscripción real, o solo vive en la conversación?
+- Si la llamada externa es una **escritura** y tiene `retry`, ¿el proveedor ejecuta el trabajo dos veces cuando reintentamos? Un timeout no distingue «no llegó» de «llegó y se hizo». Si el proveedor honra una cabecera de idempotencia, va en `http-clients.calls.<x>.idempotency`; si no la honra, tiene que estar escrito en su `contract` — es deuda que hereda quien lea el diseño después.
+- Y el desenlace que no produce ningún hecho: si le encargamos trabajo y **no llega ninguna respuesta ni ningún evento**, ¿quién lo detecta? Sin `activations.<a>.reconciledBy` la respuesta es «nadie»: el encargo queda hecho, nuestra entidad esperando, y el sistema no da error porque no ha pasado nada.
+- El hueco simétrico, que se ve menos: una activación cuyo desenlace llega **por evento** y que no deja la entidad en ningún **estado de espera**. Entonces el evento de resultado no tiene dónde aplicarse —no hay transición que ejecutar— y el barrido no tiene qué buscar: `reconciledBy` correría cada N minutos sobre una consulta que no se puede escribir. Reconciliar es sacar de la espera lo que se quedó ahí, así que primero hay que declarar la espera: la `transitions` de la operación que encarga es la que mete la entidad en ella. `keel validate` lo avisa, pero el estado correcto es de diseño.
+- Y si la hay, las dos preguntas que la hacen funcionar de verdad —`keel validate` las comprueba, pero la respuesta correcta es de diseño—: (a) el evento de fallo llega por un canal que **reentrega**; si la compensación se ejecuta dos veces, ¿qué pasa? ¿Qué la protege: `contract.messageId` o una transición irrepetible? (`idempotency` no: su clave llega por una cabecera HTTP que el broker no manda, y declararla ahí es error.) (b) el trabajo encargado movió el estado de una entidad nuestra: al deshacerlo, **¿a qué estado vuelve**, y esa arista está en `domain: lifecycle.transitions`? Si el estado de partida es terminal, la respuesta casi siempre es que falta la arista, no que la compensación sobre.
 
 Por cada `activation`:
 
@@ -206,6 +214,7 @@ El hueco más caro y el que ninguna regla mecánica puede ver. **Ningún hallazg
 
 - Un permiso autoriza la **operación**. ¿Autoriza sobre **ese** recurso concreto? Un rol con `order:read`, ¿lee cualquier pedido, o solo los suyos? El DSL declara lo primero; el negocio casi siempre quiere lo segundo.
 - ¿De dónde sale la relación "es suyo": un campo de la entidad (`ownerId`, `customerId`) que se compara con la identidad del token? Si esa relación no está modelada, no se puede implementar.
+- Y el síntoma que delata que este hallazgo se cerró sin decidir: un **error 403 declarado** en operaciones cuya regla de acceso solo exige roles o permissions. `keel validate` lo avisa, pero llega tarde a propósito — cuando aparece, el diseño ya escribió errores y escenarios contra un alcance que no existe. La pregunta se hace aquí, antes.
 - Las **queries de colección**: ¿devuelven todo, o solo lo del solicitante? Es el mismo hueco, y aquí se convierte en fuga de datos masiva.
 - ¿Hay campos que un rol ve y otro no dentro de la **misma** respuesta?
 - Operaciones de mutación con acceso `public`: ¿deliberado?
@@ -259,6 +268,7 @@ Un `schedule` es la única superficie del servicio sin cliente que espere respue
 - ¿Cuánto procesa por ejecución? Un `schedule` que barre "lo pendiente" sin cota es el mismo problema que un lote sin `maxItems`, con el agravante de que crece solo.
 - Si falla a mitad, ¿qué queda hecho y qué no? ¿Se reintenta el ciclo entero, o continúa donde iba?
 - ¿En qué **zona horaria** vive el calendario, y qué pasa en los cambios de hora? "Todos los días a las 00:00" no es una hora hasta que se dice de quién (enlaza con la clase 12).
+- ¿Es **verificable**? Un `schedule` no se llama desde fuera, así que su escenario se escribe contra el **efecto**: qué cambia ahí fuera cuando el ciclo pasa. Si el diseño no declara ninguno (`transitions`, `emits`), no hay nada que afirmar y el escenario saldrá decorativo. Y si además su condición de entrada es un umbral de tiempo que ninguna suite puede esperar —«lleva 18 meses»—, decide entre las dos únicas salidas honestas: declararlo como hueco, o exponer un disparador manual además del reloj. `keel validate` avisa del caso sin efecto declarado.
 
 ### 14. Estado persistido
 
@@ -285,6 +295,24 @@ Un `schedule` es la única superficie del servicio sin cliente que espere respue
 - Operaciones `internal: true`: ¿quién las invoca de verdad? Una operación sin trigger y sin llamante conocido es código muerto declarado.
 
 No es hueco lo que ya es **contrato canónico** del DSL y por tanto no puede divergir: el sobre de paginación y los nombres `page`/`size` (`docs/dsl/api.md § pagination`). No lo listes.
+
+### 17. Correo saliente
+
+*Aplica si:* hay capa `mail`.
+
+Un correo es el único efecto de un servicio que **llega a una persona real y no se puede
+retirar**. Ninguna transacción lo deshace, ningún reintento lo corrige, y el destinatario
+ya lo ha leído. Eso cambia el peso de cada hueco de esta clase.
+
+- **La repetición.** ¿Cada operación de `sentBy` tiene guarda (`idempotency` o una transición)? Sin ella, un reintento del llamante —o una reentrega del broker, que es *at-least-once* por definición— manda el correo dos veces.
+- **El desenlace del envío que falla.** Si la operación responde antes de enviar (un `202`), ¿qué pasa cuando el envío falla después? ¿Se reintenta, se marca como fallido, se avisa a alguien? Sin desenlace declarado, el correo se pierde en silencio y quien lo pidió cree que salió.
+- **El orden de las comprobaciones.** ¿En qué punto exacto se manda respecto a las validaciones y a la persistencia? Cada comprobación que quede *después* del envío es un correo que no se puede retirar.
+- **El remitente.** Con `sender.source: data`, ¿qué pasa cuando el dato no lo resuelve? Sin `fallback` no se envía (falla cerrado, que quema menos reputación); con él, se envía desde la genérica. Las dos son decisiones legítimas y opuestas: la que no se toma la toma el generador.
+- **Las variables.** Con `templating.declaredVariables`, ¿hay error declarado para la variable obligatoria que falta? Sin él, se interpola vacía y el correo sale diciendo «Tu pedido por  € está confirmado» — un fallo que se descubre por la reclamación del cliente.
+- **El destinatario que no debe recibir.** ¿Hay algo que impida enviar a una dirección que rebotó o se quejó? Un rebote duro quema la reputación del remitente, que es **compartida** por todos los consumidores del servicio: no puede quedar en manos de cada llamante.
+- **Y por dónde te enteras del rebote.** Es la mitad que casi siempre falta: el relay **acepta** el mensaje y responde OK; el rebote vuelve minutos u horas después. Si alguna regla depende de clasificarlo —suprimir la dirección, contar quejas, distinguir rebote duro de blando—, ¿por qué canal llega esa noticia (un webhook del proveedor, un buzón de retorno, un evento)? Sin canal declarado, esa regla no es implementable ni verificable: ninguna infraestructura de prueba rebota sola. La forma de la decisión ya existe en `dependencies` (`awaits`, `reconciledBy`): un desenlace que llega tarde o no llega.
+- **Quién puede pedir el envío.** Si el servicio manda correo por cuenta de varios sistemas, ¿de dónde sale la identidad de quien lo pide — del token, o de un campo del cuerpo? Si viaja en el cuerpo, cualquier cliente autenticado puede enviar en nombre de otro, desde su remitente verificado.
+
 
 ### 16. Decisiones estructurales sin dueño
 

@@ -1,0 +1,88 @@
+# Capa api del servicio de notificaciones por correo.
+#
+# Ninguna creación devuelve 201 a propósito. El generador emite `Location` en toda operación con
+# successStatus 201 cuyo output declare id, componiéndola con la URI de la petición más ese id —
+# pero este servicio direcciona sus recursos por CLAVE NATURAL (code, templateCode, versionNumber,
+# address), no por id, así que esa cabecera apuntaría a una URL que no existe y que ni siquiera
+# pasa la validación del path. Con 200 no se emite, y el cuerpo ya devuelve la clave natural con la
+# que el cliente direcciona lo que acaba de crear.
+# Dos superficies: /applications y /messages para el back-office humano,
+# /notifications para los servidores consumidores.
+
+style: rest
+basePath: /api/v1
+defaultAudience: users
+
+pagination:
+  style: offset
+  defaultSize: 20
+  maxSize: 100
+
+endpoints:
+
+  # ── Aplicaciones consumidoras (back-office) ──
+  registerApplication:
+    { method: POST, path: "/applications", successStatus: 200 }
+  updateApplication:
+    { method: PATCH, path: "/applications/{code}", successStatus: 200 }
+  suspendApplication:
+    { method: POST, path: "/applications/{code}/suspend", successStatus: 200 }
+  reactivateApplication:
+    { method: POST, path: "/applications/{code}/reactivate", successStatus: 200 }
+  getApplication:
+    { method: GET, path: "/applications/{code}", successStatus: 200 }
+  listApplications:
+    { method: GET, path: "/applications", successStatus: 200 }
+
+  # ── Plantillas (back-office) ──
+  createTemplate:
+    { method: POST, path: "/applications/{applicationCode}/templates", successStatus: 200 }
+  listTemplates:
+    { method: GET, path: "/applications/{applicationCode}/templates", successStatus: 200 }
+  getTemplate:
+    { method: GET, path: "/applications/{applicationCode}/templates/{templateCode}", successStatus: 200 }
+  retireTemplate:
+    { method: POST, path: "/applications/{applicationCode}/templates/{templateCode}/retire", successStatus: 200 }
+  publishTemplateVersion:
+    { method: POST, path: "/applications/{applicationCode}/templates/{templateCode}/versions", successStatus: 200 }
+  listTemplateVersions:
+    { method: GET, path: "/applications/{applicationCode}/templates/{templateCode}/versions", successStatus: 200 }
+  getTemplateVersion:
+    { method: GET, path: "/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}", successStatus: 200 }
+  activateTemplateVersion:
+    { method: POST, path: "/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}/activate", successStatus: 200 }
+
+  # ── Correos emitidos (back-office) ──
+  listMessages:
+    { method: GET, path: "/messages", successStatus: 200 }
+  getMessage:
+    { method: GET, path: "/messages/{id}", successStatus: 200 }
+
+  # ── Lista de supresión de destinatarios (back-office) ──
+  suppressAddress:
+    { method: POST, path: "/applications/{applicationCode}/suppressions", successStatus: 200 }
+  listSuppressedAddresses:
+    { method: GET, path: "/applications/{applicationCode}/suppressions", successStatus: 200 }
+  releaseAddress:
+    { method: DELETE, path: "/applications/{applicationCode}/suppressions/{address}", successStatus: 204 }
+
+  # ── Superficie servidor-a-servidor ──
+  requestNotification:
+    method: POST
+    path: "/notifications"
+    successStatus: 202
+    audience: services
+  findMessageByIdempotencyKey:
+    method: GET
+    path: "/notifications/{applicationCode}/{idempotencyKey}"
+    successStatus: 200
+    audience: services
+  reportEmailBounce:
+    method: POST
+    path: "/messages/{messageId}/bounces"
+    successStatus: 204
+    audience: services
+
+  # ── Retención de datos personales ──
+  purgeMessagePersonalData:
+    { method: POST, path: "/messages/purge", successStatus: 204 }

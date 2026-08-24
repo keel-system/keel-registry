@@ -1,0 +1,4485 @@
+{
+  "info": {
+    "name": "notifications — escenarios de validacion",
+    "description": "Coleccion derivada de specs/notifications/validation-scenarios.md y de la capa api. Importa antes auth-collection.json: las requests usan las globals token_<rol> y token_<cliente> que aquella publica.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "FL-APP-001 — alta de una aplicación y su consulta",
+      "description": "**Given**: no existe ninguna aplicación con `code` `billing`. Se actúa con el rol `notifications-admin`.",
+      "item": [
+        {
+          "name": "FL-APP-001 · A — alta de una aplicación y su consulta (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "`registerApplication` — `POST /api/v1/applications` ```json { \"code\": \"Billing\", \"name\": \"Facturación\", \"senderAddress\": \"Facturas@Acme.COM\", \"senderName\": \"Acme Facturación\", \"replyToAddress\": \"soporte@acme.com\" } ```",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"code\": \"Billing\", \"name\": \"Facturación\", \"senderAddress\": \"Facturas@Acme.COM\",\n  \"senderName\": \"Acme Facturación\", \"replyToAddress\": \"soporte@acme.com\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-APP-001 · B — alta de una aplicación y su consulta (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "`registerApplication` con un alta mínima ```json { \"code\": \"shipping\", \"name\": \"Logística\", \"senderAddress\": \"avisos@acme.com\" } ```",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"code\": \"shipping\", \"name\": \"Logística\", \"senderAddress\": \"avisos@acme.com\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-APP-010 — el código de aplicación es único e insensible a mayúsculas",
+      "description": "**Given**: existe la aplicación `billing` (alta como en FL-APP-001). Rol `notifications-admin`.",
+      "item": [
+        {
+          "name": "FL-APP-010 · A — el código de aplicación es único e insensible a mayúsculas (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "`registerApplication` con `{ \"code\": \"BILLING\", \"name\": \"Otra\", \"senderAddress\": \"x@acme.com\" }`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-APP-020 — actualización parcial y borrado explícito de un campo opcional",
+      "description": "**Given**: existe `billing` con `senderName: \"Acme Facturación\"` y `replyToAddress: \"soporte@acme.com\"`. Rol `notifications-admin`.",
+      "item": [
+        {
+          "name": "FL-APP-020 · A — actualización parcial y borrado explícito de un campo opcion (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing",
+            "description": "`updateApplication` — `PATCH /api/v1/applications/billing` ```json { \"name\": \"Facturación Acme\" } ```",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"Facturación Acme\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-APP-020 · B — actualización parcial y borrado explícito de un campo opcion (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing",
+            "description": "`updateApplication` — `PATCH /api/v1/applications/billing` con `{ \"replyToAddress\": \"\" }`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-APP-020 · C — actualización parcial y borrado explícito de un campo opcion (400)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing",
+            "description": "`updateApplication` — `PATCH /api/v1/applications/billing` con `{ \"senderAddress\": \"\" }` — `senderAddress` es requerido y **no** admite el vaciado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code APPLICATION_FIELD_REQUIRED', () => pm.expect(pm.response.json().code).to.eql('APPLICATION_FIELD_REQUIRED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-APP-030 — suspensión y reactivación",
+      "description": "**Given**: existe `billing` con `status: \"active\"`. Rol `notifications-admin`.",
+      "item": [
+        {
+          "name": "FL-APP-030 · A — suspensión y reactivación (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suspend",
+            "description": "`suspendApplication` — `POST /api/v1/applications/billing/suspend` ```json { \"reason\": \"impago\" } ```",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"reason\": \"impago\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-APP-030 · B — suspensión y reactivación (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{code}/suspend",
+            "description": "`suspendApplication` sobre la misma aplicación otra vez"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-APP-030 · C — suspensión y reactivación (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/reactivate",
+            "description": "`reactivateApplication` — `POST /api/v1/applications/billing/reactivate`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-APP-030 · D — suspensión y reactivación (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{code}/reactivate",
+            "description": "`reactivateApplication` otra vez"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-APP-040 — listado de aplicaciones, orden total y filtro por estado",
+      "description": "**Given**: rol `notifications-admin`. Existen tres aplicaciones creadas en este orden: `{ code: \"zeta\", name: \"Común\" }`, `{ code: \"alfa\", name: \"Común\" }` y `{ code: \"beta\", name: \"Aparte\" }`. `zeta` se suspende.",
+      "item": [
+        {
+          "name": "FL-APP-040 · A — listado de aplicaciones, orden total y filtro por estado (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "`listApplications` — `GET /api/v1/applications`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-APP-040 · B — listado de aplicaciones, orden total y filtro por estado (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications?status=suspended",
+            "description": "`listApplications` — `GET /api/v1/applications?status=suspended`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-APP-040 · C — listado de aplicaciones, orden total y filtro por estado (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications?status=active",
+            "description": "`GET /api/v1/applications?status=active`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-TPL-001 — creación de una plantilla sin contenido publicable",
+      "description": "**Given**: existe la aplicación `billing`. Se actúa con el rol `template-editor` cuyo claim `applications` incluye `billing`.",
+      "item": [
+        {
+          "name": "FL-TPL-001 · A — creación de una plantilla sin contenido publicable (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates",
+            "description": "`createTemplate` — `POST /api/v1/applications/billing/templates` ```json { \"code\": \"InvoiceReady\", \"name\": \"Factura disponible\", \"description\": \"Avisa al cliente de que su factura ya puede descargarse\" } ```",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"code\": \"InvoiceReady\", \"name\": \"Factura disponible\",\n  \"description\": \"Avisa al cliente de que su factura ya puede descargarse\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-TPL-010 — el código de plantilla es único dentro de su aplicación, no entre aplicaciones",
+      "description": "**Given**: existen las aplicaciones `billing` y `shipping`, y en `billing` la plantilla `invoiceready`. Rol `notifications-admin` (alcanza a las dos).",
+      "item": [
+        {
+          "name": "FL-TPL-010 · A — el código de plantilla es único dentro de su aplicación, no  (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates",
+            "description": "`createTemplate` sobre `billing` con `{ \"code\": \"INVOICEREADY\", \"name\": \"Duplicada\" }`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-TPL-010 · B — el código de plantilla es único dentro de su aplicación, no  (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates",
+            "description": "`createTemplate` sobre `shipping` con `{ \"code\": \"invoiceready\", \"name\": \"Otra app\" }`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-TPL-020 — publicación de contenido y validación de variables",
+      "description": "**Given**: existe `billing` con la plantilla `invoiceready` y **ninguna** versión. Rol `template-editor` con `billing` en su alcance.",
+      "item": [
+        {
+          "name": "FL-TPL-020 · A — publicación de contenido y validación de variables (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates/invoiceready/versions",
+            "description": "`publishTemplateVersion` — `POST /api/v1/applications/billing/templates/invoiceready/versions` ```json { \"subject\": \"Tu factura {{invoiceNumber}} está lista\", \"htmlBody\": \"<p>Hola {{customerName}}, tu factura {{invoiceNumber}} ya está disponible.</p>\", \"textBody\": \"Hola {{customerName}}, tu factura {{invoiceNumber}} ya está disponible.\", \"variables\": [ { \"name\": \"customerName\", \"required\": true },",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"subject\": \"Tu factura {{invoiceNumber}} está lista\",\n  \"htmlBody\": \"<p>Hola {{customerName}}, tu factura {{invoiceNumber}} ya está disponible.</p>\",\n  \"textBody\": \"Hola {{customerName}}, tu factura {{invoiceNumber}} ya está disponible.\",\n  \"variables\": [ { \"name\": \"customerName\", \"required\": true },\n                 { \"name\": \"invoiceNumber\", \"required\": true } ] }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-TPL-020 · B — publicación de contenido y validación de variables (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/versions",
+            "description": "`publishTemplateVersion` otra vez, con `subject` `\"Tu factura {{invoiceNumber}} (v2)\"` y las mismas variables"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-TPL-030 — dos publicaciones concurrentes sobre la misma plantilla",
+      "description": "**Given**: existe `billing` con la plantilla `invoiceready` y su versión `1` activa. Rol `notifications-admin`.",
+      "item": [
+        {
+          "name": "FL-TPL-030 · A — dos publicaciones concurrentes sobre la misma plantilla (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/versions",
+            "description": "se lanzan **a la vez** dos `publishTemplateVersion` sobre `invoiceready`, con asuntos distintos (`\"A {{v}}\"` y `\"B {{v}}\"`, ambos declarando `v`)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-TPL-040 — revertir a una versión anterior",
+      "description": "**Given**: existe `billing` con `invoiceready` y dos versiones: la `1` `archived` y la `2` `active`. Rol `template-editor` con `billing` en su alcance.",
+      "item": [
+        {
+          "name": "FL-TPL-040 · A — revertir a una versión anterior (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}/activate",
+            "description": "`activateTemplateVersion` — `POST .../templates/invoiceready/versions/1/activate`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-TPL-040 · B — revertir a una versión anterior (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}/activate",
+            "description": "`activateTemplateVersion` sobre la versión `1` otra vez"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-TPL-050 — retirar una plantilla de circulación",
+      "description": "**Given**: existe `billing` con `invoiceready` y su versión `1` activa. Rol `template-editor` con `billing` en su alcance.",
+      "item": [
+        {
+          "name": "FL-TPL-050 · A — retirar una plantilla de circulación (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/retire",
+            "description": "`retireTemplate` — `POST .../templates/invoiceready/retire`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-TPL-050 · B — retirar una plantilla de circulación (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/retire",
+            "description": "`retireTemplate` sobre la misma plantilla otra vez"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-TPL-050 · C — retirar una plantilla de circulación (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}/activate",
+            "description": "`activateTemplateVersion` sobre la versión `1`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-TPL-060 — listado de plantillas y filtro por circulación",
+      "description": "**Given**: existe `billing`. Rol `notifications-admin`. Se crean las plantillas `zeta`, `alfa` y `beta` en ese orden; se publica una versión en `zeta` y en `alfa`; después se retira `alfa`.",
+      "item": [
+        {
+          "name": "FL-TPL-060 · A — listado de plantillas y filtro por circulación (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates",
+            "description": "`listTemplates` — `GET /api/v1/applications/billing/templates`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-TPL-060 · B — listado de plantillas y filtro por circulación (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates?hasActiveVersion=true",
+            "description": "`GET /api/v1/applications/billing/templates?hasActiveVersion=true`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-TPL-060 · C — listado de plantillas y filtro por circulación (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates?hasActiveVersion=false",
+            "description": "`GET /api/v1/applications/billing/templates?hasActiveVersion=false`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-TPL-070 — historial de versiones, de la más reciente a la más antigua",
+      "description": "**Given**: existe `billing` con `invoiceready` y **tres** versiones publicadas en orden (1, 2, 3). Rol `notifications-auditor`.",
+      "item": [
+        {
+          "name": "FL-TPL-070 · A — historial de versiones, de la más reciente a la más antigua (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/versions",
+            "description": "`listTemplateVersions` — `GET .../templates/invoiceready/versions`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-REQ-001 — contrato M2M completo de la petición de envío",
+      "description": "**Given**: existe la aplicación `billing` (`status: active`, `senderAddress: \"facturas@acme.com\"`, `senderName: \"Acme Facturación\"`, `replyToAddress: \"soporte@acme.com\"`) con la plantilla `invoiceready` y su versión `1` activa (asunto `\"Tu factura {{invoiceNumber}} está lista\"`, variables `customerName` e `invoiceNumber`, ambas `required`). No existe ningún mensaje. Se actúa con la **credencial de máquina del cliente `billing`** (scopes `notification:send`, `message:read`).",
+      "item": [
+        {
+          "name": "FL-REQ-001 · A — contrato M2M completo de la petición de envío (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`requestNotification` — `POST /api/v1/notifications` ```json { \"templateCode\": \"InvoiceReady\", \"idempotencyKey\": \"inv-2026-000123\", \"recipients\": [\"Cliente@Example.COM\", \"cliente@example.com\", \"otro@example.com\"], \"variables\": [ { \"name\": \"customerName\", \"value\": \"Ana\" }, { \"name\": \"invoiceNumber\", \"value\": \"F-000123\" }, { \"name\": \"sobra\", \"value\": \"se descarta\" } ] } ```",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"templateCode\": \"InvoiceReady\", \"idempotencyKey\": \"inv-2026-000123\",\n  \"recipients\": [\"Cliente@Example.COM\", \"cliente@example.com\", \"otro@example.com\"],\n  \"variables\": [ { \"name\": \"customerName\", \"value\": \"Ana\" },\n                 { \"name\": \"invoiceNumber\", \"value\": \"F-000123\" },\n                 { \"name\": \"sobra\", \"value\": \"se descarta\" } ] }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-001 · B — contrato M2M completo de la petición de envío (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "la misma petición (clave nueva) nombrando explícitamente otra aplicación — `{ \"applicationCode\": \"shipping\", ... }` con la credencial de `billing`. El campo se ignora: `applicationCode` no viaja en el cuerpo, lo estampa el servidor desde la credencial. Se afirma sobre el recurso creado, no sobre el status — un 202 solo diría que la petición se aceptó, no en nombre de quién.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"applicationCode\": \"shipping\", \"templateCode\": \"InvoiceReady\",\n  \"idempotencyKey\": \"inv-2026-000124\",\n  \"recipients\": [\"cliente@example.com\"],\n  \"variables\": [ { \"name\": \"customerName\", \"value\": \"Ana\" },\n                 { \"name\": \"invoiceNumber\", \"value\": \"F-000124\" } ] }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));",
+                  "pm.test('el mensaje es de billing, no de shipping', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.applicationCode).to.eql('billing');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-REQ-010 — precedencia entre las guardas de la petición de envío",
+      "description": "**Given**: existe `billing` **suspendida**, con la plantilla `invoiceready` **retirada** (sin versión activa) y con `cliente@example.com` en su lista de supresión (`status: active`). Credencial de máquina del cliente `billing`.",
+      "item": [
+        {
+          "name": "FL-REQ-010 · A — precedencia entre las guardas de la petición de envío (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`requestNotification` con `templateCode: \"invoiceready\"`, `idempotencyKey: \"prec-000001\"`, `recipients: [\"cliente@example.com\"]` y **sin** variables — de modo que las guardas 5, 7, 8 y 9 fallarían todas a la vez."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-010 · B — precedencia entre las guardas de la petición de envío (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "se reactiva `billing` y se repite la petición (misma clave)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-010 · C — precedencia entre las guardas de la petición de envío (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "se publica una versión con las dos variables `required` y se repite la petición"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-010 · D — precedencia entre las guardas de la petición de envío (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "se libera `cliente@example.com` y se repite la petición, aún sin variables"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-010 · E — precedencia entre las guardas de la petición de envío (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "se repite con las dos variables informadas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-REQ-020 — el reintento secuencial con la misma clave no manda un segundo correo",
+      "description": "**Given**: el mismo estado inicial de FL-REQ-001. Credencial de máquina del cliente `billing`.",
+      "item": [
+        {
+          "name": "FL-REQ-020 · A — el reintento secuencial con la misma clave no manda un segun (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`requestNotification` con `idempotencyKey: \"inv-2026-000200\"` y contenido válido"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-020 · B — el reintento secuencial con la misma clave no manda un segun (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "**la misma petición otra vez**, byte a byte"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-020 · C — el reintento secuencial con la misma clave no manda un segun (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "la misma clave con los destinatarios y las variables **en otro orden**"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-020 · D — el reintento secuencial con la misma clave no manda un segun (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "la misma clave con `templateCode` distinto (otra plantilla publicada de `billing`)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-020 · E — el reintento secuencial con la misma clave no manda un segun (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "una clave **distinta** (`\"inv-2026-000201\"`) con el mismo contenido"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-020 · F — el reintento secuencial con la misma clave no manda un segun (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "la aplicación se suspende y se repite la petición original de `\"inv-2026-000200\"`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-REQ-030 — dos peticiones con la misma clave a la vez",
+      "description": "**Given**: el mismo estado inicial de FL-REQ-001, sin ningún mensaje. Credencial de máquina del cliente `billing`.",
+      "item": [
+        {
+          "name": "FL-REQ-030 · A — dos peticiones con la misma clave a la vez (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "se lanzan **a la vez** dos `requestNotification` idénticas con `idempotencyKey: \"race-000001\"`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-REQ-040 — el mensaje congela la versión de plantilla y el remitente",
+      "description": "**Given**: existe `billing` con `senderAddress: \"facturas@acme.com\"` y `senderName: \"Acme Facturación\"`, y la plantilla `invoiceready` con su versión `1` activa (asunto `\"V1 {{invoiceNumber}}\"`). Credencial de máquina del cliente `billing`; rol `notifications-admin` para la administración.",
+      "item": [
+        {
+          "name": "FL-REQ-040 · A — el mensaje congela la versión de plantilla y el remitente (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`requestNotification` con `idempotencyKey: \"freeze-000001\"` y las variables informadas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-040 · B — el mensaje congela la versión de plantilla y el remitente (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "se publica la versión `2` (asunto `\"V2 {{invoiceNumber}}\"`) y se cambian las dos mitades del remitente de la aplicación: `senderAddress` a `\"nuevas@acme.com\"` y `senderName` a `\"Acme Cobros\"`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REQ-040 · C — el mensaje congela la versión de plantilla y el remitente (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`requestNotification` con una clave nueva (`\"freeze-000002\"`)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "UT-SND-010 — el relay rechaza el mensaje — fallo terminal y supresión automática",
+      "description": "**Given**: el mismo estado de FL-SND-001, con un mensaje `queued` para `rebota@example.com`. El relay está configurado para **rechazar** ese destinatario con un rebote duro. `billing` no tiene ninguna dirección suprimida.",
+      "item": [
+        {
+          "name": "UT-SND-010 · A — el relay rechaza el mensaje — fallo terminal y supresión aut (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`requestNotification` con una clave nueva y `recipients: [\"rebota@example.com\"]`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SUP-001 — suprimir una dirección y su efecto sobre las peticiones",
+      "description": "**Given**: existe `billing` con `invoiceready` publicada y **ninguna** dirección suprimida. Rol `notifications-admin`.",
+      "item": [
+        {
+          "name": "FL-SUP-001 · A — suprimir una dirección y su efecto sobre las peticiones (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suppressions",
+            "description": "`suppressAddress` — `POST /api/v1/applications/billing/suppressions` ```json { \"address\": \"Queja@Example.COM\", \"reason\": \"complaint\", \"notes\": \"el cliente pidió la baja\" } ```",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"address\": \"Queja@Example.COM\", \"reason\": \"complaint\", \"notes\": \"el cliente pidió la baja\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SUP-001 · B — suprimir una dirección y su efecto sobre las peticiones (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`requestNotification` (credencial de máquina del cliente `billing`) con `recipients: [\"QUEJA@example.com\"]` y clave nueva"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SUP-001 · C — suprimir una dirección y su efecto sobre las peticiones (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`requestNotification` con `recipients: [\"queja@example.com\", \"ok@example.com\"]`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SUP-010 — la supresión es por aplicación, y suprimir dos veces no duplica",
+      "description": "**Given**: existen `billing` y `shipping`, ambas con una plantilla publicada. `queja@example.com` está suprimida en `billing`. Rol `notifications-admin`.",
+      "item": [
+        {
+          "name": "FL-SUP-010 · A — la supresión es por aplicación, y suprimir dos veces no dupl (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/suppressions",
+            "description": "`suppressAddress` sobre `billing` con la misma dirección y `reason: \"manual\"`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SUP-010 · B — la supresión es por aplicación, y suprimir dos veces no dupl (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_shipping}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`requestNotification` con la credencial de máquina del cliente `shipping`, plantilla de `shipping` y `recipients: [\"queja@example.com\"]`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SUP-020 — liberar una dirección",
+      "description": "**Given**: existe `billing` con `queja@example.com` suprimida (`status: active`). Rol `notifications-admin`.",
+      "item": [
+        {
+          "name": "FL-SUP-020 · A — liberar una dirección (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suppressions/queja%40example.com",
+            "description": "`releaseAddress` — `DELETE /api/v1/applications/billing/suppressions/queja%40example.com`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SUP-020 · B — liberar una dirección (404)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/suppressions/{address}",
+            "description": "`releaseAddress` sobre la misma dirección otra vez"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SUP-020 · C — liberar una dirección (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/suppressions",
+            "description": "`suppressAddress` sobre `queja@example.com` con `reason: \"manual\"` y `notes: \"volvió a quejarse\"`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SUP-030 — listado de supresiones, orden total y filtro por motivo",
+      "description": "**Given**: existe `billing`. Rol `notifications-auditor`. Se suprimen, **en el mismo instante** en lo que al segundo se refiere, `zeta@example.com` (`hard-bounce`) y `alfa@example.com` (`hard-bounce`); después `beta@example.com` (`manual`). Luego se libera `beta@example.com`.",
+      "item": [
+        {
+          "name": "FL-SUP-030 · A — listado de supresiones, orden total y filtro por motivo (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suppressions",
+            "description": "`listSuppressedAddresses` — `GET /api/v1/applications/billing/suppressions`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SUP-030 · B — listado de supresiones, orden total y filtro por motivo (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suppressions?reason=manual",
+            "description": "`GET /api/v1/applications/billing/suppressions?reason=manual`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SUP-030 · C — listado de supresiones, orden total y filtro por motivo (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suppressions?reason=hard-bounce",
+            "description": "`GET /api/v1/applications/billing/suppressions?reason=hard-bounce`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SUP-040 · dos supresiones de la misma dirección a la vez",
+      "description": "**Given**: existe `billing` con la plantilla `invoiceready` publicada. `nueva@example.com` **no tiene ningún registro** de supresión en `billing`. Rol `notifications-admin`.\n\nLa carrera no se reproduce disparando estas requests una detrás de otra: hay que lanzarlas **a la vez** (Postman Runner en paralelo, o dos ejecuciones simultáneas). En secuencia el desenlace es el de FL-SUP-010 (`200`, sin duplicar).",
+      "item": [
+        {
+          "name": "FL-SUP-040 · A · dos supresiones de la misma dirección a la vez (200 | 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/suppressions",
+            "description": "`suppressAddress` sobre `billing` con `address: \"nueva@example.com\"` y `reason: \"manual\"`, lanzada **a la vez** que otra idéntica. Disyunción cerrada: `200` con el registro, o `409` `APPLICATION_ADDRESS_ALREADY_EXISTS`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 o 409 APPLICATION_ADDRESS_ALREADY_EXISTS', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 409]);",
+                  "  if (pm.response.code === 409) {",
+                  "    pm.expect(pm.response.json().code).to.eql('APPLICATION_ADDRESS_ALREADY_EXISTS');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SUP-040 · B · dos rebotes permanentes sobre la misma dirección a la vez (204 | 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_mail-provider}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{{messageIdBilling}}/bounces",
+            "description": "`reportEmailBounce` con `permanent: true` y `address: \"rebote@example.com\"`, lanzada **a la vez** que otra idéntica. Disyunción cerrada: `204`, o `409` `APPLICATION_ADDRESS_ALREADY_EXISTS`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204 o 409 APPLICATION_ADDRESS_ALREADY_EXISTS', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([204, 409]);",
+                  "  if (pm.response.code === 409) {",
+                  "    pm.expect(pm.response.json().code).to.eql('APPLICATION_ADDRESS_ALREADY_EXISTS');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-BNC-001 — un rebote permanente suprime la dirección",
+      "description": "**Given**: existe `billing` y un mensaje ya `sent` para `rebota@example.com` (recorrido de FL-SND-001); se conoce su `id`. `billing` no tiene ninguna dirección suprimida. Se actúa con la **credencial de máquina del cliente `mail-provider`** (único scope: `bounce:report`).",
+      "item": [
+        {
+          "name": "FL-BNC-001 · A — un rebote permanente suprime la dirección (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_mail-provider}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{id}/bounces",
+            "description": "`reportEmailBounce` — `POST /api/v1/messages/{id}/bounces` ```json { \"address\": \"Rebota@Example.COM\", \"permanent\": true, \"reason\": \"550 mailbox does not exist\" } ```",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"address\": \"Rebota@Example.COM\", \"permanent\": true, \"reason\": \"550 mailbox does not exist\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BNC-001 · B — un rebote permanente suprime la dirección (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_mail-provider}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{messageId}/bounces",
+            "description": "`reportEmailBounce` sobre el mismo mensaje con `permanent: false`, dirección `blando@example.com`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-BNC-010 — un rebote permanente reactiva una supresión liberada",
+      "description": "**Given**: existe `billing`, un mensaje `sent` para `rebota@example.com` (se conoce su `id`), y un registro de supresión de esa dirección en estado `released` (suprimida y luego liberada a mano por un operador). Credencial de máquina del cliente `mail-provider`.",
+      "item": [
+        {
+          "name": "FL-BNC-010 · A — un rebote permanente reactiva una supresión liberada (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_mail-provider}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{messageId}/bounces",
+            "description": "`reportEmailBounce` con `address: \"rebota@example.com\"` y `permanent: true`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-MSG-001 — consulta de un mensaje por su identificador",
+      "description": "**Given**: existe `billing` con un mensaje `sent` (recorrido de FL-SND-001); se conoce su `id`. Rol `notifications-auditor`.",
+      "item": [
+        {
+          "name": "FL-MSG-001 · A — consulta de un mensaje por su identificador (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{id}",
+            "description": "`getMessage` — `GET /api/v1/messages/{id}`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-MSG-010 — consulta M2M por clave de idempotencia",
+      "description": "**Given**: existen `billing` y `shipping`, cada una con un mensaje encolado con la clave `\"key-000001\"` (la misma cadena en las dos: la clave es única **por aplicación**). Credencial de máquina del cliente `billing` (scopes `notification:send`, `message:read`).",
+      "item": [
+        {
+          "name": "FL-MSG-010 · A — consulta M2M por clave de idempotencia (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/billing/key-000001",
+            "description": "`findMessageByIdempotencyKey` — `GET /api/v1/notifications/billing/key-000001`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MSG-010 · B — consulta M2M por clave de idempotencia (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/shipping/key-000001",
+            "description": "`GET /api/v1/notifications/shipping/key-000001` con la credencial de `billing`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MSG-010 · C — consulta M2M por clave de idempotencia (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/billing/clave-que-no-existe",
+            "description": "`GET /api/v1/notifications/billing/clave-que-no-existe` con la credencial de `billing`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MSG-010 · D — consulta M2M por clave de idempotencia (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/billing/key-000001",
+            "description": "`GET /api/v1/notifications/billing/key-000001` con la credencial de `dispatch-only` (solo `notification:send`)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-MSG-020 — listado de mensajes, orden total y filtros",
+      "description": "**Given**: existe `billing` con `invoiceready` publicada. Rol `notifications-admin`. Se encolan **tres** mensajes con claves distintas y contenidos distintos; el primero y el tercero se despachan con éxito (`sent`), el segundo se deja `queued`.",
+      "item": [
+        {
+          "name": "FL-MSG-020 · A — listado de mensajes, orden total y filtros (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages",
+            "description": "`listMessages` — `GET /api/v1/messages`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MSG-020 · B — listado de mensajes, orden total y filtros (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages?status=queued",
+            "description": "`GET /api/v1/messages?status=queued`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MSG-020 · C — listado de mensajes, orden total y filtros (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages?applicationCode=billing&templateCode=invoiceready",
+            "description": "`GET /api/v1/messages?applicationCode=billing&templateCode=invoiceready`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MSG-020 · D — listado de mensajes, orden total y filtros (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages?recipient=CLIENTE@Example.COM",
+            "description": "`GET /api/v1/messages?recipient=CLIENTE@Example.COM` (destinatario del primer mensaje)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MSG-020 · E — listado de mensajes, orden total y filtros (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages",
+            "description": "`GET /api/v1/messages?requestedFrom={instante posterior a los tres}`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MSG-020 · F — listado de mensajes, orden total y filtros (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages?requestedFrom=2030-01-01T00:00:00Z&requestedTo=2020-01-01T00:00:00Z",
+            "description": "`GET /api/v1/messages?requestedFrom=2030-01-01T00:00:00Z&requestedTo=2020-01-01T00:00:00Z`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-MSG-030 — el desempate del orden con mensajes del mismo instante",
+      "description": "**Given**: existe `billing` con `invoiceready` publicada. Rol `notifications-admin`. Se encolan **cinco** mensajes en la misma petición de tanda, de modo que sus `requestedAt` **empatan** al segundo.",
+      "item": [
+        {
+          "name": "FL-MSG-030 · A — el desempate del orden con mensajes del mismo instante (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages?size=2",
+            "description": "`GET /api/v1/messages?size=2` y después la página siguiente y la siguiente"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-RET-001 — la purga borra los datos personales y conserva la guarda",
+      "description": "**Given**: existe `billing` con un mensaje `sent` cuyo `requestedAt` tiene **más de 18 meses** y `personalDataPurgedAt: null`, y otro mensaje `sent` **reciente**. Se conocen sus `id` y la clave de idempotencia del antiguo (`\"old-000001\"`). Rol `notifications-admin`.",
+      "item": [
+        {
+          "name": "FL-RET-001 · A — la purga borra los datos personales y conserva la guarda (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/purge",
+            "description": "`purgeMessagePersonalData` — `POST /api/v1/messages/purge` (el mismo efecto que produce el ciclo de las 03:00 UTC)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-RET-001 · B — la purga borra los datos personales y conserva la guarda (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`requestNotification` (credencial de máquina del cliente `billing`) con `idempotencyKey: \"old-000001\"` y contenido cualquiera"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-RET-001 · C — la purga borra los datos personales y conserva la guarda (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/purge",
+            "description": "`purgeMessagePersonalData` otra vez"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-001 · sin credencial y sin permiso",
+      "description": "**Given**: existe `billing` con `invoiceready` publicada y un mensaje `sent` (su id en `{{messageId}}`).",
+      "item": [
+        {
+          "name": "FL-SEC-001 · A — sin credencial: registerApplication (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "`POST /applications` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · B — sin credencial: updateApplication (401)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing",
+            "description": "`PATCH /applications/{code}` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · C — sin credencial: suspendApplication (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suspend",
+            "description": "`POST /applications/{code}/suspend` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · D — sin credencial: reactivateApplication (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/reactivate",
+            "description": "`POST /applications/{code}/reactivate` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · E — sin credencial: getApplication (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing",
+            "description": "`GET /applications/{code}` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · F — sin credencial: listApplications (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "`GET /applications` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · G — sin credencial: createTemplate (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates",
+            "description": "`POST /applications/{applicationCode}/templates` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · H — sin credencial: listTemplates (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates",
+            "description": "`GET /applications/{applicationCode}/templates` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · I — sin credencial: getTemplate (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates/invoiceready",
+            "description": "`GET /applications/{applicationCode}/templates/{templateCode}` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · J — sin credencial: retireTemplate (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates/invoiceready/retire",
+            "description": "`POST /applications/{applicationCode}/templates/{templateCode}/retire` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · K — sin credencial: publishTemplateVersion (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates/invoiceready/versions",
+            "description": "`POST /applications/{applicationCode}/templates/{templateCode}/versions` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · L — sin credencial: listTemplateVersions (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates/invoiceready/versions",
+            "description": "`GET /applications/{applicationCode}/templates/{templateCode}/versions` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · M — sin credencial: getTemplateVersion (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates/invoiceready/versions/1",
+            "description": "`GET /applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · N — sin credencial: activateTemplateVersion (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates/invoiceready/versions/1/activate",
+            "description": "`POST /applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}/activate` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · O — sin credencial: listMessages (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/messages",
+            "description": "`GET /messages` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · P — sin credencial: getMessage (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/messages/{{messageId}}",
+            "description": "`GET /messages/{id}` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · Q — sin credencial: suppressAddress (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suppressions",
+            "description": "`POST /applications/{applicationCode}/suppressions` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · R — sin credencial: listSuppressedAddresses (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suppressions",
+            "description": "`GET /applications/{applicationCode}/suppressions` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · S — sin credencial: releaseAddress (401)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suppressions/x%40y.com",
+            "description": "`DELETE /applications/{applicationCode}/suppressions/{address}` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · T — sin credencial: requestNotification (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "`POST /notifications` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · U — sin credencial: findMessageByIdempotencyKey (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/notifications/billing/k-000001",
+            "description": "`GET /notifications/{applicationCode}/{idempotencyKey}` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · V — sin credencial: reportEmailBounce (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/messages/{{messageId}}/bounces",
+            "description": "`POST /messages/{messageId}/bounces` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · W — sin credencial: purgeMessagePersonalData (401)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/messages/purge",
+            "description": "`POST /messages/purge` **sin ninguna credencial**. El acceso por defecto es `required`: sin regla explícita nada se sirve."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · X — POST /applications con notifications-auditor (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-auditor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "Con `notifications-auditor`, sin `application:write`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · Y — POST /applications/billing/templates con notifications-auditor (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-auditor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates",
+            "description": "Con `notifications-auditor`, sin `template:write`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · Z — POST /applications/billing/templates/invoiceready/versions con notifications-auditor (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-auditor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/templates/invoiceready/versions",
+            "description": "Con `notifications-auditor`, sin `template:write`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · AA — GET /messages con template-editor (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages",
+            "description": "Con `template-editor`, sin `message:read`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · AB — GET /messages/{{messageId}} con template-editor (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{{messageId}}",
+            "description": "Con `template-editor`, sin `message:read`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · AC — POST /applications/billing/suppressions con template-editor (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suppressions",
+            "description": "Con `template-editor`, sin `suppression:write`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · AD — GET /applications/billing/suppressions con template-editor (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suppressions",
+            "description": "Con `template-editor`, sin `suppression:read`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · AE — POST /messages/purge con notifications-auditor (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-auditor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/purge",
+            "description": "Con `notifications-auditor`, sin `retention:purge`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · AF — POST /applications/billing/suspend con template-editor (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing/suspend",
+            "description": "Con `template-editor`, no es `notifications-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · AG — GET /notifications/billing/k-000001 con dispatch-only (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_dispatch-only}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/billing/k-000001",
+            "description": "Con `dispatch-only`, credencial de máquina con solo `notification:send`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · AH — POST /messages/{{messageId}}/bounces con dispatch-only (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_dispatch-only}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{{messageId}}/bounces",
+            "description": "Con `dispatch-only`, credencial de máquina con solo `notification:send`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · AI — POST /notifications con mail-provider (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_mail-provider}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "Con `mail-provider`, credencial de máquina con solo `bounce:report`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · AJ — aud que no nombra al servicio (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "Credencial de máquina de `billing` pero con un token cuyo `aud` **no** nombra a este servicio. `validateAudience: true` responde **403**, no 401. Requiere emitir el token contra otra audiencia: ajusta `{{audience}}` en la colección de auth antes de ejecutarla."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-010 · el alcance por aplicación en las operaciones de administración",
+      "description": "**Given**: existen `billing` y `shipping`, cada una con una plantilla publicada y una dirección suprimida.",
+      "item": [
+        {
+          "name": "FL-SEC-010 · A — aplicación dentro del alcance (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/billing",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · B — aplicación fuera del alcance (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`. Devuelve `APPLICATION_FORBIDDEN`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · C — aplicación inexistente: 404 precede a 403 (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/inexistente",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · D — el listado filtra, no falla (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · E — crear plantilla fuera del alcance (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping/templates",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`. Devuelve `APPLICATION_FORBIDDEN`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · F — listar plantillas fuera del alcance (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping/templates",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`. Devuelve `APPLICATION_FORBIDDEN`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · G — consultar plantilla fuera del alcance (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping/templates/shipped",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`. Devuelve `APPLICATION_FORBIDDEN`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · H — publicar versión fuera del alcance (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping/templates/shipped/versions",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`. Devuelve `APPLICATION_FORBIDDEN`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · I — activar versión fuera del alcance (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping/templates/shipped/versions/1/activate",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`. Devuelve `APPLICATION_FORBIDDEN`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · J — retirar plantilla fuera del alcance (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping/templates/shipped/retire",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`. Devuelve `APPLICATION_FORBIDDEN`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · K — listar versiones fuera del alcance (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping/templates/shipped/versions",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`. Devuelve `APPLICATION_FORBIDDEN`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · L — consultar versión fuera del alcance (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping/templates/shipped/versions/1",
+            "description": "Con rol `template-editor` cuyo claim `applications` contiene **solo** `billing`. Devuelve `APPLICATION_FORBIDDEN`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · M — admin ve las dos aplicaciones (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "Con rol `notifications-admin`, cuyo token **no** lleva el claim acotado: es transversal por diseño."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · N — admin entra fuera de todo alcance (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping",
+            "description": "Con rol `notifications-admin`, cuyo token **no** lleva el claim acotado: es transversal por diseño."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · O — admin suprime en otra aplicación (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping/suppressions",
+            "description": "Con rol `notifications-admin`, cuyo token **no** lleva el claim acotado: es transversal por diseño."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · P — admin lista supresiones de otra aplicación (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/shipping/suppressions",
+            "description": "Con rol `notifications-admin`, cuyo token **no** lleva el claim acotado: es transversal por diseño."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-020 · el alcance por aplicación sobre los datos personales de los mensajes",
+      "description": "**Given**: existen `billing` y `shipping`, cada una con **un** mensaje `sent` con destinatarios distintos (ids en `{{messageIdBilling}}` y `{{messageIdShipping}}`). Es el único escenario que ejercita `application-operator`: el único rol que combina alcance por aplicación con `message:read`.",
+      "item": [
+        {
+          "name": "FL-SEC-020 · A — mensaje de la propia aplicación (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_application-operator}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{{messageIdBilling}}",
+            "description": "Con rol `application-operator` cuyo claim `applications` contiene solo `billing`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-020 · B — mensaje de otra aplicación (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_application-operator}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{{messageIdShipping}}",
+            "description": "Con rol `application-operator` cuyo claim `applications` contiene solo `billing`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-020 · C — mensaje inexistente: 404, no 403 (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_application-operator}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/00000000-0000-0000-0000-000000000000",
+            "description": "Con rol `application-operator` cuyo claim `applications` contiene solo `billing`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-020 · D — la colección filtra por alcance (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_application-operator}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages",
+            "description": "Con rol `application-operator` cuyo claim `applications` contiene solo `billing`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-020 · E — filtrar por otra aplicación devuelve vacío (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_application-operator}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages?applicationCode=shipping",
+            "description": "Con rol `application-operator` cuyo claim `applications` contiene solo `billing`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-020 · F — el filtro recipient no es vía lateral (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_application-operator}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages?recipient=destino%40shipping.example.com",
+            "description": "Con rol `application-operator` cuyo claim `applications` contiene solo `billing`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-020 · G — el auditor es transversal (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-auditor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages",
+            "description": "Con rol `notifications-auditor`, exento del alcance por diseño."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-030 — CORS para la SPA de back-office",
+      "description": "**Given**: el servicio en marcha. La política declara `allowCredentials: false`, `allowedHeaders` `Authorization` y `Content-Type`, `exposedHeaders` `X-Correlation-Id` y `maxAgeSeconds: 3600`.",
+      "item": [
+        {
+          "name": "FL-SEC-030 · A — CORS para la SPA de back-office (200)",
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "**preflight** — `OPTIONS /api/v1/applications` **sin credencial**, desde un origen web, con `Access-Control-Request-Method: POST` y `Access-Control-Request-Headers: Authorization, Content-Type`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-030 · B — CORS para la SPA de back-office (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "petición **normal cross-origin** — `GET /api/v1/applications` desde un origen web, con token de rol `notifications-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PAG-001 — primera página, siguiente, vacía y tope de tamaño",
+      "description": "**Given**: existe `billing`. Rol `notifications-admin`. Se registran **25** aplicaciones más, de modo que hay 26 en total con nombres que hacen el orden distinguible.",
+      "item": [
+        {
+          "name": "FL-PAG-001 · A — primera página, siguiente, vacía y tope de tamaño (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "`GET /api/v1/applications` (sin parámetros)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PAG-001 · B — primera página, siguiente, vacía y tope de tamaño (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications?page=1&size=20",
+            "description": "`GET /api/v1/applications?page=1&size=20`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PAG-001 · C — primera página, siguiente, vacía y tope de tamaño (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications?page=99&size=20",
+            "description": "`GET /api/v1/applications?page=99&size=20`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PAG-001 · D — primera página, siguiente, vacía y tope de tamaño (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications?size=1000",
+            "description": "`GET /api/v1/applications?size=1000`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Operaciones — los 23 endpoints del contrato",
+      "description": "Una request por endpoint de la capa api, con el cuerpo minimo derivado de los campos requeridos del input. Sustituye los valores de ejemplo por datos reales antes de ejecutar.",
+      "item": [
+        {
+          "name": "registerApplication — POST /applications (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "Da de alta una aplicación autorizada a pedir envíos, con su remitente verificado.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"billing\",\n  \"name\": \"texto\",\n  \"senderAddress\": \"destinatario@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "updateApplication — PATCH /applications/{code} (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{code}",
+            "description": "Actualiza los datos de contacto y el remitente de una aplicación ya registrada."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "suspendApplication — POST /applications/{code}/suspend (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{code}/suspend",
+            "description": "Suspende una aplicación, que deja de poder originar envíos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "reactivateApplication — POST /applications/{code}/reactivate (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{code}/reactivate",
+            "description": "Devuelve al servicio una aplicación suspendida."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "getApplication — GET /applications/{code} (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{code}",
+            "description": "Recupera una aplicación por su código."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "listApplications — GET /applications (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications",
+            "description": "Lista las aplicaciones registradas dentro del alcance del solicitante, opcionalmente filtradas por estado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "createTemplate — POST /applications/{applicationCode}/templates (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates",
+            "description": "Crea el contenedor de una plantilla dentro de una aplicación; todavía sin contenido publicable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"invoiceready\",\n  \"name\": \"texto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "listTemplates — GET /applications/{applicationCode}/templates (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates",
+            "description": "Lista las plantillas de una aplicación, distinguiendo las que están en circulación de las retiradas."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "getTemplate — GET /applications/{applicationCode}/templates/{templateCode} (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}",
+            "description": "Recupera una plantilla de una aplicación por su código."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "retireTemplate — POST /applications/{applicationCode}/templates/{templateCode}/retire (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/retire",
+            "description": "Retira una plantilla de circulación archivando su versión activa; la plantilla y su historia se conservan."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "publishTemplateVersion — POST /applications/{applicationCode}/templates/{templateCode}/versions (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/versions",
+            "description": "Publica contenido nuevo para una plantilla: crea una versión y la deja activa, archivando en la misma transacción la que estuviera activa.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"texto\",\n  \"htmlBody\": \"texto\",\n  \"textBody\": \"texto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "listTemplateVersions — GET /applications/{applicationCode}/templates/{templateCode}/versions (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/versions",
+            "description": "Lista el historial de versiones de una plantilla, de la más reciente a la más antigua."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "getTemplateVersion — GET /applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber} (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}",
+            "description": "Recupera el contenido exacto de una versión concreta de una plantilla."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "activateTemplateVersion — POST /applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}/activate (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}/activate",
+            "description": "Vuelve a poner activa una versión archivada, para revertir una publicación sin recomponerla a mano."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "listMessages — GET /messages (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages",
+            "description": "Lista los correos emitidos, filtrables por aplicación, estado y ventana temporal. Es el único camino para descubrir los envíos fallidos, que el servicio no reintenta."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "getMessage — GET /messages/{id} (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{id}",
+            "description": "Recupera el registro de un correo por su identificador, para saber qué pasó con él."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "suppressAddress — POST /applications/{applicationCode}/suppressions (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/suppressions",
+            "description": "Marca una dirección como no escribible para una aplicación. La alimenta el desenlace de un envío rechazado y también una decisión manual (una queja, una baja).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"destinatario@example.com\",\n  \"reason\": \"hard-bounce\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "listSuppressedAddresses — GET /applications/{applicationCode}/suppressions (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/suppressions",
+            "description": "Lista las direcciones suprimidas de una aplicación, de la más reciente a la más antigua."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "releaseAddress — DELETE /applications/{applicationCode}/suppressions/{address} (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/applications/{applicationCode}/suppressions/{address}",
+            "description": "Retira una dirección de la lista de supresión, para volver a escribirle. Es una decisión deliberada: la dirección se suprimió por un rebote o una queja."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "requestNotification — POST /notifications (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "description": "Acepta una petición de envío: resuelve quién la pide, valida la plantilla, comprueba las variables y los destinatarios, renderiza el asunto y deja el mensaje encolado. No envía.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateCode\": \"invoiceready\",\n  \"idempotencyKey\": \"inv-2026-000123\",\n  \"recipients\": [\n    \"destinatario@example.com\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "findMessageByIdempotencyKey — GET /notifications/{applicationCode}/{idempotencyKey} (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications/{applicationCode}/{idempotencyKey}",
+            "description": "Recupera el mensaje que una aplicación originó con una clave de idempotencia dada, para que el consumidor confirme si su petición ya se aceptó."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "reportEmailBounce — POST /messages/{messageId}/bounces (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_mail-provider}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/{messageId}/bounces",
+            "description": "Registra que el proveedor de correo notificó, de forma asíncrona, el rebote de una dirección para un mensaje que ya se había entregado al relay. Es la puerta explícita y determinista para un rebote que llega DESPUÉS de la aceptación —la notificación real del proveedor, o su simulación en un arnés de pruebas—, distinta del rechazo síncrono que sendQueuedMessage ya detecta en el momento del envío.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"destinatario@example.com\",\n  \"permanent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "purgeMessagePersonalData — POST /messages/purge (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notifications-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/messages/purge",
+            "description": "Borra los datos personales de los mensajes antiguos conservando la fila y su clave de idempotencia, para que la retención no rompa la guarda permanente contra el doble envío."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "keelVersion",
+      "value": "1.5.0"
+    },
+    {
+      "key": "messageId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "messageIdBilling",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "messageIdShipping",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

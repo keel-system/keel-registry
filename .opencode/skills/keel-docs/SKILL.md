@@ -91,7 +91,7 @@ hasta que pase.
 ### 4. `overview.html` — panel del servicio (+ visores)
 
 Una página autocontenida que responde de un vistazo qué hace el servicio y qué infraestructura exige:
-capacidades (persistencia, broker, outbox, caché, storage, clientes HTTP, seguridad, jobs), los casos
+capacidades (persistencia, broker, outbox, caché, storage, correo, clientes HTTP, seguridad, jobs), los casos
 de uso como acordeones agrupados por audiencia (con entrada, salida, errores, idempotencia, caché y
 seguridad de cada uno), los eventos, los clientes HTTP y el modelo de dominio. Enlaza los contratos y
 los visores.
@@ -137,6 +137,20 @@ Con él, `keel index` enruta esos tres enlaces por htmlpreview; sin él los deja
 en local, inservible en GitHub). Si el workspace se publica en GitHub y no existe el archivo,
 **sugiérelo**; no lo crees por iniciativa propia: es configuración del equipo, no un derivado del
 diseño, y adivinar el repo mal deja enlaces rotos en la portada.
+
+## Los errores del framework también son contrato
+
+En las respuestas de error de `openapi.yaml` no van solo los `errors[]` de la operación: van
+también los códigos que pone el **framework** por haber encendido un mecanismo (`docs/framework-errors.md`).
+Una operación con `idempotency` puede devolver `409 IDEMPOTENCY_KEY_IN_PROGRESS` y
+`409 IDEMPOTENCY_KEY_REUSED`; con `optimisticLocking` distinto de `none`, sus mutaciones pueden
+devolver `409 CONCURRENT_MODIFICATION`; con un bucket que acota el tamaño, la subida puede devolver
+`413 FILE_TOO_LARGE`. Si el diseño declara un `code` de la familia de alguno, documenta **ese** —es
+el que sale por el cable— y no el canónico.
+
+No es exhaustividad por gusto: el cliente va a recibirlos, y un error que no está en el contrato
+publicado es un error contra el que nadie puede programar. Lo mismo vale para el `INTEGRATION.md`
+de `/keel-integrate`.
 
 ## Coherencia
 

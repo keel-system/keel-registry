@@ -37,6 +37,45 @@ access:
 - Permisos en formato `recurso:accion` (`product:write`); roles en kebab-case.
 - Principio de mínimo privilegio: la skill `/keel-validate` revisa que ningún rol acumule permisos que no use.
 
+## Identidad del llamante (`authentication.callerIdentity`)
+
+Quién pide el trabajo — no si puede pedirlo (eso es `access`), sino **en nombre de qué recurso** lo pide.
+
+```yaml
+authentication:
+  protocol: oidc
+  callerIdentity:
+    field: applicationCode          # el campo del input que la recibe, YA resuelta
+    from: { source: serviceClient } # el cliente máquina de la credencial ES el recurso
+    # from: { source: claim, name: tenant }   # o un claim que puebla el proveedor
+```
+
+- Es el **hermano** de `messaging.subscriptions.<E>.identity`: el mismo hecho por la otra puerta. Si una operación entra por las dos, **las dos tienen que nombrar el mismo `field`** — dos campos son dos verdades, y la operación decidiría con uno u otro sin saberlo. `keel validate` lo da en rojo.
+- El campo **deja de viajar en el cuerpo** de la petición: lo estampa el servidor, igual que un campo `generated`. Quien hace la petición es justamente quien no debería poder elegir en nombre de quién actúa, así que no hay nada que comprobar ni ningún error de inconsistencia que declarar.
+- La resolución vive en **un solo punto**. Cambiar de la credencial a un claim son dos líneas y no toca dominio, casos de uso ni esquema.
+- Sin este bloque, un servicio que resuelve el inquilino por la credencial deja esa resolución en la prosa de una `rule`, y cada implementación la inventa: el dato acaba llegando del cuerpo o duplicado en dos campos que alguien tiene que reconciliar a mano.
+
+## Alcance por recurso (`authentication.scoping`)
+
+`roles`, `permissions` y `scopes` son **globales**: quien pasa la regla de acceso, pasa para **todos** los recursos. Un servicio multi-inquilino necesita además acotar al recurso concreto, y eso no cabe en `access` — una regla de acceso decide si puedes ejecutar la operación, no sobre qué filas.
+
+```yaml
+authentication:
+  protocol: oidc
+  scoping:
+    claim: applications          # el claim del token con los recursos que alcanza el titular
+    over: Application.code       # qué identifica al recurso acotado (Entidad.campo de domain)
+    error: APPLICATION_FORBIDDEN # el code del rechazo: es contrato público
+    exemptRoles: [catalog-admin] # roles transversales, que NO se acotan
+```
+
+- `over` apunta a una entidad y un campo **que existen en `domain`**, y es el dato que las operaciones acotadas reciben.
+- `error` es un `code` que alguna operación tiene que declarar en sus `errors` (con su `403` y su `when`): ahí es donde vive el contrato. Declarar el alcance sin su error es un **error de validación**.
+- `exemptRoles` se enumera uno a uno. La exención es la parte peligrosa —un rol exento alcanza cualquier recurso— y no puede quedar implícita.
+- **Sin este bloque**, un 403 declarado sobre una operación protegida por rol describe una discriminación que nada evalúa: `keel validate` lo avisa, el generador emite el código igual, y el servidor acaba sirviendo a cualquier titular del rol los recursos de todos los inquilinos.
+- Qué recurso alcanza cada usuario **de prueba** no es del diseño: el generador siembra el proveedor de identidad con un valor convencional y lo publica para el arnés (en keel-spring, `AUTH_SCOPED_RESOURCE` de `infra/test-credentials.env`).
+- La comprobación en sí se escribe como `rule` en cada operación acotada — el DSL declara de dónde sale el alcance, no el algoritmo que lo aplica.
+
 ## Clientes máquina (M2M)
 
 Cuando otros servidores consumen endpoints del servicio (capa `api` con `audience: services` o `both`), la seguridad se modela con tres piezas:

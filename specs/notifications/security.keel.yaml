@@ -1,0 +1,174 @@
+# Capa security del servicio de notificaciones por correo.
+# Dos públicos: personas que gestionan plantillas y aplicaciones desde el back-office,
+# y servidores que piden envíos con credencial de máquina.
+
+authentication:
+  protocol: oidc
+  tokenLocation: header
+  # QUIÉN PIDE EL TRABAJO, por la puerta HTTP. No es «si puede» —eso es access— sino «en nombre de
+  # qué aplicación». Sale de la credencial: cada entrada de serviceClients se corresponde con el
+  # code de una Application registrada, así que el cliente máquina ES el recurso.
+  # Es el hermano de messaging.subscriptions.NotificationRequested.identity, que declara lo mismo
+  # para la puerta de eventos, y los dos aterrizan en el MISMO campo a propósito: dos campos serían
+  # dos verdades sobre quién pide el envío, y requestNotification entra por las dos puertas.
+  # Consecuencia: applicationCode deja de viajar en el cuerpo. El solicitante no puede elegirlo, así
+  # que tampoco hay que comprobar que no mienta.
+  callerIdentity:
+    field: applicationCode
+    from: { source: serviceClient }
+  # ALCANCE POR APLICACIÓN. roles, permissions y scopes son globales: quien pasa la regla de
+  # acceso, pasa para todos los recursos. Pero una Application es un INQUILINO —posee sus
+  # plantillas, su remitente y sus correos emitidos—, así que el permiso tiene que acotarse
+  # además al recurso. De dónde sale esa acotación se declara aquí y no en prosa: el generador
+  # aprovisiona con esto el proveedor de identidad (el atributo de usuario y el mapper que lo
+  # proyecta al token), y `keel validate` puede comprobar que el 403 declarado es producible.
+  scoping:
+    claim: applications
+    over: Application.code
+    error: APPLICATION_FORBIDDEN
+    # Transversales por diseño: administran o auditan TODAS las aplicaciones, así que su token
+    # no lleva el claim. La exención se decide por el rol, nunca por la ausencia del claim: al
+    # revés, un fallo de aprovisionamiento convertiría a un usuario acotado en omnipotente sin
+    # que nada lo dijera.
+    exemptRoles: [notifications-admin, notifications-auditor]
+  description: >-
+    El claim applications lo puebla el proveedor de identidad al autenticar. Toda operación cuyo
+    acceso se evalúa por rol y actúa sobre una aplicación concreta comprueba que el
+    applicationCode de la petición esté en ese claim; la guarda se escribe como rule en cada una
+    de esas operaciones, que es donde el generador la lee.
+  serviceAuth:
+    protocol: client-credentials
+    validateAudience: true
+    audience: notifications
+    description: Los servidores consumidores obtienen su token con client_credentials; el claim aud debe nombrar a este servicio.
+
+roles:
+  notifications-admin:
+    description: Administra las aplicaciones consumidoras, sus remitentes y la suspensión del servicio.
+  template-editor:
+    description: >-
+      Redacta y publica el contenido de las plantillas de correo de las aplicaciones dentro de su
+      alcance (claim applications del token); no toca el alta de aplicaciones ni actúa fuera de ese
+      alcance.
+  application-operator:
+    description: >-
+      Opera UNA aplicación consumidora de extremo a extremo: consulta sus plantillas y los
+      correos que ha emitido, dentro de su alcance (claim applications del token). Existe
+      porque el alcance por aplicación y el permiso message:read tienen que poder darse en la
+      misma identidad: template-editor no lee correos —su descripción es redactar contenido, y
+      los destinatarios y el asunto renderizado son datos personales que no necesita— y los dos
+      roles que sí leen correos (notifications-admin, notifications-auditor) están exentos del
+      alcance por diseño. Sin este rol, la acotación por aplicación sobre los datos personales
+      de los mensajes no es observable desde fuera y FL-SEC-020 no es ejercitable.
+      NO está exento de la comprobación de alcance: ese es justamente su propósito.
+  notifications-auditor:
+    description: Consulta los correos emitidos y su desenlace, sin poder modificar nada.
+
+permissions:
+  application:write:
+    description: Registrar, modificar, suspender y reactivar aplicaciones consumidoras.
+  application:read:
+    description: Consultar las aplicaciones registradas y su remitente.
+  template:write:
+    description: Crear plantillas, publicar versiones, revertir a una anterior y retirar una plantilla de circulación.
+  template:read:
+    description: Consultar plantillas y el contenido de sus versiones.
+  message:read:
+    description: Consultar los correos emitidos y su desenlace.
+  suppression:write:
+    description: Suprimir una dirección de destino y volver a liberarla.
+  suppression:read:
+    description: Consultar las direcciones suprimidas de una aplicación.
+  notification:send:
+    description: Pedir el envío de un correo de notificación.
+  bounce:report:
+    description: Notificar el rebote asíncrono de un mensaje ya entregado al relay.
+  retention:purge:
+    description: Disparar manualmente la purga de datos personales de mensajes antiguos, fuera del ciclo diario.
+
+roleGrants:
+  notifications-admin:  [application:write, application:read, template:write, template:read, message:read, suppression:write, suppression:read, retention:purge]
+  template-editor:      [application:read, template:write, template:read]
+  application-operator: [application:read, template:read, message:read, suppression:read]
+  notifications-auditor: [application:read, template:read, message:read, suppression:read]
+
+serviceClients:
+  # Cada servidor consumidor se declara aquí con el mínimo privilegio que necesita.
+  # Pedir un envío y consultar el propio envío son capacidades distintas: quien solo dispara
+  # notificaciones no necesita poder leer los mensajes de nadie.
+  #
+  # REGLA DE IDENTIDAD: el nombre de cada serviceClient se corresponde con el `code` de una
+  # Application registrada. Es de ahí de donde el servicio resuelve en nombre de quién se pide
+  # un envío en la superficie HTTP — nunca de un campo del cuerpo, que el llamante elige.
+  billing:
+    description: Consumidor de facturación; pide envíos de notificación transaccional y consulta el desenlace de los suyos.
+    scopes: [notification:send, message:read]
+  shipping:
+    description: Consumidor de logística; pide envíos de notificación transaccional y consulta el desenlace de los suyos.
+    scopes: [notification:send, message:read]
+  dispatch-only:
+    description: >-
+      Consumidor que solo dispara notificaciones y nunca necesita consultarlas: publica el aviso y
+      no reacciona a su desenlace, así que no se le concede message:read. Es mínimo privilegio
+      aplicado de verdad — pedir un envío y leer los mensajes de una aplicación son capacidades
+      distintas, y la segunda expone datos personales de los destinatarios.
+    scopes: [notification:send]
+  mail-provider:
+    description: >-
+      El relay de correo (o su simulador de pruebas), que notifica de forma asíncrona el rebote de
+      un mensaje ya entregado.
+    scopes: [bounce:report]
+
+cors:
+  description: Consumido desde el navegador por la SPA de back-office que gestiona plantillas.
+  allowCredentials: false
+  allowedHeaders: [Authorization, Content-Type]
+  exposedHeaders: [X-Correlation-Id]
+  maxAgeSeconds: 3600
+
+access:
+  # ALCANCE POR APLICACIÓN — lo que este bloque sigue sin expresar, y dónde se expresa.
+  # Una accessRule decide si PUEDES EJECUTAR la operación; no dice nada sobre qué filas. Las 13
+  # operaciones que actúan sobre UNA aplicación concreta declaran APPLICATION_FORBIDDEN (403), y
+  # lo que acota ese permiso al recurso se declara en `authentication.scoping` (DSL 2.11).
+  # El reparto: `scoping` dice DE DÓNDE sale la acotación (el claim, contra qué campo y quién
+  # queda exento) y la guarda que la APLICA está escrita como `rule` en cada una de esas
+  # operaciones, que es donde el generador la lee.
+  #
+  # Sin regla explícita nada se sirve: el default exige token y no concede ninguna capacidad.
+  default: { level: required, permissions: [application:read] }
+  rules:
+    # ── Aplicaciones consumidoras ──
+    registerApplication:   { level: admin, roles: [notifications-admin], permissions: [application:write] }
+    updateApplication:     { level: admin, roles: [notifications-admin], permissions: [application:write] }
+    suspendApplication:    { level: admin, roles: [notifications-admin], permissions: [application:write] }
+    reactivateApplication: { level: admin, roles: [notifications-admin], permissions: [application:write] }
+    getApplication:        { level: required, permissions: [application:read] }
+    listApplications:      { level: required, permissions: [application:read] }
+
+    # ── Plantillas: la puerta que el encargo pedía proteger ──
+    createTemplate:          { level: required, permissions: [template:write] }
+    publishTemplateVersion:  { level: required, permissions: [template:write] }
+    activateTemplateVersion: { level: required, permissions: [template:write] }
+    retireTemplate:          { level: required, permissions: [template:write] }
+    getTemplate:             { level: required, permissions: [template:read] }
+    listTemplates:           { level: required, permissions: [template:read] }
+    getTemplateVersion:      { level: required, permissions: [template:read] }
+    listTemplateVersions:    { level: required, permissions: [template:read] }
+
+    # ── Correos emitidos (back-office) ──
+    listMessages: { level: required, permissions: [message:read] }
+    getMessage:   { level: required, permissions: [message:read] }
+
+    # ── Lista de supresión ──
+    suppressAddress:         { level: required, permissions: [suppression:write] }
+    releaseAddress:          { level: required, permissions: [suppression:write] }
+    listSuppressedAddresses: { level: required, permissions: [suppression:read] }
+
+    # ── Superficie servidor-a-servidor ──
+    requestNotification:         { level: service, scopes: [notification:send] }
+    findMessageByIdempotencyKey: { level: service, scopes: [message:read] }
+    reportEmailBounce:           { level: service, scopes: [bounce:report] }
+
+    # ── Retención de datos personales ──
+    purgeMessagePersonalData: { level: admin, roles: [notifications-admin], permissions: [retention:purge] }
