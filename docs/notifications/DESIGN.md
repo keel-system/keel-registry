@@ -1,6 +1,6 @@
 # notifications — Documento de diseño
 
-> specs/notifications v1.5.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/notifications v1.6.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -159,7 +159,9 @@ alcance y `listMessages` **filtra en silencio**, se pase o no el filtro `applica
 **Retención** — `purgeMessagePersonalData` (`schedule` diario a las 03:00 UTC, más disparo manual).
 
 **Despacho** — `dispatchQueuedMessages` (`schedule` cada minuto) invoca `sendQueuedMessage`
-(`internal: true`), la **única operación del servicio que produce un correo real**.
+(`internal: true`), la **única operación del servicio que produce un correo real**. Antes de tomar
+su tanda rescata los mensajes atascados en `sending` y, al hacerlo, **publica `EmailDeliveryFailed`**
+igual que el fallo que reporta el relay.
 
 ### Superficie servidor-a-servidor
 
@@ -205,6 +207,11 @@ informativa).
 - **Publica** `EmailSent` y `EmailDeliveryFailed` con `reliability: best-effort`. **No son fuente de
   verdad**: pueden perderse aunque el correo sí haya salido. Quien necesite certeza consulta
   `findMessageByIdempotencyKey` o `listMessages`.
+- `EmailDeliveryFailed` tiene **dos emisores**, porque `failed` se alcanza por dos vías: el rechazo
+  del relay (`sendQueuedMessage`) y el **rescate** (`dispatchQueuedMessages`). No afirman lo mismo y
+  `failureReason` es lo que las separa — el rechazo dice que el correo no salió; el rescate, que no
+  se sabe. Cada evento sale **solo si su transición se aplicó**, así que un mensaje ya rescatado no
+  se anuncia dos veces.
 - **Consume** `NotificationRequested` (`nature: request`, sobre `keel`): cualquier servidor
   registrado encarga un envío. El payload es **nuestra firma de entrada**, no el hecho de nadie. La
   identidad del emisor sale de `metadata.source`; un emisor sin `Application` registrada va a la
@@ -275,6 +282,21 @@ esperó dos horas en cola y acaba de pasar a `sending` sería rescatado de inmed
 marcaría `failed` correos que están saliendo bien en ese momento. **Alternativa descartada**:
 reutilizar `requestedAt` para no añadir campo — más barato en el modelo, pero deja el rescate sin
 criterio observable y convierte una salvaguarda en una fuente de falsos negativos.
+
+### El rescate también publica `EmailDeliveryFailed`
+
+**Qué**: la vía del rescate emite el mismo evento que el rechazo del relay, distinguible por
+`failureReason`. **Por qué**: `failed` es terminal por las dos vías, y el evento existe para que
+alguien reaccione «sin sondear»; callar el rescate dejaba invisibles para todo consumidor
+precisamente los mensajes que mueren porque un despachador se cayó, descubribles solo sondeando
+`listMessages`. **Descartado**: que el rescate no publicara nada — es la lectura estricta de la
+prioridad «nunca un segundo correo a una persona real», porque un rescate puede ser un falso
+negativo y un consumidor que reaccione re-pidiendo el envío duplicaría un correo que sí llegó. Se
+prefirió publicar y **dar el dato para decidir**: `failureReason` dice cuál de las dos cosas pasó, y
+`reliability: best-effort` ya obliga a confirmar con `findMessageByIdempotencyKey` antes de actuar.
+**También descartado**: un evento propio para el rescate (`EmailDispatchAbandoned`), que distinguiría
+por tipo en vez de por texto libre a cambio de un evento más en el contrato público; quien derive
+este diseño con consumidores que reaccionen automáticamente al fallo puede querer justo esa opción.
 
 ### La guarda de idempotencia es permanente
 

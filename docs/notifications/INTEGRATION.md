@@ -1,6 +1,6 @@
 ---
 service: notifications
-version: 1.5.0
+version: 1.6.0
 basePath: /api/v1
 m2mAuth:
   protocol: client-credentials
@@ -426,11 +426,23 @@ este evento.
 |---|---|
 | Canal lógico | `notificationEvents` |
 | Garantía | `best-effort` — tampoco está garantizado |
-| Emitido por | `sendQueuedMessage` |
+| Emitido por | `sendQueuedMessage`, `dispatchQueuedMessages` |
 
-El relay rechazó el mensaje o no respondió. **El fallo es terminal por diseño**: este servicio no
-reintenta. Si el aviso importa, quien lo pidió debe volver a pedirlo **con otra clave de
-idempotencia** — reusar la misma devolvería el mensaje fallido sin enviar nada.
+El mensaje no llegó a entregarse. **El fallo es terminal por diseño**: este servicio no reintenta.
+Si el aviso importa, quien lo pidió debe volver a pedirlo **con otra clave de idempotencia** —
+reusar la misma devolvería el mensaje fallido sin enviar nada.
+
+**Lo publican dos vías, y no afirman lo mismo.** Léelo en `failureReason` antes de reaccionar:
+
+| Vía | Qué afirma | Qué puedes concluir |
+|---|---|---|
+| `sendQueuedMessage` — el relay rechazó el mensaje o no respondió | el correo **no salió** | re-pedir el envío es seguro |
+| `dispatchQueuedMessages` — **rescate** de un mensaje atascado en `sending` más de 15 minutos | **no se sabe** si salió: el despachador pudo morir después de que el relay aceptara el mensaje | re-pedir el envío **puede duplicar un correo ya entregado a una persona real** |
+
+Cada evento sale únicamente si su transición a `failed` se aplicó, así que un mensaje no se anuncia
+dos veces. Aun así, `best-effort` sobre un canal at-least-once no garantiza entrega única: tu
+consumidor debe deduplicar por `metadata.eventId`. Si necesitas certeza del desenlace antes de
+actuar, no reacciones a este evento: consulta `findMessageByIdempotencyKey`.
 
 `data`:
 

@@ -114,7 +114,7 @@
       "variant": null,
       "service": {
         "name": "notifications",
-        "version": "1.5.0",
+        "version": "1.6.0",
         "dsl": "2.13",
         "domain": null,
         "basedOn": null,

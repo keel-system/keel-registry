@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: notifications
-  version: 1.5.0
+  version: 1.6.0
   description: 'Emite el correo transaccional de notificación de las aplicaciones consumidoras, a partir
     de plantillas versionadas que gestiona negocio, aceptando peticiones por evento y por contrato servidor-a-servidor.
 
@@ -51,14 +51,16 @@ operations:
     action: send
     channel:
       $ref: '#/channels/notificationEvents'
-    summary: 'El relay rechazó el mensaje o no respondió. El fallo es TERMINAL por diseño: este servicio
-      no reintenta, así que quien quiera recuperar el aviso debe volver a pedirlo con otra clave de idempotencia.
+    summary: 'El mensaje no llegó a entregarse. Lo publican las DOS vías que llevan a failed, que es terminal
+      por diseño: el rechazo del relay en sendQueuedMessage, y el RESCATE de dispatchQueuedMessages sobre
+      un mensaje atascado en sending. Las dos no afirman lo mismo, y failureReason es lo que las separa.
       C'
     messages:
     - $ref: '#/channels/notificationEvents/messages/EmailDeliveryFailed'
     x-keel-reliability: best-effort
     x-keel-emitted-by:
     - sendQueuedMessage
+    - dispatchQueuedMessages
   consumeNotificationRequested:
     action: receive
     channel:
@@ -129,11 +131,7 @@ components:
       name: EmailDeliveryFailed
       title: EmailDeliveryFailed
       contentType: application/json
-      summary: 'El relay rechazó el mensaje o no respondió. El fallo es TERMINAL por diseño: este servicio
-        no reintenta, así que quien quiera recuperar el aviso debe volver a pedirlo con otra clave de
-        idempotencia. Con reliability best-effort tampoco este evento está garantizado. Hoy no tiene ningún
-        consumidor conocido y se publica igualmente: el payload es CONTRATO ESTABLE desde ya, porque el
-        fallo es el único desenlace que exige acción de alguien.'
+      summary: 'El mensaje no llegó a entregarse. Lo publican las DOS vías que llevan a failed, que es terminal por diseño: el rechazo del relay en sendQueuedMessage, y el RESCATE de dispatchQueuedMessages sobre un mensaje atascado en sending — un despachador que muere deja correos que ninguna otra vía saca de ahí, y callarlos aquí los haría invisibles para quien escucha. Este servicio no reintenta, así que quien quiera recuperar el aviso debe volver a pedirlo con otra clave de idempotencia. Las dos vías NO afirman lo mismo, y failureReason es lo que las separa: el rechazo del relay dice que el correo no salió; el rescate dice que no se sabe si salió, porque la caída pudo ocurrir después de que el relay aceptara el mensaje. Reaccionar a un rescate re-pidiendo el envío puede mandar un segundo correo a una persona real, y eso no lo deshace nada: el consumidor decide con failureReason en la mano. Con reliability best-effort tampoco este evento está garantizado. Hoy no tiene ningún consumidor conocido y se publica igualmente: el payload es CONTRATO ESTABLE desde ya, porque el fallo es el único desenlace que exige acción de alguien.'
       correlationId:
         $ref: '#/components/correlationIds/keelCorrelationId'
       payload:

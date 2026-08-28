@@ -5,7 +5,7 @@ keel: "2.13"
 
 service:
   name: notifications
-  version: 1.5.0
+  version: 1.6.0
   # keel validate trata cualquier description que empiece por "TODO" como placeholder pendiente.
   description: Emite el correo transaccional de notificación de las aplicaciones consumidoras, a partir de plantillas versionadas que gestiona negocio, aceptando peticiones por evento y por contrato servidor-a-servidor.
   # domain: commerce

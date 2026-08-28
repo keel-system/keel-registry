@@ -30,9 +30,18 @@ publishing:
         sentAt:          { type: timestamp, required: true }
     EmailDeliveryFailed:
       description: >-
-        El relay rechazó el mensaje o no respondió. El fallo es TERMINAL por diseño: este servicio
-        no reintenta, así que quien quiera recuperar el aviso debe volver a pedirlo con otra clave
-        de idempotencia. Con reliability best-effort tampoco este evento está garantizado.
+        El mensaje no llegó a entregarse. Lo publican las DOS vías que llevan a failed, que es
+        terminal por diseño: el rechazo del relay en sendQueuedMessage, y el RESCATE de
+        dispatchQueuedMessages sobre un mensaje atascado en sending — un despachador que muere
+        deja correos que ninguna otra vía saca de ahí, y callarlos aquí los haría invisibles para
+        quien escucha. Este servicio no reintenta, así que quien quiera recuperar el aviso debe
+        volver a pedirlo con otra clave de idempotencia.
+        Las dos vías NO afirman lo mismo, y failureReason es lo que las separa: el rechazo del
+        relay dice que el correo no salió; el rescate dice que no se sabe si salió, porque la caída
+        pudo ocurrir después de que el relay aceptara el mensaje. Reaccionar a un rescate
+        re-pidiendo el envío puede mandar un segundo correo a una persona real, y eso no lo deshace
+        nada: el consumidor decide con failureReason en la mano.
+        Con reliability best-effort tampoco este evento está garantizado.
         Hoy no tiene ningún consumidor conocido y se publica igualmente: el payload es CONTRATO
         ESTABLE desde ya, porque el fallo es el único desenlace que exige acción de alguien.
       channel: notificationEvents

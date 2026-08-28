@@ -1,7 +1,7 @@
 # notifications — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/notifications v1.5.0. Contrato de validación para la fase de generación.
+> specs/notifications v1.6.0. Contrato de validación para la fase de generación.
 
 Este archivo es el **contrato de equivalencia** del servicio: del mismo diseño se generan
 servidores en stacks distintos, y esto es lo único que garantiza que se comporten igual. Es
@@ -115,7 +115,7 @@ Los campos con `default` viajan **siempre**, aunque la petición no los mande: `
 | `getTemplateVersion` | FL-TPL-020 | usuarios |
 | `listTemplateVersions` | FL-TPL-070 | usuarios |
 | `requestNotification` | FL-REQ-001, FL-REQ-010, FL-REQ-020, FL-REQ-030, FL-REQ-040, FL-EVT-001 | **servidores (M2M)** + eventos |
-| `dispatchQueuedMessages` | FL-SND-001, FL-SND-030 | reloj |
+| `dispatchQueuedMessages` | FL-SND-001, FL-SND-020, FL-SND-030 | reloj |
 | `sendQueuedMessage` | FL-SND-001, FL-SND-020 | interna |
 | `getMessage` | FL-MSG-001, FL-SEC-020 | usuarios |
 | `findMessageByIdempotencyKey` | FL-MSG-010 | **servidores (M2M)** |
@@ -857,6 +857,25 @@ atascados (transición `sending` → `failed`).
    (distinguible del motivo que reporta un relay: el rescate no habló con el relay).
 2. El buzón del relay **no** recibe ningún correo por ese mensaje: el rescate **no reenvía**.
 3. No se publica `EmailSent`.
+4. Se publica **exactamente un** `EmailDeliveryFailed` en el canal `notificationEvents`, con
+   `messageId` (el `id` del mensaje), `applicationCode`, `templateCode`, `idempotencyKey`,
+   `failureReason` —el del **rescate**, el mismo que devuelve `getMessage`— y `failedAt` (instante
+   UTC, por forma). El rescate es una de las **dos** vías que llevan a `failed`, y las dos avisan:
+   un mensaje que muere porque su despachador se cayó no puede ser invisible para quien escucha.
+5. `failureReason` es lo que distingue las dos vías en el cable. El del rescate no afirma que el
+   correo no saliera —afirma que no se sabe—, y es el dato con el que un consumidor decide si
+   re-pide el envío. Ningún escenario afirma que un mensaje rescatado no llegó nunca.
+
+**When**: se ejecuta un **segundo** ciclo de `dispatchQueuedMessages` sobre el mismo mensaje ya
+rescatado
+
+**Then**:
+6. No se publica un segundo `EmailDeliveryFailed` para ese `messageId`: el evento sale únicamente
+   si la transición a `failed` se aplicó en ese ciclo, y `failed` es terminal.
+7. Si el despachador que lo tenía tomado estaba **lento** y no muerto, y vuelve del relay después
+   del rescate, no escribe nada y **no publica nada** —ni `EmailSent` ni un segundo
+   `EmailDeliveryFailed`—: el mensaje ya no está en `sending` y ninguna de sus dos transiciones es
+   legal desde `failed`.
 
 **Notas de determinación**: el falso negativo es deliberado y está en el diseño. Si la caída ocurrió
 *después* de que el relay aceptara el mensaje, aquí se marca como fallido un correo que sí salió. Se

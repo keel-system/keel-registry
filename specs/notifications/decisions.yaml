@@ -13,4 +13,4 @@ decisions:
       Se acepta CONCURRENT_MODIFICATION (409) como contrato público del servicio; es el código
       que validation-scenarios.md ya afirma en la convención de status y en el flujo de
       publicación concurrente sobre la misma plantilla.
-    since: 1.5.0
+    since: 1.6.0

@@ -405,6 +405,24 @@ operations:
         cuánto lleva atascado el intento y no cuánto lleva pedido el correo.
       - "El rescate NO reenvía: si la caída ocurrió después de que el relay aceptara el mensaje, se marca como fallido un correo que sí salió. Se prefiere ese falso negativo visible a un segundo correo a una persona real."
       - El rescate procesa como mucho 200 mensajes por ciclo, igual que el envío.
+      - >-
+        El rescate PUBLICA EmailDeliveryFailed, igual que el fallo que reporta el relay. failed es
+        terminal por las dos vías, y el desenlace que exige acción de alguien tiene que ser visible
+        por las dos: sin esta publicación, los mensajes que mueren porque un despachador se cayó son
+        invisibles para todo consumidor de eventos y solo se descubren sondeando listMessages, que
+        es justo lo que el evento existe para evitar.
+      - >-
+        El failureReason que viaja en ese evento es el del RESCATE —el rescate no habló con el
+        relay—, y es lo que permite al consumidor distinguir «el relay lo rechazó», donde el correo
+        seguro que no salió, de «no sabemos si salió», que es lo que dice un rescate. Esa distinción
+        importa porque el rescate puede ser un falso negativo: si la caída ocurrió después de que el
+        relay aceptara el mensaje, se anuncia como fallido un correo que sí llegó. Un consumidor que
+        reaccione re-pidiendo el envío sobre un rescate manda un segundo correo a una persona real,
+        así que la decisión de reaccionar es suya y necesita el dato para tomarla.
+      - >-
+        El evento se publica ÚNICAMENTE si la transición a failed se aplicó en este ciclo. Un
+        mensaje que otro ciclo ya rescató no se rescata dos veces ni se anuncia dos veces.
+    emits: [EmailDeliveryFailed]
 
   sendQueuedMessage:
     description: >-
@@ -431,6 +449,15 @@ operations:
       - El mensaje sale con las dos partes, HTML y texto plano.
       - Si el relay acepta el mensaje, pasa a sent con sentAt informado y se publica EmailSent.
       - Si el relay lo rechaza o no responde, pasa a failed con failureReason informado y se publica EmailDeliveryFailed; no se reintenta.
+      - >-
+        Los dos eventos se publican ÚNICAMENTE si su transición se aplicó. El caso que lo hace
+        necesario es el despachador LENTO, no el muerto: si esta operación tarda más de 15 minutos
+        en resolver el envío, el rescate de dispatchQueuedMessages ya habrá marcado el mensaje como
+        failed y publicado su EmailDeliveryFailed. Cuando esta operación vuelve del relay, el
+        mensaje ya no está en sending y ninguna de sus dos transiciones es legal desde failed, que
+        es terminal: no escribe nada y NO publica nada. Sin esta frase, un generador que publique
+        en paralelo a la transición mandaría un EmailSent posterior a un rescate —contradiciendo a
+        FL-SND-020— o un segundo EmailDeliveryFailed sobre el mismo messageId.
       - >-
         Si —y solo si— el rechazo del relay identifica un rebote duro sobre una dirección CONCRETA,
         esa dirección se añade a la lista de supresión de la aplicación, para que las peticiones
