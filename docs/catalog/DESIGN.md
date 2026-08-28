@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.3.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.4.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -92,7 +92,10 @@ De los casos de uso:
 **Gestión de productos** (back-office, token de usuario). `createProduct` da de alta en `draft` y es
 **idempotente por clave de cliente** (ventana 24 h). `updateProduct` cambia la ficha y exige la
 `lockVersion` leída. Cuatro operaciones con nombre de intención cubren el ciclo de vida:
-`publishProduct`, `unpublishProduct`, `discontinueProduct`, `reactivateProduct`. `getProduct` y
+`publishProduct`, `unpublishProduct`, `discontinueProduct`, `reactivateProduct`. Las cuatro
+**declaran su transición** (`draft→active`, `active→draft`, `active→discontinued`,
+`discontinued→active`), y esa transición es su guarda de repetición: un reenvío del llamante
+encuentra el producto ya fuera del estado de partida y no vuelve a publicar `ProductStatusChanged`. `getProduct` y
 `listProducts` consultan en cualquier estado, con filtros de gestión (nombre, sku, estado, marca,
 categoría) y orden por `updatedAt` descendente.
 
@@ -175,12 +178,16 @@ lo que expone es suyo. Las fronteras son de salida.
 | **Cota del lote M2M** | 100 ids, como `precondition` y no como `constraints` | Cabe el carrito más grande y acota el coste de una petición. Va en prosa para que el exceso falle con el código estable `TOO_MANY_IDS` en vez de con un error genérico de forma | 50; 500; declararlo en `constraints` |
 | **Paginación** | Offset, 20 por defecto, 100 máximo, en las cuatro colecciones | Una rejilla de tienda pinta 20 y el back-office puede pedir 100; el tope protege la consulta con filtro de precio | 24/60; 50/200 |
 | **Precio sin moneda** | `Price` es un decimal, la divisa es implícita | La tienda opera en una sola divisa | `Money` (importe + moneda ISO-4217): abrir un segundo mercado será un cambio incompatible del contrato |
+| **El cambio de estado es contrato, no prosa** (0.4.0) | Las cuatro operaciones de ciclo de vida declaran `transitions`; antes el estado de partida solo vivía en `preconditions` en prosa | Una arista que ninguna operación declara es intención, no comportamiento: el generador no la ve y decide por su cuenta desde qué estados se puede publicar. Y la transición declarada es además la guarda irrepetible que faltaba: sin ella, un reenvío del llamante republica `ProductStatusChanged`, y un evento que ya salió no lo desanda ninguna clave natural | Declarar `idempotency` en las cuatro: deduplica en la puerta pero no impide despublicar un producto que otro actor acaba de despublicar, porque no mira el estado |
+| **`INVALID_STATE_TRANSITION`, con STATE** (0.4.0) | Se renombró desde `INVALID_STATUS_TRANSITION` en las cuatro operaciones | Al declarar `transitions`, quien produce ese 409 pasa a ser el mecanismo del framework, y su familia de códigos no reconoce la variante con `STATUS`: el servidor habría emitido `INVALID_STATE_TRANSITION` mientras el contrato prometía otro nombre, con cinco escenarios afirmando el que no sale. **Es un cambio rompedor**: un integrador que trate el nombre viejo deja de reconocerlo | Conservar el nombre propio (el contrato mentiría) o revertir las `transitions` (devuelve los ocho avisos que la migración cerró). También valía `PRODUCT_INVALID_TRANSITION`, que sí encaja en la familia y conserva el prefijo de entidad |
+| **La guarda de la taxonomía es la clave natural** (0.4.0) | `createBrand` y `createCategory` no declaran `idempotency`: el reintento choca contra `naturalKey [name]` y sale por `BRAND_NAME_ALREADY_EXISTS` / `CATEGORY_NAME_ALREADY_EXISTS` | No crea un segundo registro y por tanto no republica el evento, que es lo que había que garantizar. Es la tercera salida legítima —la que el DSL no puede ver sola— frente a idempotencia y transición | Añadir `idempotency`: el nombre YA es único, así que no aporta guarda nueva y devuelve un conflicto menos informativo (que la clave se reusó, en vez de que el nombre está cogido) |
+| **La query por lotes se expone con POST** (0.4.0) | `listProductsBatchForServices` es `kind: query` y va por `POST`, con el porqué escrito como `rule` | Hasta 100 UUID son ~3,7 KB de query string, por encima de lo que muchos proxies aceptan con garantías. Con GET el exceso sale como 414 o URL truncada por un intermediario —opaco y ajeno al servicio—; con POST lo rechaza `TOO_MANY_IDS`, que es contrato propio | `GET` con `id` repetido: más correcto semánticamente y cacheable, a cambio de un fallo opaco al pasarse. Cambiarlo ahora rompería a los tres consumidores M2M |
 
 ## 7. Ficha de reutilización: adoptar, derivar o evolucionar
 
 ### Contrato estable vs adaptable
 
-**Estable** —cambiarlo rompe a alguien y exige versión mayor—: los 24 códigos de error en
+**Estable** —cambiarlo rompe a alguien y exige versión mayor—: los 25 códigos de error en
 `SCREAMING_SNAKE_CASE` con su status HTTP; los nueve nombres de evento y la forma de su payload; los
 dos endpoints `audience: services` y sus scopes; los cuatro endpoints públicos y la forma de sus
 filtros; el prefijo `/api/v1` (una ruptura abre `/api/v2`, que convive con la anterior mientras los
@@ -192,7 +199,9 @@ como éxito se rompe si algún derivado vuelve a introducir el `404`.
 derivado puede sustituirlo por otro mecanismo. Lo que sí es contrato es su efecto observable —que el
 `slug` de un producto publicado no cambia nunca más—, fijado en FL-PRD-020.
 
-**Adaptable** sin romper a nadie: las `rules` y `preconditions` de los casos de uso; los TTL y las
+**Adaptable** sin romper a nadie: las `rules` de los casos de uso (las `preconditions` también,
+**salvo las que un `transitions` declarado ya convirtió en contrato**: el estado de partida de las
+cuatro operaciones de ciclo de vida ya no es prosa adaptable); los TTL y las
 vías de invalidación de la caché; la ventana de idempotencia; los límites del bucket
 (`maxSizeMb`, `allowedContentTypes`); los índices de `persistence`; el máximo de 10 imágenes por
 producto; los tamaños de página.

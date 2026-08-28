@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.3.1 -->
+<!-- keel:version 0.4.0 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,7 +188,7 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.3.1",
+    "version": "0.4.0",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.",
     "domain": "commerce",
     "generatedAt": "2026-08-03"
@@ -472,6 +472,11 @@ const KEEL = {
           "when": "La clave de idempotencia ya se usó para una petición con otro contenido."
         },
         {
+          "code": "IDEMPOTENCY_KEY_IN_PROGRESS",
+          "http": 409,
+          "when": "Otra petición con la misma clave se está procesando en este mismo instante y aún no ha confirmado."
+        },
+        {
           "code": "BRAND_NOT_FOUND",
           "http": 422,
           "when": "El brandId indicado no corresponde a ninguna marca."
@@ -658,7 +663,7 @@ const KEEL = {
           "when": "No existe un producto con ese id."
         },
         {
-          "code": "INVALID_STATUS_TRANSITION",
+          "code": "INVALID_STATE_TRANSITION",
           "http": 409,
           "when": "El producto no está en un estado desde el que se pueda publicar."
         },
@@ -721,7 +726,7 @@ const KEEL = {
           "when": "No existe un producto con ese id."
         },
         {
-          "code": "INVALID_STATUS_TRANSITION",
+          "code": "INVALID_STATE_TRANSITION",
           "http": 409,
           "when": "El producto no está active y no se puede despublicar."
         }
@@ -776,7 +781,7 @@ const KEEL = {
           "when": "No existe un producto con ese id."
         },
         {
-          "code": "INVALID_STATUS_TRANSITION",
+          "code": "INVALID_STATE_TRANSITION",
           "http": 409,
           "when": "El producto no está active y no se puede descatalogar."
         }
@@ -832,7 +837,7 @@ const KEEL = {
           "when": "No existe un producto con ese id."
         },
         {
-          "code": "INVALID_STATUS_TRANSITION",
+          "code": "INVALID_STATE_TRANSITION",
           "http": 409,
           "when": "El producto no está discontinued y no se puede reactivar."
         },
@@ -1025,6 +1030,11 @@ const KEEL = {
           "code": "IDEMPOTENCY_KEY_REUSED",
           "http": 409,
           "when": "La clave de idempotencia ya se usó para una subida con otro contenido."
+        },
+        {
+          "code": "IDEMPOTENCY_KEY_IN_PROGRESS",
+          "http": 409,
+          "when": "Otra subida con la misma clave se está procesando en este mismo instante y aún no ha confirmado."
         },
         {
           "code": "FILE_TOO_LARGE",

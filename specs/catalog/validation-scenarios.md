@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.3.1. Contrato de validación para la fase de generación.
+> specs/catalog v0.4.0. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -63,15 +63,20 @@ Valen para **todo** el servicio y ningún escenario las repite.
 - **Idempotencia**: la clave viaja en la cabecera `Idempotency-Key`. La aplican `createProduct` y
   `addProductImage`, con ventana de 24 h. Repetir la clave **con el mismo contenido** devuelve el
   mismo status y el mismo cuerpo sin segundo efecto; repetirla **con contenido distinto** devuelve
-  `IDEMPOTENCY_KEY_REUSED` (`409`).
+  `IDEMPOTENCY_KEY_REUSED` (`409`). El mecanismo tiene un segundo desenlace, el de la **carrera**:
+  dos peticiones con la misma clave que entran a la vez, ninguna de las dos confirmada todavía —
+  una gana y la otra recibe `IDEMPOTENCY_KEY_IN_PROGRESS` (`409`). Son dos contratos distintos y
+  no dos redacciones del mismo: el primero habla de una clave ya resuelta, el segundo de una que
+  aún se está resolviendo.
 - **Concurrencia**: `persistence.consistency.optimisticLocking: declared` y solo `Product` declara
   `lockVersion`. Dos ediciones concurrentes del mismo producto dan conflicto `409`
   (`PRODUCT_VERSION_CONFLICT`); dos ediciones concurrentes de la misma marca o categoría **no** dan
   conflicto y gana la última en confirmar, comprobado leyendo el estado final por la API.
 - **Autorización**: los endpoints de `/management/...` exigen token de usuario con el permiso de la
-  operación; los de `/services/...`, credencial de máquina del `serviceClient` con el scope
-  `product:read`. Los escenarios hablan de "credencial de máquina del cliente `order-service`",
-  nunca del proveedor de identidad.
+  operación; los de `/services/...`, credencial de máquina de uno de los tres clientes que
+  `security.serviceClients` declara —`order-service`, `inventory-service` o `search-service`—,
+  todos con el scope `product:read`. Los escenarios nombran siempre a uno de esos tres, nunca un
+  cliente genérico ni el proveedor de identidad.
 - **Eventos**: todo evento viaja con la envoltura estándar (`metadata` + `data`). Los `Then` fijan
   el nombre del evento, su canal lógico (`productEvents` o `taxonomyEvents`) y los campos de `data`;
   `metadata` se verifica por presencia (`eventId`, `eventType`, `occurredAt`, `source`).
@@ -329,14 +334,27 @@ cabecera `Idempotency-Key: key-001`
 11. Status `409`, `code: IDEMPOTENCY_KEY_REUSED`.
 12. `listProducts` sigue devolviendo `totalElements: 1`.
 
+**When**: se lanzan **a la vez** dos altas con `Idempotency-Key: key-002` y el mismo cuerpo,
+ninguna confirmada todavía
+
+**Then**:
+13. Una responde `201` con el producto creado. La otra responde **`201` con ese mismo cuerpo**
+    (llegó cuando la ganadora ya había confirmado) **o** `409` con code
+    `IDEMPOTENCY_KEY_IN_PROGRESS` (cayó en la ventana en que aún no lo estaba). La disyunción es
+    **cerrada**: no hay tercer desenlace, y en particular no sale `IDEMPOTENCY_KEY_REUSED`, que
+    habla de una clave ya resuelta con otro contenido.
+14. `listProducts` devuelve `totalElements: 2`: la carrera no creó un tercer producto.
+
 **Orden de evaluación** (`createProduct`):
 1. Ningún producto tiene ese `sku` (normalizado) → `SKU_ALREADY_EXISTS` (`409`).
 2. La marca existe → `BRAND_NOT_FOUND` (`422`).
 3. La categoría existe → `CATEGORY_NOT_FOUND` (`422`).
 4. La clave de idempotencia no se usó con otro contenido → `IDEMPOTENCY_KEY_REUSED` (`409`).
 5. El slug derivado (con su sufijo) sigue libre en el instante de escribir → `PRODUCT_SLUG_CONFLICT`
-   (`409`). Es la única guarda que se dispara por una carrera, no por el estado leído al validar las
-   guardas 1-4.
+   (`409`).
+Las guardas 1-4 se evalúan sobre el estado leído; la 5 y el `IDEMPOTENCY_KEY_IN_PROGRESS` (`409`)
+se disparan por una **carrera** y por eso no tienen posición en este orden: dependen de qué otra
+petición esté confirmando en ese instante, no de lo que esta leyó.
 
 **Casos borde**:
 - `sku: "SKU-001"` de nuevo, sin cabecera de idempotencia → `409`, `code: SKU_ALREADY_EXISTS`.
@@ -468,7 +486,7 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 **When**: `publishProduct` sobre `p1`, que ya está `active`
 
 **Then**:
-9. Status `409`, `code: INVALID_STATUS_TRANSITION`.
+9. Status `409`, `code: INVALID_STATE_TRANSITION`.
 
 **When**: `unpublishProduct` — `POST /api/v1/management/products/{p1}/unpublish`
 
@@ -495,7 +513,7 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 producto en `draft`
 
 **Then**:
-16. Status `409`, `code: INVALID_STATUS_TRANSITION`: solo se descataloga desde `active`.
+16. Status `409`, `code: INVALID_STATE_TRANSITION`: solo se descataloga desde `active`.
 
 **When**: se vuelve a publicar `p1`
 
@@ -536,13 +554,13 @@ producto en `draft`
 
 **Orden de evaluación** (las cuatro transiciones):
 1. El producto existe → `PRODUCT_NOT_FOUND` (`404`).
-2. El estado de origen admite la transición → `INVALID_STATUS_TRANSITION` (`409`).
+2. El estado de origen admite la transición → `INVALID_STATE_TRANSITION` (`409`).
 3. Solo en `publishProduct` y `reactivateProduct`: el producto tiene al menos una imagen y
    `price > 0` → `PRODUCT_NOT_PUBLISHABLE` (`422`).
 
 **Casos borde**:
-- `unpublishProduct` sobre un producto `discontinued` → `409`, `code: INVALID_STATUS_TRANSITION`.
-- `reactivateProduct` sobre un producto `draft` → `409`, `code: INVALID_STATUS_TRANSITION`.
+- `unpublishProduct` sobre un producto `discontinued` → `409`, `code: INVALID_STATE_TRANSITION`.
+- `reactivateProduct` sobre un producto `draft` → `409`, `code: INVALID_STATE_TRANSITION`.
 - `publishProduct` sobre un id inexistente **y** sin imágenes → `404`,
   `code: PRODUCT_NOT_FOUND`: la guarda 1 precede a la 3.
 - Contraste con el pestillo abierto, ejecutado **en el mismo instante** que la aserción 13: con
@@ -652,6 +670,13 @@ y `altText: "Zapatilla vista lateral"`
 7. Status `201` con el **mismo** `id` de imagen y `getProduct` sigue devolviendo **una** imagen:
    el reintento tras un timeout de subida no duplica la foto.
 
+**When**: se lanzan **a la vez** dos subidas con `Idempotency-Key: img-key-002` y el mismo archivo
+
+**Then**:
+7b. Una responde `201`; la otra responde `201` con ese mismo `id` de imagen **o** `409` con code
+    `IDEMPOTENCY_KEY_IN_PROGRESS`. Misma disyunción cerrada que en `createProduct`, y por el mismo
+    mecanismo. `getProduct` devuelve **dos** imágenes en total, no tres.
+
 **When**: `addProductImage` dos veces más (imágenes `img2` e `img3`), con claves de idempotencia
 distintas
 
@@ -721,6 +746,8 @@ existió
 4. El content-type está entre los admitidos → `UNSUPPORTED_CONTENT_TYPE` (`415`).
 5. El archivo no supera 5 MB → `FILE_TOO_LARGE` (`413`).
 6. La clave de idempotencia no se usó con otro contenido → `IDEMPOTENCY_KEY_REUSED` (`409`).
+El `IDEMPOTENCY_KEY_IN_PROGRESS` (`409`) queda fuera de este orden por lo mismo que en
+`createProduct`: es una carrera, no una guarda sobre el estado leído.
 
 **Orden de evaluación** (`setPrimaryProductImage`):
 1. El producto existe → `PRODUCT_NOT_FOUND` (`404`).

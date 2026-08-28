@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: catalog
-  version: 0.3.1
+  version: 0.4.0
   description: 'Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías,
     los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores
     por consulta directa y por eventos.
@@ -767,7 +767,9 @@ paths:
 
             `PRODUCT_SLUG_CONFLICT` — Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre.
 
-            `IDEMPOTENCY_KEY_REUSED` — La clave de idempotencia ya se usó para una petición con otro contenido.'
+            `IDEMPOTENCY_KEY_REUSED` — La clave de idempotencia ya se usó para una petición con otro contenido.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma clave se está procesando en este mismo instante y aún no ha confirmado.'
           content:
             application/json:
               schema:
@@ -791,6 +793,12 @@ paths:
                     status: 409
                     code: IDEMPOTENCY_KEY_REUSED
                     message: La clave de idempotencia ya se usó para una petición con otro contenido.
+                IDEMPOTENCY_KEY_IN_PROGRESS:
+                  summary: Otra petición con la misma clave se está procesando en este mismo instante y aún no ha confirmado.
+                  value:
+                    status: 409
+                    code: IDEMPOTENCY_KEY_IN_PROGRESS
+                    message: Otra petición con la misma clave se está procesando en este mismo instante y aún no ha confirmado.
         '422':
           description: '`BRAND_NOT_FOUND` — El brandId indicado no corresponde a ninguna marca.
 
@@ -1063,17 +1071,17 @@ paths:
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
         '409':
-          description: '`INVALID_STATUS_TRANSITION` — El producto no está active y no se puede descatalogar.'
+          description: '`INVALID_STATE_TRANSITION` — El producto no está active y no se puede descatalogar.'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               examples:
-                INVALID_STATUS_TRANSITION:
+                INVALID_STATE_TRANSITION:
                   summary: El producto no está active y no se puede descatalogar.
                   value:
                     status: 409
-                    code: INVALID_STATUS_TRANSITION
+                    code: INVALID_STATE_TRANSITION
                     message: El producto no está active y no se puede descatalogar.
       security:
       - userAuth: []
@@ -1185,7 +1193,9 @@ paths:
           description: '`PRODUCT_DISCONTINUED` — El producto está descatalogado y su galería no admite cambios;
             hay que reactivarlo antes.
 
-            `IDEMPOTENCY_KEY_REUSED` — La clave de idempotencia ya se usó para una subida con otro contenido.'
+            `IDEMPOTENCY_KEY_REUSED` — La clave de idempotencia ya se usó para una subida con otro contenido.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra subida con la misma clave se está procesando en este mismo instante y aún no ha confirmado.'
           content:
             application/json:
               schema:
@@ -1204,6 +1214,12 @@ paths:
                     status: 409
                     code: IDEMPOTENCY_KEY_REUSED
                     message: La clave de idempotencia ya se usó para una subida con otro contenido.
+                IDEMPOTENCY_KEY_IN_PROGRESS:
+                  summary: Otra subida con la misma clave se está procesando en este mismo instante y aún no ha confirmado.
+                  value:
+                    status: 409
+                    code: IDEMPOTENCY_KEY_IN_PROGRESS
+                    message: Otra subida con la misma clave se está procesando en este mismo instante y aún no ha confirmado.
         '413':
           description: '`FILE_TOO_LARGE` — El archivo supera el tamaño máximo admitido por el bucket.'
           content:
@@ -1612,17 +1628,17 @@ paths:
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
         '409':
-          description: '`INVALID_STATUS_TRANSITION` — El producto no está en un estado desde el que se pueda publicar.'
+          description: '`INVALID_STATE_TRANSITION` — El producto no está en un estado desde el que se pueda publicar.'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               examples:
-                INVALID_STATUS_TRANSITION:
+                INVALID_STATE_TRANSITION:
                   summary: El producto no está en un estado desde el que se pueda publicar.
                   value:
                     status: 409
-                    code: INVALID_STATUS_TRANSITION
+                    code: INVALID_STATE_TRANSITION
                     message: El producto no está en un estado desde el que se pueda publicar.
         '422':
           description: '`PRODUCT_NOT_PUBLISHABLE` — El producto no tiene imágenes o su price no es mayor que cero.'
@@ -1696,17 +1712,17 @@ paths:
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
         '409':
-          description: '`INVALID_STATUS_TRANSITION` — El producto no está discontinued y no se puede reactivar.'
+          description: '`INVALID_STATE_TRANSITION` — El producto no está discontinued y no se puede reactivar.'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               examples:
-                INVALID_STATUS_TRANSITION:
+                INVALID_STATE_TRANSITION:
                   summary: El producto no está discontinued y no se puede reactivar.
                   value:
                     status: 409
-                    code: INVALID_STATUS_TRANSITION
+                    code: INVALID_STATE_TRANSITION
                     message: El producto no está discontinued y no se puede reactivar.
         '422':
           description: '`PRODUCT_NOT_PUBLISHABLE` — El producto no tiene imágenes o su price no es mayor que cero.'
@@ -1784,17 +1800,17 @@ paths:
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
         '409':
-          description: '`INVALID_STATUS_TRANSITION` — El producto no está active y no se puede despublicar.'
+          description: '`INVALID_STATE_TRANSITION` — El producto no está active y no se puede despublicar.'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               examples:
-                INVALID_STATUS_TRANSITION:
+                INVALID_STATE_TRANSITION:
                   summary: El producto no está active y no se puede despublicar.
                   value:
                     status: 409
-                    code: INVALID_STATUS_TRANSITION
+                    code: INVALID_STATE_TRANSITION
                     message: El producto no está active y no se puede despublicar.
       security:
       - userAuth: []

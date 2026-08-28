@@ -33,6 +33,7 @@ operations:
       - { code: SKU_ALREADY_EXISTS, when: Ya existe un producto con ese sku., http: 409 }
       - { code: PRODUCT_SLUG_CONFLICT, when: Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre., http: 409 }
       - { code: IDEMPOTENCY_KEY_REUSED, when: La clave de idempotencia ya se usó para una petición con otro contenido., http: 409 }
+      - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: Otra petición con la misma clave se está procesando en este mismo instante y aún no ha confirmado., http: 409 }
       - { code: BRAND_NOT_FOUND, when: El brandId indicado no corresponde a ninguna marca., http: 422 }
       - { code: CATEGORY_NOT_FOUND, when: El categoryId indicado no corresponde a ninguna categoría., http: 422 }
     emits: [ProductCreated]
@@ -75,6 +76,12 @@ operations:
       fields:
         productId: { type: uuid, required: true }
     output: { entity: Product, embed: [brand, category] }
+    # Publicar es la arista draft -> active del lifecycle de Product. Declararla aquí es lo
+    # que la convierte en contrato: una arista que ninguna operación declara es intención,
+    # no comportamiento. Y es además la guarda irrepetible de esta operación — un reenvío
+    # del llamante encuentra el producto ya fuera de 'draft' y no vuelve a publicar el evento.
+    transitions:
+      - { entity: Product, from: [draft], to: active }
     preconditions:
       - El producto existe y está en estado draft.
       - El producto tiene al menos una imagen y un price mayor que cero.
@@ -82,7 +89,7 @@ operations:
       - La primera publicación fija slugFrozen a verdadero; a partir de ahí el slug es inmutable aunque cambie el name.
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
-      - { code: INVALID_STATUS_TRANSITION, when: El producto no está en un estado desde el que se pueda publicar., http: 409 }
+      - { code: INVALID_STATE_TRANSITION, when: El producto no está en un estado desde el que se pueda publicar., http: 409 }
       - { code: PRODUCT_NOT_PUBLISHABLE, when: El producto no tiene imágenes o su price no es mayor que cero., http: 422 }
     emits: [ProductStatusChanged]
 
@@ -93,13 +100,19 @@ operations:
       fields:
         productId: { type: uuid, required: true }
     output: { entity: Product, embed: [brand, category] }
+    # Despublicar es la arista active -> draft del lifecycle de Product. Declararla aquí es lo
+    # que la convierte en contrato: una arista que ninguna operación declara es intención,
+    # no comportamiento. Y es además la guarda irrepetible de esta operación — un reenvío
+    # del llamante encuentra el producto ya fuera de 'active' y no vuelve a publicar el evento.
+    transitions:
+      - { entity: Product, from: [active], to: draft }
     preconditions:
       - El producto existe y está en estado active.
     rules:
       - "Volver a draft no reabre el slug: slugFrozen se conserva en verdadero."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
-      - { code: INVALID_STATUS_TRANSITION, when: El producto no está active y no se puede despublicar., http: 409 }
+      - { code: INVALID_STATE_TRANSITION, when: El producto no está active y no se puede despublicar., http: 409 }
     emits: [ProductStatusChanged]
 
   discontinueProduct:
@@ -109,11 +122,17 @@ operations:
       fields:
         productId: { type: uuid, required: true }
     output: { entity: Product, embed: [brand, category] }
+    # Descatalogar es la arista active -> discontinued del lifecycle de Product. Declararla aquí es lo
+    # que la convierte en contrato: una arista que ninguna operación declara es intención,
+    # no comportamiento. Y es además la guarda irrepetible de esta operación — un reenvío
+    # del llamante encuentra el producto ya fuera de 'active' y no vuelve a publicar el evento.
+    transitions:
+      - { entity: Product, from: [active], to: discontinued }
     preconditions:
       - El producto existe y está en estado active.
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
-      - { code: INVALID_STATUS_TRANSITION, when: El producto no está active y no se puede descatalogar., http: 409 }
+      - { code: INVALID_STATE_TRANSITION, when: El producto no está active y no se puede descatalogar., http: 409 }
     emits: [ProductStatusChanged]
 
   reactivateProduct:
@@ -123,12 +142,18 @@ operations:
       fields:
         productId: { type: uuid, required: true }
     output: { entity: Product, embed: [brand, category] }
+    # Reactivar es la arista discontinued -> active del lifecycle de Product. Declararla aquí es lo
+    # que la convierte en contrato: una arista que ninguna operación declara es intención,
+    # no comportamiento. Y es además la guarda irrepetible de esta operación — un reenvío
+    # del llamante encuentra el producto ya fuera de 'discontinued' y no vuelve a publicar el evento.
+    transitions:
+      - { entity: Product, from: [discontinued], to: active }
     preconditions:
       - El producto existe y está en estado discontinued.
       - El producto tiene al menos una imagen y un price mayor que cero.
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
-      - { code: INVALID_STATUS_TRANSITION, when: El producto no está discontinued y no se puede reactivar., http: 409 }
+      - { code: INVALID_STATE_TRANSITION, when: El producto no está discontinued y no se puede reactivar., http: 409 }
       - { code: PRODUCT_NOT_PUBLISHABLE, when: El producto no tiene imágenes o su price no es mayor que cero., http: 422 }
     emits: [ProductStatusChanged]
 
@@ -183,6 +208,7 @@ operations:
       - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes., http: 409 }
       - { code: TOO_MANY_PRODUCT_IMAGES, when: El producto ya tiene el máximo de 10 imágenes., http: 422 }
       - { code: IDEMPOTENCY_KEY_REUSED, when: La clave de idempotencia ya se usó para una subida con otro contenido., http: 409 }
+      - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: Otra subida con la misma clave se está procesando en este mismo instante y aún no ha confirmado., http: 409 }
       - { code: FILE_TOO_LARGE, when: El archivo supera el tamaño máximo admitido por el bucket., http: 413 }
       - { code: UNSUPPORTED_CONTENT_TYPE, when: El tipo de contenido del archivo no está entre los admitidos por el bucket., http: 415 }
     emits: [ProductUpdated]
@@ -265,6 +291,14 @@ operations:
     rules:
       - El slug se deriva del name normalizado a kebab-case.
       - La unicidad del name no distingue mayúsculas ni acentos.
+      - >-
+        Lo que frena el reintento no es una clave de idempotencia ni una transición, sino la CLAVE
+        NATURAL: persistence declara naturalKey [name] sobre Brand, así que un reenvío del llamante
+        (timeout, doble pulsación) choca contra ella y sale por BRAND_NAME_ALREADY_EXISTS. No crea un segundo
+        registro y, por tanto, no vuelve a publicar el evento — que es lo que había que garantizar.
+        Se prefiere a añadir idempotency porque el nombre YA es único: la clave de cliente no
+        aportaría guarda nueva y devolvería un conflicto menos informativo (que la clave se reusó,
+        en vez de que el nombre está cogido).
     errors:
       - { code: BRAND_NAME_ALREADY_EXISTS, when: Ya existe una marca con ese nombre ignorando mayúsculas y acentos., http: 409 }
       - { code: BRAND_SLUG_CONFLICT, when: El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre., http: 409 }
@@ -323,6 +357,14 @@ operations:
     rules:
       - El slug se deriva del name normalizado a kebab-case.
       - La unicidad del name no distingue mayúsculas ni acentos.
+      - >-
+        Lo que frena el reintento no es una clave de idempotencia ni una transición, sino la CLAVE
+        NATURAL: persistence declara naturalKey [name] sobre Category, así que un reenvío del llamante
+        (timeout, doble pulsación) choca contra ella y sale por CATEGORY_NAME_ALREADY_EXISTS. No crea un segundo
+        registro y, por tanto, no vuelve a publicar el evento — que es lo que había que garantizar.
+        Se prefiere a añadir idempotency porque el nombre YA es único: la clave de cliente no
+        aportaría guarda nueva y devolvería un conflicto menos informativo (que la clave se reusó,
+        en vez de que el nombre está cogido).
     errors:
       - { code: CATEGORY_NAME_ALREADY_EXISTS, when: Ya existe una categoría con ese nombre ignorando mayúsculas y acentos., http: 409 }
       - { code: CATEGORY_SLUG_CONFLICT, when: El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre., http: 409 }
@@ -467,5 +509,12 @@ operations:
       - Los identificadores que no corresponden a ningún producto se omiten del resultado, sin error.
       - Los identificadores repetidos se resuelven una sola vez.
       - Conserva updatedAt para que el consumidor pueda ordenar lo recibido contra su propia copia al reconciliar.
+      - >-
+        Es una lectura y aun así se expone con POST a propósito: la entrada son hasta 100
+        identificadores UUID, unos 3,7 KB de query string, por encima de lo que muchos proxies e
+        infraestructuras intermedias aceptan con garantías en una URL. Con GET el exceso se
+        manifiesta como un 414 o como una URL truncada por un intermediario —opaco, y ajeno al
+        servicio—; con POST lo rechaza TOO_MANY_IDS, que es contrato propio. No lleva efectos:
+        sigue siendo kind: query y no muta nada.
     errors:
       - { code: TOO_MANY_IDS, when: La petición trae más de 100 identificadores., http: 422 }

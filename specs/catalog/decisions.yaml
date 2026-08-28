@@ -1,0 +1,28 @@
+# Obligaciones de diseño que este servicio deja abiertas a sabiendas.
+# No es una capa del DSL: no describe lo que el servicio hace, sino qué se decidió
+# no declarar y por qué. Ver docs/design-obligations.md.
+
+decisions:
+  - id: OBL-IDEM-RACE-CODE
+    scope: use-cases
+    reason: >
+      No está sin decidir: createProduct y addProductImage DECLARAN
+      IDEMPOTENCY_KEY_IN_PROGRESS (409) en sus errors, que es el código canónico, y los
+      escenarios lo afirman. La obligación sigue listada por un defecto del comprobador:
+      overrideFor exige exactamente un candidato entre los errors agregados del servicio, y
+      no deduplica por code — así que declarar el mismo código canónico en las DOS
+      operaciones que encienden idempotency produce dos candidatos y la da por no cerrada.
+      Verificado en 0.4.0 dejando el code en una sola operación: la obligación se cerró.
+      La salida que el comprobador pide —declararlo en una sola— publicaría el 409 en el
+      openapi de un endpoint y lo callaría en el otro, que es peor contrato. Se mantiene
+      declarado en ambas y se acepta el aviso. Reportado al repo de la herramienta.
+    since: 0.4.0
+  - id: OBL-IDEM-REUSE-CODE
+    scope: use-cases
+    reason: >
+      Mismo caso y misma causa que OBL-IDEM-RACE-CODE: createProduct y addProductImage
+      declaran IDEMPOTENCY_KEY_REUSED (409) desde antes de esta migración, y el comprobador
+      no lo ve porque hay dos candidatos con el mismo code. Se mantiene declarado en ambas
+      operaciones —es el contrato que reciben los integradores por los dos endpoints— y se
+      acepta el aviso hasta que overrideFor deduplique por code.
+    since: 0.4.0
