@@ -26,3 +26,21 @@ decisions:
       operaciones —es el contrato que reciben los integradores por los dos endpoints— y se
       acepta el aviso hasta que overrideFor deduplique por code.
     since: 0.4.0
+  - id: OBL-CALLER-IDENTITY
+    scope: security
+    reason: >
+      Quién llama NO cambia el trabajo, y por eso no hay identidad que estampar. El disparador
+      de la obligación es deliberadamente grueso —hay clientes máquina y hay entrada—, pero en
+      este servicio las dos mitades no se tocan: los tres serviceClients (order-service,
+      inventory-service, search-service) tienen product:read y nada más, y las únicas dos
+      operaciones con level: service —getProductForServices y listProductsBatchForServices— son
+      LECTURAS. Ninguna escritura del catálogo es alcanzable por un cliente máquina: crear,
+      modificar y publicar son back-office con rol catalog-admin, es decir, un usuario.
+      El riesgo que la obligación existe para cerrar tampoco se da: no hay ningún campo que
+      atribuya el trabajo a un sistema, porque el catálogo no es multi-inquilino. Un producto,
+      una marca y una categoría son de la tienda, no del servidor que los consulta, así que no
+      existe la clave ajena que un cliente autenticado pudiera escribir en el cuerpo para operar
+      sobre datos de otro. Declarar callerIdentity sería nombrar un campo que no existe.
+      Se revisa el día que un cliente máquina reciba scope de escritura, o que aparezca en el
+      dominio cualquier campo que diga de quién es una fila.
+    since: 0.4.1
