@@ -121,7 +121,29 @@
         "basedOn": null,
         "description": "Emite el correo transaccional de notificación de las aplicaciones consumidoras, a partir de plantillas versionadas que gestiona negocio, aceptando peticiones por evento y por contrato servidor-a-servidor."
       },
-      "metadata": null,
+      "metadata": {
+        "family": "notifications",
+        "summary": "Correo transaccional multi-aplicación a partir de plantillas versionadas que gestiona negocio, con petición por evento y por contrato servidor-a-servidor, idempotencia por solicitante, lista de supresión por rebotes y quejas, y desenlace publicado como evento.\n",
+        "maturity": "draft",
+        "tags": [
+          "email",
+          "notifications",
+          "transactional",
+          "smtp",
+          "templates",
+          "versioning",
+          "multi-tenant",
+          "suppression",
+          "bounce",
+          "idempotency",
+          "events",
+          "m2m",
+          "audit",
+          "pagination"
+        ],
+        "author": "keel",
+        "license": "Apache-2.0"
+      },
       "layers": [
         "domain",
         "use-cases",
@@ -175,6 +197,7 @@
         "specs/notifications/messaging.keel.yaml",
         "specs/notifications/persistence.keel.yaml",
         "specs/notifications/mail.keel.yaml",
+        "specs/notifications/design.yaml",
         "specs/notifications/decisions.yaml",
         "specs/notifications/validation-scenarios.md",
         "docs/notifications/DESIGN.md",

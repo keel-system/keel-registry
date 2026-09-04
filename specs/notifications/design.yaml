@@ -1,0 +1,26 @@
+# Metadatos de publicación en el registry. No forma parte del DSL: describe cómo se distribuye y
+# se descubre el diseño, no lo que el servicio hace.
+
+family: notifications
+summary: >
+  Correo transaccional multi-aplicación a partir de plantillas versionadas que gestiona negocio,
+  con petición por evento y por contrato servidor-a-servidor, idempotencia por solicitante,
+  lista de supresión por rebotes y quejas, y desenlace publicado como evento.
+maturity: draft
+tags:
+  - email
+  - notifications
+  - transactional
+  - smtp
+  - templates
+  - versioning
+  - multi-tenant
+  - suppression
+  - bounce
+  - idempotency
+  - events
+  - m2m
+  - audit
+  - pagination
+author: keel
+license: Apache-2.0
