@@ -1,7 +1,7 @@
 # notifications — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/notifications v1.6.0. Contrato de validación para la fase de generación.
+> specs/notifications v1.6.1. Contrato de validación para la fase de generación.
 
 Este archivo es el **contrato de equivalencia** del servicio: del mismo diseño se generan
 servidores en stacks distintos, y esto es lo único que garantiza que se comporten igual. Es
@@ -1389,35 +1389,47 @@ activa. No existe ningún mensaje. El canal `notificationRequests` está vacío.
    silencio eso son correos que no salen sin que nada dé error en ningún sitio.
 7. No se encoló ningún mensaje.
 
-### FL-EVT-020: la reentrega del mismo mensaje no manda un segundo correo
+### FL-EVT-020: la reentrega del mismo `NotificationRequested` no manda un segundo correo
 
-**Given**: el estado final de FL-EVT-001: existe el mensaje de la clave `evt-000001`, ya despachado,
-y el buzón del relay contiene **un** correo.
+Este flujo prueba las **dos barreras** que la suscripción `NotificationRequested` declara contra la
+reentrega, y las prueba por separado porque cubren casos distintos: el `metadata.eventId` del sobre
+`keel` corta la reentrega del broker, y la `idempotencyKey` del payload corta al emisor que
+republica el mismo encargo con un sobre nuevo. El canal es **at-least-once**: sin este flujo, las
+dos son promesas que nadie comprueba.
 
-**When**: se **reentrega** el mismo mensaje del canal — mismo `metadata.eventId` del sobre `keel`,
-mismo payload — y después se ejecuta `dispatchQueuedMessages`.
+**Given**: el estado final de FL-EVT-001: se publicó un `NotificationRequested` con
+`metadata.source: "billing"` e `idempotencyKey` `evt-000001`, existe su mensaje ya despachado y el
+buzón del relay contiene **un** correo.
+
+**When**: el broker **reentrega ese mismo `NotificationRequested`** — mismo `metadata.eventId` del
+sobre `keel`, mismo payload — y después se ejecuta `dispatchQueuedMessages`
 
 **Then**:
-1. `listMessages?applicationCode=billing` sigue devolviendo **exactamente un** mensaje: el
-   `metadata.eventId` del sobre corta la reentrega antes de tocar el dominio.
+1. `listMessages?applicationCode=billing` sigue devolviendo **exactamente un** mensaje. La guarda
+   que corta aquí es el `metadata.eventId`: el listener reconoce el mensaje como ya procesado y no
+   llega a invocar `requestNotification`, así que el dominio ni se entera.
 2. El buzón del relay sigue con **exactamente un** correo.
+3. El mensaje no cambia de estado ni de `requestedAt`: la reentrega no deja ninguna huella
+   observable.
 
-**When**: se publica un mensaje **nuevo** (`eventId` distinto) con el **mismo payload**, misma
-`idempotencyKey` `evt-000001`, y se ejecuta `dispatchQueuedMessages`
-
-**Then**:
-3. `listMessages?applicationCode=billing` sigue devolviendo **un** mensaje: la `idempotencyKey` es
-   la segunda barrera, y es la que cubre el caso que el `eventId` no cubre — un emisor que
-   republique el mismo encargo con un sobre nuevo.
-4. El buzón sigue con **un** correo.
-
-**When**: se entregan **a la vez** dos copias del mismo mensaje
+**When**: `billing` publica un `NotificationRequested` **nuevo** —`metadata.eventId` distinto— con
+el **mismo payload** y la misma `idempotencyKey` `evt-000001`, y se ejecuta `dispatchQueuedMessages`
 
 **Then**:
-5. `listMessages?applicationCode=billing` devuelve **exactamente un** mensaje y el buzón **un**
+4. `listMessages?applicationCode=billing` sigue devolviendo **un** mensaje. Aquí el `eventId` NO
+   corta —es un sobre que el listener no ha visto nunca—, y la petición sí llega a
+   `requestNotification`: la guarda que corta es la `idempotencyKey`, que es permanente y ya está
+   registrada para `billing`.
+5. El buzón sigue con **un** correo.
+
+**When**: se entregan **a la vez** dos copias del mismo `NotificationRequested` (mismo
+`metadata.eventId`)
+
+**Then**:
+6. `listMessages?applicationCode=billing` devuelve **exactamente un** mensaje y el buzón **un**
    correo, sea cual sea la copia que gane. La entrega simultánea no es la reentrega con otras
    palabras: la secuencial encuentra la marca ya confirmada, y la simultánea cae en la ventana en
-   la que todavía no lo está.
+   la que todavía no lo está, que es donde vive el fallo.
 
 **Notas de determinación**: `publishing.reliability` es `best-effort`, así que ningún escenario
 afirma que `EmailSent` o `EmailDeliveryFailed` **siempre** lleguen. Lo que se afirma en FL-SND-001 es su

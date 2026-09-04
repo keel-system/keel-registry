@@ -1,6 +1,6 @@
 # notifications — Documento de diseño
 
-> specs/notifications v1.6.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/notifications v1.6.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -193,8 +193,11 @@ Transporte SMTP con las **dos partes**, `html` y `text` — un HTML sin alternat
 sospechas en los filtros antispam y eso no falla en ninguna prueba. Sin adjuntos.
 
 - **Remitente**: `source: data`, de `Application.senderAddress` y `Application.senderName`,
-  **sin `fallback`**. Falla cerrado. Las dos mitades se copian al mensaje al aceptar la petición,
-  y es lo copiado —no lo vigente en la aplicación— lo que compone el `From` al enviar.
+  **sin `fallback`** — y no le hace falta: el remitente no puede quedar sin resolver, porque las
+  dos puntas son requeridas (`Application.senderAddress` para registrar la aplicación,
+  `EmailMessage.senderAddress` al aceptar la petición). Las dos mitades se copian al mensaje al
+  aceptar la petición, y es lo copiado —no lo vigente en la aplicación— lo que compone el `From`
+  al enviar.
 - **Plantillas**: `source: data`, con `declaredVariables: true`. El original vive en la base de
   datos y lo edita negocio sin desplegar. Como el cuerpo es entrada de origen externo, no puede
   renderizarse con un motor que evalúe expresiones arbitrarias.
@@ -424,12 +427,18 @@ asíncrono, absorbe picos y ya tiene reintentos y DLQ. El endpoint HTTP queda pa
 transaccional puntual que necesita respuesta inmediata. **Descartado**:
 `requestNotificationsBatch`.
 
-### El remitente falla cerrado
+### El remitente no necesita respaldo, porque lo garantiza el dominio
 
-**Qué**: `sender.source: data` **sin `fallback`**. Un mensaje cuyo remitente no resuelva pasa a
-`failed` y se descubre por `listMessages`. **Por qué**: antes que enviar desde una dirección que
-nadie verificó, no se envía. Quemar la reputación del dominio no se deshace, y es un recurso
-compartido por todos los consumidores.
+**Qué**: `sender.source: data` **sin `fallback`**. **Por qué**: declarar una dirección de respaldo
+sería preparar un camino que no existe. `Application.senderAddress` es requerido para registrar una
+aplicación y `EmailMessage.senderAddress` es requerido y se congela al aceptar la petición, así que
+todo mensaje que llega a `sendQueuedMessage` lleva su remitente dentro: no hay ningún caso que el
+respaldo pudiera cubrir, y por eso la operación no declara error para él ni ningún escenario lo
+afirma. Si el remitente dejara de estar garantizado por el dominio, la decisión seguiría siendo no
+enviar: antes que salir desde una dirección que nadie verificó, no se envía. Quemar la reputación
+del dominio no se deshace, y es un recurso compartido por todos los consumidores.
+**Descartado**: `fallback` con una dirección genérica verificada, que es la decisión opuesta
+—preferir enviar desde la genérica antes que no enviar— y que aquí no llegaría a usarse nunca.
 
 ### Las dos mitades del remitente se congelan juntas
 

@@ -20,9 +20,15 @@ sender:
     Sale del remitente verificado que cada aplicación consumidora tiene registrado en
     Application.senderAddress, copiado al mensaje —junto con su senderName— en el momento de
     aceptar la petición.
-    Sin fallback a propósito, y falla cerrado: antes que enviar desde una dirección que nadie
-    verificó, no se envía. Un mensaje cuyo remitente no resuelva pasa a failed con su motivo y
-    se descubre por listMessages, porque quemar la reputación del dominio no se deshace.
+    Sin fallback a propósito, y la ausencia es deliberada: aquí no hace falta porque el remitente
+    NO PUEDE quedar sin resolver. Application.senderAddress es requerido para registrar una
+    aplicación, y EmailMessage.senderAddress es requerido y se congela al aceptar la petición, así
+    que todo mensaje que llega a enviarse ya lleva su remitente dentro. No hay ningún camino por el
+    que sendQueuedMessage se encuentre sin dirección: por eso no declara error para ese caso ni
+    ningún escenario lo afirma.
+    Si algún día el remitente dejara de estar garantizado por el dominio, la decisión sería la
+    misma —no enviar—: antes que salir desde una dirección que nadie verificó, no se envía, porque
+    quemar la reputación del dominio no se deshace.
 
 replyTo:
   source: data
