@@ -36,6 +36,7 @@ donde «aceptado» significaría dejársela al generador. Están marcadas como t
 | `OBL-IDEM-REUSE-CODE` | `use-cases`: alguna operación declara `idempotency` | el desenlace «misma clave, otro cuerpo» no tiene `code` nombrado | 4 | sí |
 | `OBL-CONCURRENCY-CODE` | `persistence`: `consistency.optimisticLocking` es `all` o `declared` | el conflicto de escritura concurrente no tiene `code` nombrado | 4 | sí |
 | `OBL-ENTITY-UNREACHABLE` | `domain`: una raíz de agregado a la que ninguna operación se refiere | una raíz de agregado que ninguna operación puede crear | 14 | sí |
+| `OBL-CALLER-IDENTITY` | `security`: se declara `serviceAuth` (clientes máquina) y alguna operación recibe campos de entrada | con clientes máquina, no está decidido si la identidad del llamante entra en el trabajo | 9 | sí |
 | `OBL-RESOURCE-SCOPE` | `use-cases`: una operación protegida por rol declara un error 403 | un 403 que nada de lo declarado puede producir | 9 | no |
 
 La columna **Clase** es la del análisis de huecos (`gap-analysis.md`), para que el barrido del
@@ -86,6 +87,11 @@ coverage:
   major** la aceptación **caduca** y hay que reafirmarla: la asunción que la sostenía puede
   haber dejado de ser cierta. Un patch no la caduca — reafirmar por cada errata corregida
   enseña a subir el número sin leer, que es el hábito que este archivo existe para romper.
+- **Viaja con el diseño.** Al publicarlo (`keel index` lo lista en `files`), al adoptarlo
+  (`keel registry get`, donde sigue vigente porque la versión no cambia) y al derivarlo
+  (`keel new --from`, donde llega para reafirmar). Sin él, el diseño llega mecánicamente válido
+  pero con las decisiones otra vez abiertas, y el `keel-<tech> build` del consumidor lo rechaza
+  por preguntas que el autor ya había contestado.
 - `coverage` responde a la exigencia del análisis de huecos: sin la tabla, una clase que se
   recorrió y salió limpia es indistinguible de una que nadie miró.
 

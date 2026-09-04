@@ -126,6 +126,7 @@ Campo a campo, en `domain`:
 *Aplica si:* hay campos `unique`, dos commands que escriben la misma entidad, o alguna operación alcanzada por reintentos. En un servicio con estado, casi siempre las tres.
 
 - Por cada `unique` en `domain` o `persistence`: ¿hay un `error` de colisión declarado en las operaciones que escriben ese campo?
+- ¿Hay algún «**como máximo uno … que cumpla X**»? Una versión activa por clave, un contacto principal por cliente, una suscripción vigente por usuario. Es unicidad **condicionada al estado**, no de columnas, y con `unique` a secas hay que elegir entre lo imposible (no poder tener nunca dos versiones) y lo que no garantiza nada. Se declara con la forma larga de `persistence.entities.<E>.indexes` (`{ fields, unique: true, when: { field, equals } }`, ver `docs/dsl/persistence.md`). La pregunta se hace aquí porque el que responde «sí» casi siempre lo tenía como una regla en prosa dentro de `rules`, donde no la sostiene nada más que el orden de dos escrituras.
 - ¿Qué pasa si **dos peticiones concurrentes** ejecutan el mismo command sobre la misma entidad? ¿Último gana, o conflicto explícito? Si el negocio no tolera la pérdida de actualizaciones, hay que declararlo — y el sitio donde se declara es `persistence.consistency.optimisticLocking` (clase 14), no la prosa de `rules`.
 - Operaciones con `retry` que las alcanzan: ¿la operación destino es idempotente, y **con el mecanismo del eje correcto**? Si quien reintenta es una subscription, es `contract.messageId` o una transición irrepetible; si es un cliente HTTP contra un endpoint nuestro, es `idempotency`. Declarar el de un eje contra la repetición del otro no protege nada.
 - ¿Hay operaciones que **leen y luego escriben** en función de lo leído (reservar stock, asignar numeración)? Ese patrón sin política de concurrencia es una condición de carrera declarada.
@@ -236,6 +237,11 @@ El hueco más caro y el que ninguna regla mecánica puede ver. **Ningún hallazg
 
 Esta clase y la 8 son **simétricas**: aquí se examina la superficie que **ofrecemos** a otros servidores; la clase 8 examina la que **consumimos** (capa `dependencies`). Recórrelas juntas — un mismo servicio suele estar a los dos lados, y los criterios de calidad se reflejan (un endpoint de lote que le falta a nuestro proveedor es el mismo hueco que un `need` nuestro que obligaría a N llamadas).
 
+- **¿La identidad de quién llama entra en el trabajo?** Si el sistema que llama determina sobre QUÉ datos se opera —sus
+  plantillas, sus envíos, sus documentos—, eso se declara con `authentication.callerIdentity`, y entonces el campo deja de
+  viajar en el cuerpo: lo estampa el servidor desde la credencial. No decidirlo **no es neutro**: el campo se queda en la
+  petición y cualquier cliente autenticado puede escribir la clave de otro y operar sobre sus datos. Es la obligación
+  `OBL-CALLER-IDENTITY`, y se cierra en una línea o se acepta por escrito (hay servicios donde quién llama da igual).
 - ¿Cada endpoint de máquina tiene un `serviceClient` que lo consuma? Y al revés: ¿cada scope concedido lo exige alguien?
 - ¿El contrato está pensado **para servidores**, o es el de usuarios reutilizado? Señales de hueco: el consumidor tendría que llamar N veces (falta un endpoint de lote), o recibe un DTO de pantalla en vez de datos.
 - ¿Qué garantías de **estabilidad** tiene ese contrato? Es el que otro equipo va a acoplarse.
@@ -279,7 +285,7 @@ Un `schedule` es la única superficie del servicio sin cliente que espere respue
 - Entidades de `domain` que **no aparecen** en `persistence.entities`: ¿son efímeras a sabiendas, o se olvidaron? Una entidad que el diseño trata como duradera y nadie persiste desaparece en el primer reinicio.
 - Por cada `naturalKey`: ¿hay un error de colisión declarado en las operaciones que la escriben? Es la clase 4 vista desde la otra capa, y aquí se olvida más.
 - **Índices frente a las queries**: por cada criterio de filtro y de orden de una query, ¿lo sostiene algún índice? No es rendimiento, es **cota**: una colección paginada cuyo orden no puede sostenerse deja de responder al crecer, y eso sí es contrato.
-- Si hay borrado **lógico** (estado `archived`, campo `deletedAt`): ¿qué queries lo filtran, y qué pasa con la unicidad de un registro borrado (enlaza con la clase 6)?
+- Si hay borrado **lógico** (estado `archived`, campo `deletedAt`): ¿qué queries lo filtran, y qué pasa con la unicidad de un registro borrado (enlaza con la clase 6)? Si la respuesta es «el slug de un archivado puede reutilizarse, pero solo puede haber uno vivo», eso es unicidad **condicionada** y tiene primitivo: `indexes` con `when` (clase 4). Sin él la unicidad se declara sobre todas las filas —y entonces el archivado bloquea el alta nueva para siempre— o no se declara y no la sostiene nadie.
 - ¿Los datos se guardan para siempre? Si el negocio tiene retención o archivado, no hay dónde declararlo en el DSL: es un hueco que se cierra con una operación explícita, no con una suposición.
 
 ### 15. Superficie HTTP
