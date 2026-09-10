@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notifications
-  version: 1.6.1
+  version: 1.6.2
   description: 'Emite el correo transaccional de notificación de las aplicaciones consumidoras, a partir
     de plantillas versionadas que gestiona negocio, aceptando peticiones por evento y por contrato servidor-a-servidor.
 

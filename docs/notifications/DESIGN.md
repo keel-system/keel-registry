@@ -1,6 +1,6 @@
 # notifications — Documento de diseño
 
-> specs/notifications v1.6.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/notifications v1.6.2. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -300,6 +300,18 @@ prefirió publicar y **dar el dato para decidir**: `failureReason` dice cuál de
 **También descartado**: un evento propio para el rescate (`EmailDispatchAbandoned`), que distinguiría
 por tipo en vez de por texto libre a cambio de un evento más en el contrato público; quien derive
 este diseño con consumidores que reaccionen automáticamente al fallo puede querer justo esa opción.
+
+### La guarda de envío no tiene puerta propia, y ningún escenario la mide
+
+**Qué**: la transición `queued → sending` de `sendQueuedMessage` es la guarda por fila contra el
+doble envío, y su única verificación es el gate estático del generador
+(`infra/check-idempotency.sh`), no un escenario. **Por qué**: la operación es interna y su único
+llamante, `dispatchQueuedMessages`, solo selecciona mensajes en `queued`. Cualquier escenario de
+no-duplicación mide ese filtro y seguiría en verde con la guarda rota. La guarda sigue siendo
+necesaria para la caída entre la aceptación del relay y el commit, y para el despachador lento que
+el rescate ya dio por fallido. **Descartado**: darle un endpoint propio solo para poder medirla,
+porque abre una segunda vía para mandar correo real a una persona. Aceptado por escrito en
+`decisions.yaml` (`OBL-GUARD-UNOBSERVABLE`, v1.6.2); se revisa si la operación gana otro llamante.
 
 ### La guarda de idempotencia es permanente
 

@@ -1,7 +1,7 @@
 # notifications — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/notifications v1.6.1. Contrato de validación para la fase de generación.
+> specs/notifications v1.6.2. Contrato de validación para la fase de generación.
 
 Este archivo es el **contrato de equivalencia** del servicio: del mismo diseño se generan
 servidores en stacks distintos, y esto es lo único que garantiza que se comporten igual. Es
@@ -824,8 +824,10 @@ mensaje (transición `queued` → `sending` → `sent`). El relay acepta el mens
 **When**: se ejecuta `dispatchQueuedMessages` otra vez, sin encolar nada nuevo
 
 **Then**:
-9. El buzón sigue con **un** correo: un mensaje que ya no está `queued` no se vuelve a componer.
-   Es la guarda contra el doble envío, y es una transición irrepetible, no una clave.
+9. El buzón sigue con **un** correo: el ciclo solo toma mensajes en `queued`, y este ya no lo
+   está. Lo que este paso mide es **el filtro del ciclo**, no la guarda `queued` → `sending` de
+   `sendQueuedMessage`: el ciclo no vuelve a ofrecerle el mensaje, así que el paso seguiría en
+   verde aunque la guarda estuviera rota (ver § Lo que no tiene escenario, y por qué).
 10. No se publica ningún evento nuevo.
 11. `getMessage` sobre el `id` sigue devolviendo `status: "sent"` con el **mismo** `sentAt`: el
     segundo intento no reescribió nada.
@@ -835,9 +837,10 @@ mensaje (transición `queued` → `sending` → `sent`). El relay acepta el mens
 
 Los dos errores de `sendQueuedMessage` **no** son pasos de este `Then`, y no por olvido: la
 operación es `internal: true` y ningún endpoint la expone, así que no hay llamada que devuelva su
-`code`. `MESSAGE_NOT_QUEUED` (`409`) sobre un mensaje que ya no está `queued` es exactamente lo que
-el paso 9 observa desde fuera —el buzón no recibe un segundo correo— y `MESSAGE_NOT_FOUND` (`404`)
-sobre un identificador inexistente no tiene ninguna proyección observable. Los dos son contrato de
+`code`. `MESSAGE_NOT_QUEUED` (`409`) sobre un mensaje que ya no está `queued` es el desenlace de la
+guarda, y desde fuera tampoco se observa: el paso 9 no llega a provocarlo, porque el ciclo no vuelve
+a ofrecer el mensaje. `MESSAGE_NOT_FOUND` (`404`) sobre un identificador inexistente no tiene
+ninguna proyección observable. Los dos son contrato de
 la operación interna y viven en `use-cases.keel.yaml`; escribirlos aquí como aserciones numeradas
 prometería una comprobación que ninguna suite de caja negra puede escribir.
 
@@ -1573,7 +1576,7 @@ orígenes concretos — esos son despliegue y no están en el diseño.
 
 Un hueco declarado es honesto; uno tapado con un escenario que nunca se ejecuta es peor, porque
 además apaga la sospecha — y en el gate de generación aparece como `NO_EJERCITADO`, que dice «sin
-cobertura» sin decir por qué. Estos tres caminos del servicio **no** producen escenario `FL-*`, y
+cobertura» sin decir por qué. Estos cuatro caminos del servicio **no** producen escenario `FL-*`, y
 conviene que esté escrito para que nadie se los invente.
 
 ### El rechazo síncrono del relay y la supresión automática
@@ -1611,6 +1614,26 @@ la que un ejecutor de caja negra dispare **un** ciclo, mucho menos dos simultán
 observable —que ningún mensaje salga dos veces— lo afirma FL-SND-030 con ciclos consecutivos, y la
 atomicidad del reclamo se verifica en **estático**: el reclamo condicional tiene que ser una
 escritura que diga cuántas filas se llevó, no una lectura del estado de partida.
+
+### La guarda de `sendQueuedMessage` contra el doble envío
+
+La transición `queued` → `sending` es la guarda **por fila** de la única operación que produce un
+correo real: se reclama el mensaje antes de entregarlo al relay. Ningún escenario de caja negra la
+mide, y no porque falte uno. `sendQueuedMessage` es `internal`: no tiene endpoint, `schedule` ni
+suscripción, y su único llamante es `dispatchQueuedMessages`, que ya solo selecciona mensajes en
+`queued`. Todo escenario de no-duplicación —el paso 9 de FL-SND-001, el paso 4 de FL-SND-030— lo
+que ve es el filtro del llamante, no esta guarda: con la guarda rota siguen en verde, porque
+el ciclo nunca le vuelve a ofrecer un mensaje que ya salió de `queued`.
+
+Su **única verificación es el gate estático** del generador, `infra/check-idempotency.sh`: el
+reclamo tiene que ser una escritura condicional que diga cuántas filas se llevó, y la entrega al
+relay solo ocurre si se llevó una. La guarda sigue haciendo falta para dos casos que ningún arnés
+provoca desde fuera: la caída entre la aceptación del relay y el commit, y el despachador lento que
+vuelve después de que el rescate haya dado el mensaje por fallido (FL-SND-020, paso 7).
+
+Darle una puerta propia para poder medirla abriría una segunda vía para mandar correo real, y ese
+es justo el riesgo que la guarda existe para evitar. La decisión está aceptada por escrito en
+`decisions.yaml` (`OBL-GUARD-UNOBSERVABLE`, desde v1.6.2).
 
 ### La purga por antigüedad de 18 meses
 

@@ -14,3 +14,20 @@ decisions:
       que validation-scenarios.md ya afirma en la convención de status y en el flujo de
       publicación concurrente sobre la misma plantilla.
     since: 1.6.0
+  - id: OBL-GUARD-UNOBSERVABLE
+    scope: mail.sendQueuedMessage
+    reason: >
+      La guarda queued → sending de sendQueuedMessage no la mide ningún escenario de caja negra, y
+      se acepta que su única verificación sea el gate estático (infra/check-idempotency.sh). La
+      operación es internal a propósito: su único llamante es dispatchQueuedMessages, y ese ciclo
+      solo selecciona mensajes en queued, así que cualquier escenario de no-duplicación que se
+      escriba vería cómo filtra el llamante, no la guarda. Con la guarda rota, esos escenarios
+      seguirían en verde. Darle una puerta propia (un endpoint que mande un mensaje concreto)
+      abriría una segunda vía para mandar correo real a una persona. Esa vía no la necesita ningún
+      integrador, y el mayor riesgo de este servicio es enviar el mismo correo dos veces: no se
+      abre una superficie nueva solo para poder medirla. La guarda sigue siendo necesaria: cubre la
+      caída entre la aceptación del relay y el commit, y el despachador lento que el rescate ya
+      dio por fallido. Lo que se corrige es que el contrato prometía medirla: FL-SND-001 ya no
+      atribuye su paso 9 a la guarda, y validation-scenarios.md § Lo que no tiene escenario lo
+      deja escrito. Se revisa si sendQueuedMessage llega a tener otro llamante o una puerta propia.
+    since: 1.6.2
