@@ -172,8 +172,10 @@ operations:
     kind: query
     input:
       fields:
-        name:       { type: string, description: "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas." }
-        sku:        { type: string, description: "Filtra por coincidencia parcial del sku." }
+        name:       { type: string, constraints: { maxLength: 140 }, description: "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas." }
+        # Solo la longitud del SKU, no su pattern: el filtro es parcial y sin distinguir mayúsculas,
+        # así que 'ab' es un filtro legítimo que el type SKU rechazaría.
+        sku:        { type: string, constraints: { maxLength: 32 }, description: "Filtra por coincidencia parcial del sku." }
         status:     { type: ProductStatus, description: "Filtra por estado; sin él se devuelven todos." }
         brandId:    { type: uuid }
         categoryId: { type: uuid }
@@ -288,17 +290,26 @@ operations:
         name:        { type: string, required: true, constraints: { maxLength: 80 } }
         description: { type: text, constraints: { maxLength: 1000 } }
     output: { entity: Brand }
+    # La guarda es la clave natural: name participa en naturalKey [name] de Brand, así que la
+    # constraint deduplica —permanente y sin registro de claves— y payload-field es lo que la
+    # hace visible en el diseño. Sin ttlSeconds: una constraint no caduca.
+    idempotency: { keySource: payload-field, keyField: name }
     rules:
       - El slug se deriva del name normalizado a kebab-case.
       - La unicidad del name no distingue mayúsculas ni acentos.
       - >-
-        Lo que frena el reintento no es una clave de idempotencia ni una transición, sino la CLAVE
-        NATURAL: persistence declara naturalKey [name] sobre Brand, así que un reenvío del llamante
-        (timeout, doble pulsación) choca contra ella y sale por BRAND_NAME_ALREADY_EXISTS. No crea un segundo
-        registro y, por tanto, no vuelve a publicar el evento — que es lo que había que garantizar.
-        Se prefiere a añadir idempotency porque el nombre YA es único: la clave de cliente no
-        aportaría guarda nueva y devolvería un conflicto menos informativo (que la clave se reusó,
-        en vez de que el nombre está cogido).
+        Un reenvío del llamante (timeout, doble pulsación) choca contra la clave natural y sale por
+        BRAND_NAME_ALREADY_EXISTS: no crea un segundo registro y, por tanto, no vuelve a publicar el
+        evento — que es lo que había que garantizar. No devuelve la respuesta original.
+        Se descartó client-key: el nombre YA es único, así que la cabecera no aportaría guarda
+        nueva, solo la repetición del 201 a cambio de un registro de claves y dos códigos de
+        conflicto más en el contrato.
+      - >-
+        Dos altas simultáneas del mismo name pasan las dos la guarda y derivan el mismo slug, así que
+        la que pierde choca a la vez con la unicidad del name y con la del slug. Se responde siempre
+        BRAND_NAME_ALREADY_EXISTS —la misma precedencia que las guardas secuenciales—, sea cual sea
+        la constraint que el almacenamiento haga saltar primero. BRAND_SLUG_CONFLICT queda para dos
+        nombres distintos que derivan el mismo slug.
     errors:
       - { code: BRAND_NAME_ALREADY_EXISTS, when: Ya existe una marca con ese nombre ignorando mayúsculas y acentos., http: 409 }
       - { code: BRAND_SLUG_CONFLICT, when: El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre., http: 409 }
@@ -354,17 +365,26 @@ operations:
         name:        { type: string, required: true, constraints: { maxLength: 80 } }
         description: { type: text, constraints: { maxLength: 1000 } }
     output: { entity: Category }
+    # La guarda es la clave natural: name participa en naturalKey [name] de Category, así que la
+    # constraint deduplica —permanente y sin registro de claves— y payload-field es lo que la
+    # hace visible en el diseño. Sin ttlSeconds: una constraint no caduca.
+    idempotency: { keySource: payload-field, keyField: name }
     rules:
       - El slug se deriva del name normalizado a kebab-case.
       - La unicidad del name no distingue mayúsculas ni acentos.
       - >-
-        Lo que frena el reintento no es una clave de idempotencia ni una transición, sino la CLAVE
-        NATURAL: persistence declara naturalKey [name] sobre Category, así que un reenvío del llamante
-        (timeout, doble pulsación) choca contra ella y sale por CATEGORY_NAME_ALREADY_EXISTS. No crea un segundo
-        registro y, por tanto, no vuelve a publicar el evento — que es lo que había que garantizar.
-        Se prefiere a añadir idempotency porque el nombre YA es único: la clave de cliente no
-        aportaría guarda nueva y devolvería un conflicto menos informativo (que la clave se reusó,
-        en vez de que el nombre está cogido).
+        Un reenvío del llamante (timeout, doble pulsación) choca contra la clave natural y sale por
+        CATEGORY_NAME_ALREADY_EXISTS: no crea un segundo registro y, por tanto, no vuelve a publicar
+        el evento — que es lo que había que garantizar. No devuelve la respuesta original.
+        Se descartó client-key: el nombre YA es único, así que la cabecera no aportaría guarda
+        nueva, solo la repetición del 201 a cambio de un registro de claves y dos códigos de
+        conflicto más en el contrato.
+      - >-
+        Dos altas simultáneas del mismo name pasan las dos la guarda y derivan el mismo slug, así que
+        la que pierde choca a la vez con la unicidad del name y con la del slug. Se responde siempre
+        CATEGORY_NAME_ALREADY_EXISTS —la misma precedencia que las guardas secuenciales—, sea cual sea
+        la constraint que el almacenamiento haga saltar primero. CATEGORY_SLUG_CONFLICT queda para
+        dos nombres distintos que derivan el mismo slug.
     errors:
       - { code: CATEGORY_NAME_ALREADY_EXISTS, when: Ya existe una categoría con ese nombre ignorando mayúsculas y acentos., http: 409 }
       - { code: CATEGORY_SLUG_CONFLICT, when: El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre., http: 409 }

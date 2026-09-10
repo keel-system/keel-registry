@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.4.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.4.2. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -81,7 +81,11 @@ De los casos de uso:
 - Los tres borrados son **idempotentes**: repetirlos sobre un recurso que ya no existe responde
   `204` y no cambia nada. Un `204` no implica, por tanto, que se haya publicado evento de borrado.
 - Los filtros de texto (`name`, `sku`) buscan coincidencia parcial sin distinguir mayúsculas ni
-  acentos.
+  acentos. Llevan cota de longitud —140 y 32, las del campo que filtran— pero **no** el formato de
+  `SKU`: un fragmento en minúsculas es un filtro válido.
+- Dos altas simultáneas de una marca o categoría con el mismo `name` derivan también el mismo slug;
+  la que pierde responde **siempre** `BRAND_NAME_ALREADY_EXISTS` / `CATEGORY_NAME_ALREADY_EXISTS`,
+  nunca el `*_SLUG_CONFLICT`, sea cual sea la constraint que salte primero.
 - La derivación del sufijo del slug de `Product` (lectura del slug libre + escritura) no es atómica:
   dos altas o ediciones simultáneas del mismo `name` pueden calcular el mismo sufijo y solo una
   llega a escribir. Esa carrera se resuelve con `PRODUCT_SLUG_CONFLICT`, nunca reintentando en
@@ -106,7 +110,10 @@ cuatro operan sobre el agregado a través de la raíz. `removeProductImage` es u
 publica `ProductUpdated` cuando hubo eliminación real. El producto de la ruta sí tiene que existir.
 
 **Taxonomía** (back-office). `createBrand` / `updateBrand` / `deleteBrand` y sus tres equivalentes
-de categoría. El borrado se rechaza si hay productos que la referencian, y —como el de imágenes— es
+de categoría. Las dos altas son **idempotentes por el propio nombre** (`keySource: payload-field`
+sobre `name`): como `name` es la clave natural, su unicidad es la guarda —permanente, sin cabecera ni
+registro de claves— y un reenvío sale por `*_NAME_ALREADY_EXISTS` sin segundo registro ni segundo
+evento. El borrado se rechaza si hay productos que la referencian, y —como el de imágenes— es
 idempotente: sobre una marca o categoría que ya no existe responde `204` sin publicar evento.
 
 **Tienda** (público, sin credencial). `listPublicProducts` con los cuatro filtros pedidos —categoría,
@@ -180,8 +187,10 @@ lo que expone es suyo. Las fronteras son de salida.
 | **Precio sin moneda** | `Price` es un decimal, la divisa es implícita | La tienda opera en una sola divisa | `Money` (importe + moneda ISO-4217): abrir un segundo mercado será un cambio incompatible del contrato |
 | **El cambio de estado es contrato, no prosa** (0.4.0) | Las cuatro operaciones de ciclo de vida declaran `transitions`; antes el estado de partida solo vivía en `preconditions` en prosa | Una arista que ninguna operación declara es intención, no comportamiento: el generador no la ve y decide por su cuenta desde qué estados se puede publicar. Y la transición declarada es además la guarda irrepetible que faltaba: sin ella, un reenvío del llamante republica `ProductStatusChanged`, y un evento que ya salió no lo desanda ninguna clave natural | Declarar `idempotency` en las cuatro: deduplica en la puerta pero no impide despublicar un producto que otro actor acaba de despublicar, porque no mira el estado |
 | **`INVALID_STATE_TRANSITION`, con STATE** (0.4.0) | Se renombró desde `INVALID_STATUS_TRANSITION` en las cuatro operaciones | Al declarar `transitions`, quien produce ese 409 pasa a ser el mecanismo del framework, y su familia de códigos no reconoce la variante con `STATUS`: el servidor habría emitido `INVALID_STATE_TRANSITION` mientras el contrato prometía otro nombre, con cinco escenarios afirmando el que no sale. **Es un cambio rompedor**: un integrador que trate el nombre viejo deja de reconocerlo | Conservar el nombre propio (el contrato mentiría) o revertir las `transitions` (devuelve los ocho avisos que la migración cerró). También valía `PRODUCT_INVALID_TRANSITION`, que sí encaja en la familia y conserva el prefijo de entidad |
-| **La guarda de la taxonomía es la clave natural** (0.4.0) | `createBrand` y `createCategory` no declaran `idempotency`: el reintento choca contra `naturalKey [name]` y sale por `BRAND_NAME_ALREADY_EXISTS` / `CATEGORY_NAME_ALREADY_EXISTS` | No crea un segundo registro y por tanto no republica el evento, que es lo que había que garantizar. Es la tercera salida legítima —la que el DSL no puede ver sola— frente a idempotencia y transición | Añadir `idempotency`: el nombre YA es único, así que no aporta guarda nueva y devuelve un conflicto menos informativo (que la clave se reusó, en vez de que el nombre está cogido) |
-| **La query por lotes se expone con POST** (0.4.0) | `listProductsBatchForServices` es `kind: query` y va por `POST`, con el porqué escrito como `rule` | Hasta 100 UUID son ~3,7 KB de query string, por encima de lo que muchos proxies aceptan con garantías. Con GET el exceso sale como 414 o URL truncada por un intermediario —opaco y ajeno al servicio—; con POST lo rechaza `TOO_MANY_IDS`, que es contrato propio | `GET` con `id` repetido: más correcto semánticamente y cacheable, a cambio de un fallo opaco al pasarse. Cambiarlo ahora rompería a los tres consumidores M2M |
+| **La guarda de la taxonomía es la clave natural, y ahora se declara** (0.4.0, declarada en 0.4.2) | `createBrand` y `createCategory` declaran `idempotency: { keySource: payload-field, keyField: name }`, sin `ttlSeconds`. El reintento choca contra `naturalKey [name]` y sale por `BRAND_NAME_ALREADY_EXISTS` / `CATEGORY_NAME_ALREADY_EXISTS`, igual que en 0.4.0 | No crea un segundo registro y por tanto no republica el evento, que es lo que había que garantizar. En 0.4.0 esa guarda solo vivía en una `rule` en prosa, y `keel validate` avisaba de un `POST` que publica sin guarda: `payload-field` sobre un campo de la `naturalKey` es la forma en que el DSL **ve** la constraint como guarda, sin registro de claves ni cambio de comportamiento. Sin TTL porque una constraint no caduca | `client-key` + 24 h, como `createProduct`: el cliente que reintenta recuperaría el `201` original con el id, a cambio de un registro de claves y de dos códigos de conflicto (`IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENCY_KEY_IN_PROGRESS`) más en el contrato, cuando el nombre ya es único. También se descartó dejarla sin declarar, que es lo que había en 0.4.0 |
+| **La carrera de dos altas iguales la resuelve el nombre** (0.4.2) | La que pierde responde siempre `*_NAME_ALREADY_EXISTS`, nunca `*_SLUG_CONFLICT` | Dos nombres iguales derivan el mismo slug, así que la perdedora choca a la vez con dos constraints y cuál salta primero depende del motor: sin fijarlo, dos stacks darían `code` distinto a la misma carrera. Se aplica la misma precedencia que las guardas secuenciales (nombre antes que slug) | Disyunción cerrada entre los dos códigos: más barata de implementar, contrato más débil |
+| **Cota de los filtros de gestión** (0.4.2) | `listProducts.name` con `maxLength: 140` y `listProducts.sku` con `maxLength: 32`; solo longitud, no el `pattern` de `SKU` | Un input con `fields` no hereda del dominio: sin la cota el filtro llegaba sin validar al almacenamiento. La del `sku` es solo de longitud porque el filtro es parcial y sin distinguir mayúsculas, y `ab` es un filtro legítimo que el type rechazaría | `type: SKU` en el filtro, que rompería la coincidencia parcial que declaran las reglas |
+| **La query por lotes se expone con POST** (0.4.0) | `listProductsBatchForServices` es `kind: query` y va por `POST`, con el porqué escrito como `rule` | Hasta 100 UUID son ~3,7 KB de query string, por encima de lo que muchos proxies aceptan con garantías. Con GET el exceso sale como 414 o URL truncada por un intermediario —opaco y ajeno al servicio—; con POST lo rechaza `TOO_MANY_IDS`, que es contrato propio | `GET` con `id` repetido: más correcto semánticamente y cacheable, a cambio de un fallo opaco al pasarse. Cambiarlo ahora rompería a los tres consumidores M2M. Reafirmado en 0.4.2: `keel validate` sigue avisando porque la regla es incondicional y no hay forma de aceptarla por escrito; el aviso es una limitación conocida del validador, no un hueco del diseño |
 | **La identidad del llamante no participa** (0.4.1) | No se declara `authentication.callerIdentity`; la obligación `OBL-CALLER-IDENTITY` se acepta por escrito en `decisions.yaml` | Quién llama no cambia el trabajo. Los tres `serviceClients` tienen `product:read` y nada más, y las dos únicas operaciones `level: service` (`getProductForServices`, `listProductsBatchForServices`) son lecturas: ninguna escritura es alcanzable por un cliente máquina. Y el catálogo no es multi-inquilino —un producto es de la tienda, no del servidor que lo consulta—, así que no existe el campo que atribuye una fila a un sistema y que un cliente autenticado pudiera falsear en el cuerpo. Declararlo sería nombrar un campo que no existe | Declarar `callerIdentity` sobre un campo inventado. Se revisa el día que un cliente máquina reciba scope de escritura, o que aparezca en el dominio un campo que diga de quién es una fila |
 
 ## 7. Ficha de reutilización: adoptar, derivar o evolucionar
@@ -251,6 +260,12 @@ categorías, que es lo que sostienen los índices elegidos y el listado paginado
   (FL-CCH-001): como `invalidatedBy` es exhaustivo, no existe una vía de mutación con la que probar
   la **retención**, así que los escenarios de invalidación los pasaría también una implementación
   que no cacheara nada.
+- El alta de marca o categoría **no reproduce la respuesta** ante un reintento: quien perdió la
+  respuesta por un timeout recibe `409 *_NAME_ALREADY_EXISTS` y no el id, y para recuperarlo tiene
+  que recorrer `listBrands` / `listCategories` (no hay filtro por nombre ni lectura por id). Se
+  acepta porque el único llamante es el back-office humano, que tras el 409 ve la marca en el
+  listado. Un derivado en el que un **sistema** cree taxonomía de forma automática debe revisarlo:
+  pasar a `client-key` o añadir una lectura por nombre.
 
 ### Cómo reutilizarlo
 

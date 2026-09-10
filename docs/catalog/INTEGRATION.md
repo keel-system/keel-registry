@@ -1,6 +1,6 @@
 ---
 service: catalog
-version: 0.4.1
+version: 0.4.2
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -339,6 +339,9 @@ Se dio de alta una marca en el catálogo.
 
 - **Canal**: `taxonomyEvents`
 - **Emitido por**: `createBrand`
+- **Uno por marca**: el alta es idempotente por el propio `name`, que es la clave natural; un
+  reenvío de quien la pidió sale por `409` sin crear un segundo registro, así que no se publica un
+  segundo `BrandCreated` para el mismo nombre.
 
 ```json
 {
@@ -385,6 +388,9 @@ Se dio de alta una categoría en el catálogo.
 
 - **Canal**: `taxonomyEvents`
 - **Emitido por**: `createCategory`
+- **Una por categoría**: el alta es idempotente por el propio `name`, que es la clave natural; un
+  reenvío de quien la pidió sale por `409` sin crear un segundo registro, así que no se publica un
+  segundo `CategoryCreated` para el mismo nombre.
 
 ```json
 {

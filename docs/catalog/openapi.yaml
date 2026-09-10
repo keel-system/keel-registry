@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: catalog
-  version: 0.4.1
+  version: 0.4.2
   description: 'Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías,
     los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores
     por consulta directa y por eventos.
@@ -125,8 +125,15 @@ paths:
 
         - La unicidad del name no distingue mayúsculas ni acentos.
 
+        - Dos altas simultáneas del mismo name derivan el mismo slug; la que pierde responde siempre BRAND_NAME_ALREADY_EXISTS, nunca BRAND_SLUG_CONFLICT. BRAND_SLUG_CONFLICT queda para dos nombres distintos que derivan el mismo slug.
 
-        **Eventos emitidos**: `BrandCreated` (ver `asyncapi.yaml`).'
+
+        **Eventos emitidos**: `BrandCreated` (ver `asyncapi.yaml`).
+
+
+        **Idempotencia**: la clave es el campo `name` del cuerpo, que es la clave natural de la marca; no hay cabecera
+        ni ventana. Un reenvío responde `409 BRAND_NAME_ALREADY_EXISTS` sin crear un segundo registro ni publicar
+        un segundo evento: no reproduce la respuesta original.'
       requestBody:
         required: true
         content:
@@ -369,8 +376,15 @@ paths:
 
         - La unicidad del name no distingue mayúsculas ni acentos.
 
+        - Dos altas simultáneas del mismo name derivan el mismo slug; la que pierde responde siempre CATEGORY_NAME_ALREADY_EXISTS, nunca CATEGORY_SLUG_CONFLICT. CATEGORY_SLUG_CONFLICT queda para dos nombres distintos que derivan el mismo slug.
 
-        **Eventos emitidos**: `CategoryCreated` (ver `asyncapi.yaml`).'
+
+        **Eventos emitidos**: `CategoryCreated` (ver `asyncapi.yaml`).
+
+
+        **Idempotencia**: la clave es el campo `name` del cuerpo, que es la clave natural de la categoría; no hay
+        cabecera ni ventana. Un reenvío responde `409 CATEGORY_NAME_ALREADY_EXISTS` sin crear un segundo registro
+        ni publicar un segundo evento: no reproduce la respuesta original.'
       requestBody:
         required: true
         content:
@@ -621,6 +635,7 @@ paths:
         required: false
         schema:
           type: string
+          maxLength: 140
           description: Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas.
         description: Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas.
       - name: sku
@@ -628,6 +643,7 @@ paths:
         required: false
         schema:
           type: string
+          maxLength: 32
           description: Filtra por coincidencia parcial del sku.
         description: Filtra por coincidencia parcial del sku.
       - name: status

@@ -98,6 +98,39 @@
           ]
         },
         {
+          "name": "FL-BRD-001 · C2 — Reenvío del mismo alta: la clave natural es la guarda (409 BRAND_NAME_ALREADY_EXISTS)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nike\",\n  \"description\": \"Ropa y calzado deportivo.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('BRAND_NAME_ALREADY_EXISTS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "FL-BRD-001 · D — Edición de la marca (200)",
           "request": {
             "method": "PUT",
@@ -516,6 +549,39 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"calzado\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('CATEGORY_NAME_ALREADY_EXISTS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CTG-001 · C2 — Reenvío del mismo alta: la clave natural es la guarda (409 CATEGORY_NAME_ALREADY_EXISTS)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Calzado\",\n  \"description\": \"Zapatillas y botas.\"\n}"
             }
           },
           "event": [
@@ -2086,6 +2152,79 @@
               }
             }
           ]
+        },
+        {
+          "name": "FL-PRD-030 · I — Filtro de nombre por encima de 140 caracteres (400)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products?name=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-030 · J — Filtro de sku por encima de 32 caracteres (400)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products?sku=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-030 · K — Fragmento de sku en minúsculas: solo se acota la longitud (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products?sku=ku-0"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('encuentra el producto', () => pm.expect(pm.response.json().totalElements).to.be.above(0));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -3134,7 +3273,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.4.1"
+      "value": "0.4.2"
     },
     {
       "key": "brandId",

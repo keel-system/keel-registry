@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.4.1 -->
+<!-- keel:version 0.4.2 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,10 +188,10 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.4.1",
+    "version": "0.4.2",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.",
     "domain": "commerce",
-    "generatedAt": "2026-08-03"
+    "generatedAt": "2026-09-10"
   },
   "links": [
     {
@@ -1300,7 +1300,9 @@ const KEEL = {
       },
       "rules": [
         "El slug se deriva del name normalizado a kebab-case.",
-        "La unicidad del name no distingue mayúsculas ni acentos."
+        "La unicidad del name no distingue mayúsculas ni acentos.",
+        "Dos altas simultáneas del mismo name derivan el mismo slug; la que pierde responde siempre BRAND_NAME_ALREADY_EXISTS, nunca BRAND_SLUG_CONFLICT. BRAND_SLUG_CONFLICT queda para dos nombres distintos que derivan el mismo slug.",
+        "Un reenvío del llamante choca contra la clave natural y sale por BRAND_NAME_ALREADY_EXISTS, sin segundo registro ni segundo evento; no reproduce la respuesta original."
       ],
       "errors": [
         {
@@ -1314,6 +1316,10 @@ const KEEL = {
           "when": "El slug derivado del nombre coincide con el de otra marca; hay que elegir otro nombre."
         }
       ],
+      "idempotency": {
+        "keySource": "payload-field",
+        "keyField": "name"
+      },
       "security": {
         "level": "required",
         "permissions": [
@@ -1476,7 +1482,9 @@ const KEEL = {
       },
       "rules": [
         "El slug se deriva del name normalizado a kebab-case.",
-        "La unicidad del name no distingue mayúsculas ni acentos."
+        "La unicidad del name no distingue mayúsculas ni acentos.",
+        "Dos altas simultáneas del mismo name derivan el mismo slug; la que pierde responde siempre CATEGORY_NAME_ALREADY_EXISTS, nunca CATEGORY_SLUG_CONFLICT. CATEGORY_SLUG_CONFLICT queda para dos nombres distintos que derivan el mismo slug.",
+        "Un reenvío del llamante choca contra la clave natural y sale por CATEGORY_NAME_ALREADY_EXISTS, sin segundo registro ni segundo evento; no reproduce la respuesta original."
       ],
       "errors": [
         {
@@ -1490,6 +1498,10 @@ const KEEL = {
           "when": "El slug derivado del nombre coincide con el de otra categoría; hay que elegir otro nombre."
         }
       ],
+      "idempotency": {
+        "keySource": "payload-field",
+        "keyField": "name"
+      },
       "security": {
         "level": "required",
         "permissions": [

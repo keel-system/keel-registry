@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.4.1. Contrato de validación para la fase de generación.
+> specs/catalog v0.4.2. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -68,6 +68,12 @@ Valen para **todo** el servicio y ningún escenario las repite.
   una gana y la otra recibe `IDEMPOTENCY_KEY_IN_PROGRESS` (`409`). Son dos contratos distintos y
   no dos redacciones del mismo: el primero habla de una clave ya resuelta, el segundo de una que
   aún se está resolviendo.
+  `createBrand` y `createCategory` declaran la otra forma, `keySource: payload-field` sobre `name`:
+  la clave es el propio nombre, no viaja ninguna cabecera, y como `name` es la clave natural de la
+  entidad la guarda es su unicidad, sin ventana. Repetir el alta **no** reproduce la respuesta: sale
+  `409` con `BRAND_NAME_ALREADY_EXISTS` / `CATEGORY_NAME_ALREADY_EXISTS`, sin segundo registro ni
+  segundo evento. En la carrera tampoco hay disyunción: la que pierde recibe ese mismo `code`, nunca
+  el `*_SLUG_CONFLICT`, aunque las dos derivasen el mismo slug.
 - **Concurrencia**: `persistence.consistency.optimisticLocking: declared` y solo `Product` declara
   `lockVersion`. Dos ediciones concurrentes del mismo producto dan conflicto `409`
   (`PRODUCT_VERSION_CONFLICT`); dos ediciones concurrentes de la misma marca o categoría **no** dan
@@ -162,16 +168,35 @@ documento lo excluyen igual que a cualquier otro campo no enumerado.
 6. Status `409`, `code: BRAND_NAME_ALREADY_EXISTS`: la unicidad no distingue mayúsculas.
 7. `listBrands` sigue devolviendo `totalElements: 1`.
 
+**When**: se repite `createBrand` con el **mismo cuerpo** del primer alta
+(`{ "name": "Nike", "description": "Ropa y calzado deportivo." }`), como haría un llamante que
+reintenta tras un timeout
+
+**Then**:
+8. Status `409`, `code: BRAND_NAME_ALREADY_EXISTS`: la guarda de idempotencia es la clave natural
+   `name`, y **no** reproduce el `201` original.
+9. No se publica un segundo `BrandCreated`; `listBrands` sigue devolviendo `totalElements: 1`.
+
+**When**: se lanzan **a la vez** dos `createBrand` con el mismo cuerpo
+`{ "name": "Puma", "description": null }`, ninguna confirmada antes de que entre la otra
+
+**Then**:
+10. Una responde `201` con la marca `Puma` (`slug: "puma"`) y la otra `409`,
+    `code: BRAND_NAME_ALREADY_EXISTS` — **nunca** `BRAND_SLUG_CONFLICT`, aunque las dos derivasen el
+    mismo slug `puma` y la constraint que saltó primero fuese la del slug.
+11. Se publica **exactamente un** `BrandCreated` con `name: "Puma"`.
+12. `listBrands` devuelve `totalElements: 2` (`Nike` y `Puma`): la carrera no creó una tercera marca.
+
 **When**: `updateBrand` — `PUT /api/v1/management/brands/{brandId}` sobre la marca creada
 ```json
 { "name": "Nike Sportswear", "description": null }
 ```
 
 **Then**:
-8. Status `200`.
-9. El cuerpo trae el mismo `id`, `name: "Nike Sportswear"`, `slug: "nike-sportswear"` (recalculado)
-   y `description: null` — presente y nulo, no ausente: la edición es un **reemplazo completo**.
-10. Se publica `BrandUpdated` en `taxonomyEvents` con el `brandId`, `name: "Nike Sportswear"`,
+13. Status `200`.
+14. El cuerpo trae el mismo `id`, `name: "Nike Sportswear"`, `slug: "nike-sportswear"` (recalculado)
+    y `description: null` — presente y nulo, no ausente: la edición es un **reemplazo completo**.
+15. Se publica `BrandUpdated` en `taxonomyEvents` con el `brandId`, `name: "Nike Sportswear"`,
     `slug: "nike-sportswear"` y `updatedAt`.
 
 **Orden de evaluación** (`updateBrand`):
@@ -254,11 +279,31 @@ con `categoryId`, `name`, `slug` y `updatedAt`.
 **When**: `createCategory` con `{ "name": "calzado" }` → **Then** `409`,
 `code: CATEGORY_NAME_ALREADY_EXISTS`.
 
+**When**: se repite `createCategory` con el **mismo cuerpo** del primer alta
+(`{ "name": "Calzado", "description": "Zapatillas y botas." }`), como haría un llamante que reintenta
+tras un timeout
+
+**Then**:
+5. Status `409`, `code: CATEGORY_NAME_ALREADY_EXISTS`: la guarda de idempotencia es la clave natural
+   `name`, y **no** reproduce el `201` original.
+6. No se publica un segundo `CategoryCreated`; `listCategories` sigue devolviendo `totalElements: 1`.
+
+**When**: se lanzan **a la vez** dos `createCategory` con el mismo cuerpo
+`{ "name": "Camisetas", "description": null }`, ninguna confirmada antes de que entre la otra
+
+**Then**:
+7. Una responde `201` con la categoría `Camisetas` (`slug: "camisetas"`) y la otra `409`,
+   `code: CATEGORY_NAME_ALREADY_EXISTS` — **nunca** `CATEGORY_SLUG_CONFLICT`, aunque las dos
+   derivasen el mismo slug.
+8. Se publica **exactamente un** `CategoryCreated` con `name: "Camisetas"`.
+9. `listCategories` devuelve `totalElements: 2` (`Calzado` y `Camisetas`): la carrera no creó una
+   tercera categoría.
+
 **When**: `updateCategory` con `{ "name": "Calzado deportivo", "description": null }`
 
 **Then**:
-5. Status `200`, `slug: "calzado-deportivo"`, `description: null`.
-6. Se publica `CategoryUpdated` en `taxonomyEvents`.
+10. Status `200`, `slug: "calzado-deportivo"`, `description: null`.
+11. Se publica `CategoryUpdated` en `taxonomyEvents`.
 
 **Orden de evaluación** (`updateCategory`):
 1. La categoría existe → `CATEGORY_NOT_FOUND` (`404`).
@@ -634,6 +679,10 @@ quedan en `draft` con precios entre `10.00` y `250.00`.
 - `getProduct` sobre un id inexistente → `404`, `code: PRODUCT_NOT_FOUND`.
 - `listProducts` sin ningún resultado → `200` con `items: []` y `totalElements: 0`, nunca `404`.
 - `listProducts` devuelve productos en **cualquier** estado, incluidos `discontinued`.
+- `listProducts?name=` con 141 caracteres → `400` (`maxLength: 140`, la cota de `Product.name`).
+- `listProducts?sku=` con 33 caracteres → `400` (`maxLength: 32`, la longitud máxima de un SKU).
+- `listProducts?sku=ku-0` → `200` e `items` incluye `p1`: el filtro solo acota la longitud, no el
+  formato de `SKU`, así que un fragmento en minúsculas que el type rechazaría es un filtro válido.
 
 **Notas de determinación**: para que el orden por `updatedAt` sea distinguible de cualquier otro,
 los productos se crean con una separación observable y el escenario comprueba que `p25` (el último
