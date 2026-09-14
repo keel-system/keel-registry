@@ -1,0 +1,170 @@
+# Capa messaging — qué eventos publica este servicio y por qué canal lógico.
+# El broker concreto y el nombre físico del topic/cola se deciden al generar, nunca aquí.
+#
+# ESTE SERVICIO SOLO PUBLICA. No hay bloque `subscriptions` y es una decisión, no un olvido:
+#   - No nos suscribimos a los eventos del servidor de identidad. El aprovisionamiento just-in-time
+#     ya cubre todas las vías de alta sin tener que enumerarlas, y un usuario deshabilitado allí deja
+#     de recibir tokens, así que no puede llegar hasta aquí.
+#   - La baja la inicia un administrador contra nuestra API, y por esa vía ProfileDeleted se emite y
+#     la cadena de purga funciona.
+#   - Consecuencia aceptada a sabiendas: si alguien borra la identidad directamente en la consola del
+#     servidor de identidad, este servicio no se entera y quedan datos personales de alguien que ya
+#     no existe. El procedimiento correcto es el contrario — se borra aquí primero, y deshabilitar la
+#     identidad es un acto aparte, fuera de este contrato. Quien quiera cerrar ese hueco monta
+#     reconciliación periódica, que es despliegue y no diseño.
+
+channels:
+  profileEvents:
+    description: Hechos del perfil de usuario que publica este servicio; es el único canal del diseño.
+
+# QUIÉN CONSUME ESTOS EVENTOS: hoy, nadie declarado. Los dos consumidores nombrados del diseño
+# —order-service y notification-service— llegan por HTTP. Los diez eventos son contrato público a
+# sabiendas, y existen para que cualquiera pueda mantener una réplica de solo lectura sin que
+# nosotros tengamos que saber quién es. El compromiso que eso asume, escrito: la lista es COMPLETA
+# sobre la superficie de mutación —toda vía por la que el dato cambia emite— y no se recorta sin
+# versionar, porque de esa completitud depende que una réplica ajena no se pudra en silencio.
+#
+# AUSENCIA EN EL PAYLOAD: todo campo declarado está PRESENTE; el que no tiene valor viaja como
+# nulo, nunca omitido. Con eventos que llevan estado, omitir un campo que el usuario borró y
+# omitir uno que no cambió se escribirían igual, y el consumidor no podría saber si vaciar su copia.
+#
+# UN SOLO EVENTO POR TRANSACCIÓN: ninguna operación publica dos eventos a la vez. Es lo que
+# mantiene `version` única por agregado y el orden total entre eventos del mismo perfil.
+
+publishing:
+  # La fila del evento se escribe en la misma transacción que el agregado que cambió. ProfileDeleted
+  # manda sobre los demás: es la señal con la que el resto del sistema purga sus copias de datos
+  # personales, así que su fiabilidad fija la de la capa entera y no hay nada más abajo que lo
+  # recupere si se pierde.
+  reliability: outbox
+
+  # Los eventos llevan ESTADO, no solo el subject: es lo que permite a un consumidor mantener una
+  # réplica de solo lectura sin llamarnos de vuelta en cada cambio. El coste, aceptado por escrito,
+  # es que el broker pasa a contener datos personales y su retención es un sitio más que inventariar.
+  # Y todos llevan `version` —el lockVersion del agregado, el mismo que devuelven las dos familias
+  # M2M— para que un consumidor descarte un evento más viejo que el estado que ya aplicó.
+  events:
+
+    ProfileProvisioned:
+      description: >-
+        Nació un perfil al adoptar una identidad en la primera petición autenticada de esa persona.
+        Es el primer hecho de todo perfil y el que arranca cualquier réplica.
+      channel: profileEvents
+      payload:
+        subject:      { type: SubjectIdentifier, required: true }
+        contactEmail: { type: EmailAddress, description: "Puede no venir: si el token no traía claim de email, el perfil nace sin él." }
+        givenName:    { type: string, constraints: { maxLength: 100 } }
+        familyName:   { type: string, constraints: { maxLength: 100 } }
+        displayName:  { type: string, constraints: { maxLength: 200 } }
+        contactPhone: { type: PhoneNumber, description: "Nunca viene en el alta; el teléfono lo pone la persona después." }
+        status:       { type: ProfileStatus, required: true }
+        version:      { type: int, required: true }
+
+    # El fallo más silencioso del diseño si este evento no existiera: el aprovisionamiento corre en
+    # TODA petición autenticada y refresca el contactEmail cuando el claim del token difiere del
+    # almacenado, así que el dato cambia sin pasar por ningún command. Sin evento no hay error, no
+    # hay traza, y solo se descubre el día que un correo no llega a quien debía.
+    ProfileContactEmailRefreshed:
+      description: El correo de contacto se refrescó desde el claim del token durante un aprovisionamiento.
+      channel: profileEvents
+      payload:
+        subject:      { type: SubjectIdentifier, required: true }
+        contactEmail: { type: EmailAddress, required: true }
+        version:      { type: int, required: true }
+
+    ProfileContactDetailsChanged:
+      description: La persona reemplazó su bloque de contacto editable. No incluye el correo, que no se edita por la API.
+      channel: profileEvents
+      payload:
+        subject:      { type: SubjectIdentifier, required: true }
+        givenName:    { type: string, constraints: { maxLength: 100 } }
+        familyName:   { type: string, constraints: { maxLength: 100 } }
+        displayName:  { type: string, constraints: { maxLength: 200 } }
+        contactPhone: { type: PhoneNumber }
+        status:       { type: ProfileStatus, required: true, description: "El estado recalculado tras el cambio; los cambios de completitud no tienen evento propio y viajan aquí." }
+        version:      { type: int, required: true }
+
+    AddressAdded:
+      description: La persona añadió una dirección a su perfil.
+      channel: profileEvents
+      payload:
+        subject:   { type: SubjectIdentifier, required: true }
+        addressId: { type: uuid, required: true }
+        label:     { type: string, required: true, constraints: { maxLength: 60 } }
+        type:      { type: AddressType, required: true }
+        postal:    { type: PostalAddress, required: true, description: "La dirección entera, con el nombre de cada territorio al lado de su código, tal como se guardó." }
+        isDefault: { type: boolean, required: true }
+        status:    { type: ProfileStatus, required: true }
+        version:   { type: int, required: true }
+
+    AddressChanged:
+      description: La persona reemplazó el contenido de una de sus direcciones.
+      channel: profileEvents
+      payload:
+        subject:   { type: SubjectIdentifier, required: true }
+        addressId: { type: uuid, required: true }
+        label:     { type: string, required: true, constraints: { maxLength: 60 } }
+        type:      { type: AddressType, required: true }
+        postal:    { type: PostalAddress, required: true }
+        isDefault: { type: boolean, required: true }
+        status:    { type: ProfileStatus, required: true }
+        version:   { type: int, required: true }
+
+    AddressRemoved:
+      description: La persona eliminó una de sus direcciones.
+      channel: profileEvents
+      payload:
+        subject:    { type: SubjectIdentifier, required: true }
+        addressId:  { type: uuid, required: true }
+        type:       { type: AddressType, required: true }
+        wasDefault: { type: boolean, required: true, description: "Si la eliminada era la de por defecto de su type; en ese caso el perfil queda sin ninguna para ese type, porque no se promociona otra automáticamente." }
+        status:     { type: ProfileStatus, required: true }
+        version:    { type: int, required: true }
+
+    # Solo lo publica setMyDefaultAddress. Añadir una dirección marcándola por defecto publica
+    # únicamente AddressAdded, que ya lleva isDefault: emitir los dos daría dos eventos con la misma
+    # version, y la regla «descarta el más viejo» dejaría de desempatarlos.
+    DefaultAddressChanged:
+      description: La persona eligió otra dirección por defecto para un type.
+      channel: profileEvents
+      payload:
+        subject:           { type: SubjectIdentifier, required: true }
+        type:              { type: AddressType, required: true }
+        addressId:         { type: uuid, required: true, description: "La que pasa a ser la de por defecto." }
+        previousAddressId: { type: uuid, description: "La que deja de serlo; no viene si no había ninguna." }
+        status:            { type: ProfileStatus, required: true }
+        version:           { type: int, required: true }
+
+    ProfileDeactivated:
+      description: Un administrador desactivó el perfil. Conserva todos sus datos; no es una baja.
+      channel: profileEvents
+      payload:
+        subject: { type: SubjectIdentifier, required: true }
+        status:  { type: ProfileStatus, required: true }
+        version: { type: int, required: true }
+
+    # Sin este evento, un consumidor deja al usuario desactivado para siempre en su réplica: es la
+    # vía de mutación que más fácil se escapa al enumerar los hechos del perfil.
+    ProfileReactivated:
+      description: Un administrador reactivó el perfil, que vuelve a draft o a complete según los datos que tenga.
+      channel: profileEvents
+      payload:
+        subject: { type: SubjectIdentifier, required: true }
+        status:  { type: ProfileStatus, required: true }
+        version: { type: int, required: true }
+
+    # La señal de purga del sistema entero. No lleva ningún dato personal a propósito: mandar el
+    # contacto de quien acaba de ejercer su derecho de supresión sería exactamente lo contrario de lo
+    # que el evento pide hacer. Sí lleva version, y no por simetría: sin ella, un evento de contacto
+    # que llegue tarde se aplicaría después del borrado y resucitaría el perfil en la réplica.
+    ProfileDeleted:
+      description: >-
+        Se borró el perfil y su información personal quedó purgada. Es la señal con la que cada
+        consumidor purga sus propias copias; una réplica de solo lectura debe borrar la suya, y un
+        snapshot inmutable ya congelado en un pedido no es una copia del perfil y no se toca.
+      channel: profileEvents
+      payload:
+        subject:   { type: SubjectIdentifier, required: true }
+        version:   { type: int, required: true, description: "La versión que tenía el agregado al borrarse; ordena el borrado frente a cualquier evento anterior que llegue tarde." }
+        deletedAt: { type: timestamp, required: true }
+        reason:    { type: DeletionReason, required: true }

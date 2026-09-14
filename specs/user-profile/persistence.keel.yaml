@@ -1,0 +1,84 @@
+# Capa persistence — integración con la base de datos.
+# Agnóstico del motor: se declara el modelo de almacenamiento, no la tecnología.
+#
+# UNA CONSECUENCIA DEL PATRÓN QUE HAY QUE TENER DELANTE AL GENERAR: el aprovisionamiento just-in-time
+# corre en la primera petición autenticada de cada persona, sea al endpoint que sea, así que la
+# primera petición de un usuario nuevo ESCRIBE aunque sea un GET — un INSERT del perfil más su fila
+# de outbox, en la misma transacción. Ningún endpoint de este servicio puede tratarse como de solo
+# lectura: ni enrutarse a una réplica de lectura, ni ejecutarse en una transacción de solo lectura.
+# Es inevitable en este patrón y es correcto, pero rompe la intuición de que una query no muta.
+
+default:
+  model: relational
+
+entities:
+  UserProfile:
+    persisted: true
+    # El subject es la clave de negocio, y su unicidad no es cosmética: al arrancar, un frontend
+    # lanza tres o cuatro peticiones en paralelo, las tres ven que no existe perfil y las tres
+    # insertan. Con la restricción, dos fallan y el caso de uso relee y devuelve el que ganó la
+    # carrera; sin ella hay perfiles duplicados para la misma persona y nadie se entera.
+    # Es también la guarda de idempotencia de provisionProfileFromIdentity, que por eso no necesita
+    # ningún registro de claves aparte.
+    naturalKey: [subject]
+    # Índices dictados por las queries reales, no por la forma de la entidad:
+    #   subject: la lectura directa de las tres superficies — /me, back-office y M2M — y la unicidad.
+    #   (status, createdAt): el listado de back-office filtra por estado y ordena por fecha de alta.
+    #   (createdAt): el mismo listado sin filtro de estado, que es el caso normal.
+    #   (contactEmail) y (displayName): el filtro `search` del back-office, que coincide por PREFIJO
+    #   sobre los dos campos. Por prefijo y no por subcadena justamente para que estos dos índices
+    #   lo sostengan: una búsqueda de subcadena recorrería la tabla entera, y con el padrón crecido
+    #   eso deja de responder — que es cota, no rendimiento.
+    indexes: [[subject], [status, createdAt], [createdAt], [contactEmail], [displayName]]
+
+  Address:
+    persisted: true
+    indexes:
+      # La consulta caliente de la superficie M2M: resolver la dirección shipping por defecto de un
+      # perfil para congelarla en un pedido.
+      - [profileId, type, isDefault]
+      # Unicidad CONDICIONADA: como mucho una dirección por defecto por tipo y perfil, sin impedir
+      # que convivan todas las que no lo son. Con `unique` a secas sobre [profileId, type] no se
+      # podrían tener dos direcciones de envío; sin nada, la ventana de dos peticiones simultáneas
+      # queda abierta y la comprobación del caso de uso no la cierra.
+      - fields: [profileId, type]
+        unique: true
+        when: { field: isDefault, equals: true }
+        description: Como mucho una dirección marcada por defecto para cada tipo dentro de un mismo perfil.
+
+  DeletedSubject:
+    persisted: true
+    # El subject ya es el id de la entidad, así que no hay clave natural aparte que declarar. La
+    # consulta que importa es la del aprovisionamiento —¿tiene lápida este subject?— y va por id.
+
+# El rastro de cuándo es parte del contrato y por eso es 'declared': createdAt y updatedAt están en
+# domain y salen en los output del back-office, que es lo que permite a soporte responder desde
+# cuándo existe un perfil y al listado ordenar por fecha de alta. La autoría se registra en todas
+# las entidades pero fuera del contrato: quién tocó un perfil es dato de operación y de auditoría
+# interna, no algo que order-service o notification-service deban recibir en su payload.
+# Quién borró un perfil no depende de esta política: deletedBy es un campo propio de la lápida,
+# porque tiene que sobrevivir al borrado de la fila cuyo rastro de autoría desaparece con ella.
+audit:
+  timestamps: declared
+  authorship: all
+
+# RETENCIÓN: ninguna, y es una decisión. Un perfil vive mientras nadie lo borre; no hay purga por
+# inactividad ni archivado automático, porque un borrado automático sería irreversible y silencioso
+# a la vez. La lápida tampoco caduca. Quien adopte este diseño con una obligación legal de
+# conservación limitada tiene que añadirla él, y aquí sabe que no está.
+
+consistency:
+  # per-operation y no per-aggregate, a sabiendas de que domain declara agregados: deleteProfile y
+  # deleteMyProfile destruyen el agregado UserProfile y crean el agregado DeletedSubject, y los dos
+  # tienen que confirmar juntos. Si se borrara el perfil sin escribir la lápida, la siguiente
+  # petición de ese subject lo re-aprovisionaría en draft y el borrado se habría deshecho solo; si
+  # se escribiera la lápida sin borrar el perfil, quedarían datos personales que ninguna operación
+  # puede ya alcanzar, porque un borrado repetido responde éxito al ver la lápida.
+  transactionalBoundary: per-operation
+  # lockVersion está declarado solo en UserProfile, la única raíz con edición concurrente real: dos
+  # pestañas del mismo usuario editando su contacto y sus direcciones. Una escritura sobre una
+  # versión vieja falla con 409 en vez de perder la edición ajena en silencio. Se eligió 'declared'
+  # y no 'all' para que la versión sea parte del contrato y pueda viajar en los diez eventos: sin
+  # ella, dos eventos del mismo perfil que lleguen desordenados dejan la réplica del consumidor mal
+  # para siempre. La lápida no lo declara: no se edita nunca.
+  optimisticLocking: declared

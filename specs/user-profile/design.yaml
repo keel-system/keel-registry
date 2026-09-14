@@ -1,0 +1,34 @@
+# Metadatos de publicación en el registry. No forma parte del DSL: describe cómo se distribuye y
+# se descubre el diseño, no lo que el servicio hace.
+
+# La familia es el propio slug. La otra variante de la familia —la del alta administrativa de la
+# identidad desde este servicio— no entra en este spec, y cuando se diseñe irá en su propio
+# directorio (specs/user-profile-<variante>/) declarando family: user-profile y su variant.
+family: user-profile
+summary: >
+  Perfil de usuario adoptado por aprovisionamiento just-in-time desde un servidor de identidad: un
+  solo dueño de la identidad y un solo dueño del perfil, con el subject del token como única costura.
+  Contacto y N direcciones con división territorial genérica y denormalizada, lápida permanente que
+  impide re-aprovisionar un subject borrado, y superficie servidor-a-servidor separada por scope
+  entre quien necesita contacto y quien necesita dirección de envío.
+maturity: draft
+tags:
+  - identity
+  - user-profile
+  - oidc
+  - just-in-time-provisioning
+  - address
+  - contact
+  - gdpr
+  - tombstone
+  - soft-boundary
+  - events
+  - outbox
+  - m2m
+  - cache
+  - idempotency
+  - optimistic-locking
+  - audit
+  - pagination
+author: keel
+license: Apache-2.0

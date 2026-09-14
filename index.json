@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "generatedBy": {
-    "keelCore": "0.3.2",
+    "keelCore": "0.3.3",
     "dsl": [
       "2.13"
     ]
@@ -210,6 +210,108 @@
         "docs/notifications/INTEGRATION.md",
         "docs/notifications/postman/auth-collection.json"
       ]
+    },
+    {
+      "slug": "user-profile",
+      "family": "user-profile",
+      "variant": null,
+      "service": {
+        "name": "user-profile",
+        "version": "0.1.0",
+        "dsl": "2.13",
+        "domain": "identity",
+        "basedOn": null,
+        "description": "Posee el perfil de negocio de cada persona — contacto y direcciones — adoptando por aprovisionamiento just-in-time la identidad que crea el servidor de identidad, sin ser nunca dueño de sus credenciales."
+      },
+      "metadata": {
+        "family": "user-profile",
+        "summary": "Perfil de usuario adoptado por aprovisionamiento just-in-time desde un servidor de identidad: un solo dueño de la identidad y un solo dueño del perfil, con el subject del token como única costura. Contacto y N direcciones con división territorial genérica y denormalizada, lápida permanente que impide re-aprovisionar un subject borrado, y superficie servidor-a-servidor separada por scope entre quien necesita contacto y quien necesita dirección de envío.\n",
+        "maturity": "draft",
+        "tags": [
+          "identity",
+          "user-profile",
+          "oidc",
+          "just-in-time-provisioning",
+          "address",
+          "contact",
+          "gdpr",
+          "tombstone",
+          "soft-boundary",
+          "events",
+          "outbox",
+          "m2m",
+          "cache",
+          "idempotency",
+          "optimistic-locking",
+          "audit",
+          "pagination"
+        ],
+        "author": "keel",
+        "license": "Apache-2.0"
+      },
+      "layers": [
+        "domain",
+        "use-cases",
+        "api",
+        "security",
+        "messaging",
+        "persistence"
+      ],
+      "counts": {
+        "entities": 3,
+        "types": 15,
+        "aggregates": 2,
+        "operations": 18,
+        "commands": 11,
+        "queries": 7,
+        "endpoints": 17,
+        "roles": 2,
+        "serviceClients": 2,
+        "publishedEvents": 10,
+        "subscriptions": 0,
+        "persistedEntities": 3
+      },
+      "status": {
+        "ok": true,
+        "pending": 0,
+        "errors": 0
+      },
+      "derivatives": {
+        "fresh": 9,
+        "stale": 0,
+        "unstamped": 0,
+        "missing": 0,
+        "orphan": 0,
+        "notApplicable": 0
+      },
+      "docs": {
+        "design": "docs/user-profile/DESIGN.md",
+        "overview": "docs/user-profile/overview.html",
+        "openapiViewer": "docs/user-profile/openapi.html",
+        "asyncapiViewer": "docs/user-profile/asyncapi.html",
+        "integration": "docs/user-profile/INTEGRATION.md"
+      },
+      "files": [
+        "specs/user-profile/service.keel.yaml",
+        "specs/user-profile/domain.keel.yaml",
+        "specs/user-profile/use-cases.keel.yaml",
+        "specs/user-profile/api.keel.yaml",
+        "specs/user-profile/security.keel.yaml",
+        "specs/user-profile/messaging.keel.yaml",
+        "specs/user-profile/persistence.keel.yaml",
+        "specs/user-profile/design.yaml",
+        "specs/user-profile/decisions.yaml",
+        "specs/user-profile/validation-scenarios.md",
+        "docs/user-profile/DESIGN.md",
+        "docs/user-profile/openapi.yaml",
+        "docs/user-profile/openapi.html",
+        "docs/user-profile/asyncapi.yaml",
+        "docs/user-profile/asyncapi.html",
+        "docs/user-profile/postman/user-profile-collection.json",
+        "docs/user-profile/overview.html",
+        "docs/user-profile/INTEGRATION.md",
+        "docs/user-profile/postman/auth-collection.json"
+      ]
     }
   ],
   "families": [
@@ -223,6 +325,12 @@
       "name": "notifications",
       "designs": [
         "notifications"
+      ]
+    },
+    {
+      "name": "user-profile",
+      "designs": [
+        "user-profile"
       ]
     }
   ]

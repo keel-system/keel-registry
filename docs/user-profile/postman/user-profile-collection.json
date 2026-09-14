@@ -1,0 +1,3047 @@
+{
+  "info": {
+    "name": "user-profile",
+    "description": "Colección de negocio derivada de specs/user-profile v0.1.0.\n\nImporta primero `auth-collection.json` y ejecútala: guarda los tokens en globals (`token_user`, `token_profile-support`, `token_profile-admin`, `token_order-service`, `token_notification-service`) que esta colección consume.\n\nUna carpeta por flujo `FL-*` de validation-scenarios.md. Los flujos se ejecutan de arriba abajo: dentro de cada uno las requests encadenan estado y guardan ids en globals.\n\nLAS RUTAS DE /me NO LLEVAN SUBJECT: lo estampa el servidor desde el claim `sub` del token, así que `token_user` determina sobre qué perfil actúan. Los flujos que nombran varios subjects distintos exigen reemitir ese token entre medias; el escenario completo está en validation-scenarios.md.\n\nTres flujos no son reproducibles enteros desde Postman y sus requests lo dicen: los dos del outbox (exigen detener y restablecer el canal de eventos) y las carreras de concurrencia e idempotencia (exigen lanzar dos peticiones a la vez).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "FL-PRV-001 — Un token válido sin perfil crea el perfil en draft en cualquier endpoint",
+      "item": [
+        {
+          "name": "FL-PRV-001 · A — El GET que aprovisiona (200)",
+          "description": "Primera petición autenticada de un subject sin perfil ni lápida. Este GET ESCRIBE: crea el perfil en draft y publica ProfileProvisioned.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('nace en draft', () => pm.expect(pm.response.json().status).to.eql('draft'));",
+                  "pm.test('sin direcciones', () => pm.expect(pm.response.json().addresses).to.be.an('array').that.is.empty);",
+                  "pm.globals.set('profileId', pm.response.json().id);",
+                  "pm.globals.set('subject', pm.response.json().subject);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRV-001 · B — La segunda petición no crea otro perfil (200)",
+          "description": "Mismo token: devuelve el mismo id y no publica un segundo ProfileProvisioned.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('mismo perfil', () => pm.expect(pm.response.json().id).to.eql(pm.globals.get('profileId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRV-001 · C — El perfil existe de verdad (200)",
+          "description": "Comprueba desde fuera que el GET escribió: el perfil aparece en el listado de back-office.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRV-002 — Un token de máquina no aprovisiona nada",
+      "item": [
+        {
+          "name": "FL-PRV-002 · A — Token de máquina en /me (403)",
+          "description": "Un token de client-credentials trae subject pero no hay persona detrás. Sin esta guarda se crearía un perfil fantasma por cada servicio que nos llame.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('SUBJECT_NOT_PROVISIONABLE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRV-002 · B — No se creó ningún perfil (200)",
+          "description": "La aserción que de verdad mide: el status por sí solo no distinguiría un rechazo de autorización.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRV-003 — El refresco del contactEmail publica su propio evento",
+      "item": [
+        {
+          "name": "FL-PRV-003 · A — Petición con el claim de email cambiado (200)",
+          "description": "Con un token cuyo claim `email` difiera del contactEmail almacenado, el perfil se refresca y se publica ProfileContactEmailRefreshed. Ocurre en cualquier estado, incluido deactivated: no es una edición del usuario sino el mantenimiento de una réplica cuyo dueño es el servidor de identidad.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRV-004 — Tres peticiones simultáneas del mismo subject producen un solo perfil",
+      "item": [
+        {
+          "name": "FL-PRV-004 · A — Aprovisionamiento concurrente (200)",
+          "description": "La carrera se ejercita lanzando esta request tres veces EN PARALELO (Runner con varias instancias). Postman no paraleliza por sí solo: el escenario completo vive en validation-scenarios.md.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRV-004 · B — Exactamente un perfil (200)",
+          "description": "La aserción que no depende de quién gane la carrera.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-ME-001 — Completar el contacto publica su evento y el perfil sigue en draft sin dirección",
+      "item": [
+        {
+          "name": "FL-ME-001 · A — Reemplazo del bloque de contacto (200)",
+          "description": "No incluye contactEmail: el correo de login es del servidor de identidad.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/contact-details",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"givenName\": \"Dana\",\n  \"familyName\": \"López\",\n  \"displayName\": \"Dana L.\",\n  \"contactPhone\": \"+573001112233\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('sigue en draft sin dirección', () => pm.expect(pm.response.json().status).to.eql('draft'));",
+                  "pm.test('teléfono guardado', () => pm.expect(pm.response.json().contactPhone).to.eql('+573001112233'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ME-001 · B — Teléfono sin prefijo internacional (400)",
+          "description": "El value type PhoneNumber exige E.164.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/contact-details",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Dana L.\",\n  \"contactPhone\": \"600111222\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ME-001 · C — displayName demasiado largo (400)",
+          "description": "maxLength: 200.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/contact-details",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-ME-002 — El reemplazo es completo y dos escrituras concurrentes dan conflicto",
+      "item": [
+        {
+          "name": "FL-ME-002 · A — Un campo que no viene se borra (200)",
+          "description": "Reemplazo completo, no parche: familyName y contactPhone quedan nulos.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/contact-details",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"givenName\": \"Dana\",\n  \"displayName\": \"Dana L.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('familyName vaciado', () => pm.expect(pm.response.json().familyName).to.be.null);",
+                  "pm.test('contactPhone vaciado', () => pm.expect(pm.response.json().contactPhone).to.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ME-002 · B — Repetir deja el perfil igual (200)",
+          "description": "Fijar el bloque a un valor es naturalmente idempotente, y por eso la operación no declara idempotency.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/contact-details",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"givenName\": \"Dana\",\n  \"displayName\": \"Dana L.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ME-002 · C — Escritura concurrente (409)",
+          "description": "La carrera se ejercita lanzando dos PUT a la vez con cuerpos distintos: una responde 200 y la otra 409 CONCURRENT_MODIFICATION. Ejecutada sola, esta request responde 200.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/contact-details",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"B\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-ME-003 — Un perfil desactivado rechaza las cinco mutaciones de /me",
+      "item": [
+        {
+          "name": "FL-ME-003 · A — Desactivar el perfil (200)",
+          "description": "Prepara el estado del flujo; arista complete → deactivated.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}/deactivate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ME-003 · B — Contacto sobre perfil desactivado (409)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/contact-details",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"givenName\": \"Dana\",\n  \"familyName\": \"López\",\n  \"displayName\": \"Dana L.\",\n  \"contactPhone\": \"+573001112233\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PROFILE_DEACTIVATED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ME-003 · C — Alta de dirección sobre perfil desactivado (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ME-003 · D — Leer sí se puede (200)",
+          "description": "Un perfil deactivated conserva todos sus datos; desactivar no es borrar.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-ADR-001 — Añadir la dirección de envío por defecto completa el perfil",
+      "item": [
+        {
+          "name": "FL-ADR-001 · A — Alta de dirección por defecto (200)",
+          "description": "Devuelve 200 con el perfil entero, no 201 con la dirección: añadir recalcula el status, y por eso tampoco hay cabecera Location.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "key-adr-1"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('el perfil pasa a complete', () => pm.expect(pm.response.json().status).to.eql('complete'));",
+                  "pm.test('una dirección', () => pm.expect(pm.response.json().addresses).to.have.lengthOf(1));",
+                  "pm.test('sin Location', () => pm.expect(pm.response.headers.has('Location')).to.be.false);",
+                  "pm.globals.set('addressId', pm.response.json().addresses[0].id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-ADR-002 — Cambiar, reordenar y eliminar direcciones, con sus tres eventos",
+      "item": [
+        {
+          "name": "FL-ADR-002 · A — Segunda dirección, no por defecto (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Oficina\",\n  \"type\": \"shipping\",\n  \"isDefault\": false,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.globals.set('addressId2', pm.response.json().addresses.find(a => a.label === 'Oficina').id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-002 · B — Cambiar la dirección por defecto (200)",
+          "description": "Desmarca la que lo estuviera para ese mismo type y publica DefaultAddressChanged.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses/{{addressId2}}/default"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-002 · C — Repetir es idempotente (200)",
+          "description": "Fijar un valor es naturalmente idempotente.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses/{{addressId2}}/default"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-002 · D — Cambiar el type a billing degrada el perfil (200)",
+          "description": "El perfil se queda sin dirección shipping por defecto: arista complete → draft.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses/{{addressId2}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Oficina\",\n  \"type\": \"billing\",\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('vuelve a draft', () => pm.expect(pm.response.json().status).to.eql('draft'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-002 · E — Eliminar una dirección (200)",
+          "description": "Devuelve 200 con el perfil y no 204: eliminar recalcula el status. Y no se promociona ninguna otra a por defecto automáticamente.",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses/{{addressId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-ADR-003 — El reintento con la misma clave no crea una segunda dirección",
+      "item": [
+        {
+          "name": "FL-ADR-003 · A — Alta con Idempotency-Key (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "key-g1"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-003 · B — Reintento con la misma clave y el mismo cuerpo (200)",
+          "description": "Devuelve la respuesta original y no crea una segunda dirección.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "key-g1"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('sigue habiendo una dirección', () => pm.expect(pm.response.json().addresses).to.have.lengthOf(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-003 · C — Clave distinta, mismo cuerpo: crea otra (200)",
+          "description": "Contenido idéntico no es la misma intención; la clave es lo que las distingue.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "key-g2"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ahora hay dos', () => pm.expect(pm.response.json().addresses).to.have.lengthOf(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-003 · D — Misma clave, cuerpo distinto (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "key-g1"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Otra\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('IDEMPOTENCY_KEY_REUSED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-ADR-004 — Dos altas con la misma clave a la vez crean una sola dirección",
+      "item": [
+        {
+          "name": "FL-ADR-004 · A — Alta en carrera (200)",
+          "description": "La carrera se ejercita lanzando esta request dos veces EN PARALELO con la misma clave: o las dos responden 200 con el mismo cuerpo, o una responde 409 IDEMPOTENCY_KEY_IN_PROGRESS.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "key-h1"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-004 · B — Exactamente una dirección (200)",
+          "description": "La aserción que no depende de quién gane la carrera.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-ADR-005 — Los rechazos de las operaciones de dirección",
+      "item": [
+        {
+          "name": "FL-ADR-005 · A — Actualizar una dirección inexistente (404)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses/00000000-0000-0000-0000-000000000000",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('ADDRESS_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-005 · B — Eliminar una dirección inexistente (404)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses/00000000-0000-0000-0000-000000000000"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-005 · C — Marcar por defecto una inexistente (404)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses/00000000-0000-0000-0000-000000000000/default"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-005 · D — Dirección sin line1 (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"postal\": {\n    \"line1\": null,\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-005 · E — countryCode de tres letras (400)",
+          "description": "El value type CountryCode exige ISO 3166-1 alpha-2.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"COL\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-ADR-005 · F — Dirección sin label (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"shipping\",\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-TER-001 — Una localidad que no existe se guarda tal cual",
+      "item": [
+        {
+          "name": "FL-TER-001 · A — Territorio inventado, aceptado (200)",
+          "description": "Hace VERIFICABLE la decisión de no validar contra catálogo. El servidor no rechaza, no normaliza y no sustituye: guarda lo que le dijeron y publica AddressAdded. Si alguien 'arregla' el diseño metiendo una comprobación de catálogo, esta request se pone roja.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Carrera 70 # 1-20\",\n    \"line2\": null,\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"99999\",\n    \"localityName\": \"Medallo\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('se guardó literal', () => pm.expect(pm.response.json().addresses.slice(-1)[0].postal.localityName).to.eql('Medallo'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-TER-002 — La forma sí se valida",
+      "item": [
+        {
+          "name": "FL-TER-002 · A — Código de nivel 1 de otro país (422)",
+          "description": "La única comprobación territorial real del servicio: el prefijo del ISO 3166-2 debe coincidir con el país.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"ES\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('SUBDIVISION_CODE_COUNTRY_MISMATCH'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-TER-002 · B — Código sin su nombre (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": null,\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('TERRITORY_NAME_MISSING'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-TER-002 · C — adminAreaCode mal formado (400)",
+          "description": "El value type SubdivisionCode exige la forma ISO 3166-2.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"ANTIOQUIA\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-TER-002 · D — País sin nivel 1 (200)",
+          "description": "El nivel 1 es opcional: hay países que no lo tienen.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"isDefault\": true,\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"MC\",\n    \"adminAreaCode\": null,\n    \"adminAreaName\": null,\n    \"localityCode\": null,\n    \"localityName\": \"Monaco\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-BO-001 — El listado ordena, filtra, busca y pagina",
+      "item": [
+        {
+          "name": "FL-BO-001 · A — Primera página (200)",
+          "description": "defaultSize 25, orden por fecha de alta descendente con desempate por id.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('sobre canónico', () => { const b = pm.response.json(); pm.expect(b).to.have.all.keys('items','page','size','totalElements','totalPages'); });",
+                  "pm.test('sin direcciones en el listado', () => { const i = pm.response.json().items; if (i.length) pm.expect(i[0]).to.not.have.property('addresses'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-001 · B — Página siguiente (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles?page=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-001 · C — Página vacía (200)",
+          "description": "Colección vacía, no 404.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles?page=500"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('items vacío', () => pm.expect(pm.response.json().items).to.be.an('array').that.is.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-001 · D — El maxSize recorta, no falla (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles?size=500"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('size recortado a 100', () => pm.expect(pm.response.json().size).to.eql(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-001 · E — Filtro por estado (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles?status=deactivated"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-001 · F — Búsqueda por prefijo (200)",
+          "description": "Insensible a mayúsculas y acentos, sobre contactEmail o displayName.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles?search=dana"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-001 · G — La subcadena NO coincide (200)",
+          "description": "La aserción que fija que la búsqueda es por prefijo: sin ella, una implementación por subcadena pasaría la anterior igual.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles?search=ana"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-BO-002 — La ficha por subject, y sus dos ausencias",
+      "item": [
+        {
+          "name": "FL-BO-002 · A — Ficha completa (200)",
+          "description": "Con direcciones, a diferencia del listado.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-002 · B — Subject que nunca existió (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/sub-inexistente"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PROFILE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-002 · C — Subject borrado (410)",
+          "description": "404 y 410 no son lo mismo, y la diferencia es contrato: nunca existió frente a se borró. Un servidor que respondiera 404 en los dos casos pasaría la request anterior y fallaría esta.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{deletedSubject}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 410', () => pm.response.to.have.status(410));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PROFILE_DELETED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-BO-003 — Desactivar, y no poder desactivar dos veces",
+      "item": [
+        {
+          "name": "FL-BO-003 · A — Desactivar (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}/deactivate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('deactivated', () => pm.expect(pm.response.json().status).to.eql('deactivated'));",
+                  "pm.test('conserva sus datos', () => pm.expect(pm.response.json().addresses).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-003 · B — Desactivar otra vez (409)",
+          "description": "La transición es irrepetible por construcción, y esa irrepetibilidad es la guarda que sustituye a la idempotencia: no se publica un segundo evento.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}/deactivate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PROFILE_ALREADY_DEACTIVATED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-003 · C — Desactivar un subject inexistente (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/sub-inexistente/deactivate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-BO-004 — Reactivar recalcula la completitud",
+      "item": [
+        {
+          "name": "FL-BO-004 · A — Reactivar (200)",
+          "description": "Vuelve a complete o a draft según los datos que el perfil tenga AHORA. No se restaura ningún estado anterior guardado, porque no se guarda ninguno.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}/reactivate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BO-004 · B — Reactivar uno que no está desactivado (409)",
+          "description": "Es la transición inválida: complete no está en el `from` de esta operación.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}/reactivate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PROFILE_NOT_DEACTIVATED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-DEL-001 — La baja del propio usuario purga el perfil y publica la señal",
+      "item": [
+        {
+          "name": "FL-DEL-001 · A — Borrado por el propio usuario (204)",
+          "description": "Sin cuerpo: al usuario no se le da un recibo de su propia baja. Funciona en cualquier estado, incluido deactivated: el derecho de supresión no depende de que alguien haya desactivado la cuenta.",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-DEL-001 · B — La siguiente petición ya no encuentra perfil (410)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 410', () => pm.response.to.have.status(410));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PROFILE_DELETED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-DEL-002 — El borrado administrativo devuelve la lápida, y repetirlo devuelve la misma",
+      "item": [
+        {
+          "name": "FL-DEL-002 · A — Borrado administrativo (200)",
+          "description": "Devuelve la lápida y no un 204: la operación crea un registro permanente, y ese registro es lo que el operador necesita ver.",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('lápida completa', () => { const b = pm.response.json(); pm.expect(b).to.have.all.keys('subject','deletedAt','deletedBy','reason'); });",
+                  "pm.test('reason back-office', () => pm.expect(pm.response.json().reason).to.eql('back-office'));",
+                  "pm.globals.set('deletedAt', pm.response.json().deletedAt);",
+                  "pm.globals.set('deletedSubject', pm.response.json().subject);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-DEL-002 · B — Reintento tras timeout: la misma lápida (200)",
+          "description": "Es cómo el operador distingue su propio reintento de un borrado ajeno, en la operación más irreversible del servicio. Un servidor que respondiera 410, o que reescribiera deletedAt, falla aquí.",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('mismo deletedAt', () => pm.expect(pm.response.json().deletedAt).to.eql(pm.globals.get('deletedAt')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-DEL-003 — Un subject borrado no se vuelve a aprovisionar",
+      "item": [
+        {
+          "name": "FL-DEL-003 · A — Token válido de un subject borrado (410)",
+          "description": "EL ESCENARIO QUE SEPARA UN DISEÑO CORRECTO DE UNO QUE LO PARECE. La identidad sigue viva en el servidor de identidad —nunca la tocamos— y puede presentar un token válido al día siguiente. Sin la lápida, el JIT le crearía un perfil nuevo en draft y el borrado se habría deshecho solo.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 410', () => pm.response.to.have.status(410));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PROFILE_DELETED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-DEL-003 · B — No se creó ningún perfil (200)",
+          "description": "La aserción que de verdad mide: el status por sí solo no distinguiría un rechazo de un re-aprovisionamiento seguido de un rechazo.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles?search={{deletedSubject}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ningún perfil', () => pm.expect(pm.response.json().totalElements).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-DEL-004 — Levantar la lápida es el único acto que permite volver",
+      "item": [
+        {
+          "name": "FL-DEL-004 · A — Levantar la lápida (204)",
+          "description": "No publica ningún evento: levantar la lápida no cambia ningún perfil. El hecho llega después, con ProfileProvisioned.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/deleted-subjects/{{deletedSubject}}/reinstate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-DEL-004 · B — La siguiente petición aprovisiona de cero (200)",
+          "description": "Perfil NUEVO en draft, sin direcciones: no se restaura nada de lo que se borró.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('draft', () => pm.expect(pm.response.json().status).to.eql('draft'));",
+                  "pm.test('sin direcciones', () => pm.expect(pm.response.json().addresses).to.be.an('array').that.is.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-DEL-004 · C — Levantar una lápida que no existe (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/deleted-subjects/sub-inexistente/reinstate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('SUBJECT_NOT_DELETED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-DEL-005 — Borrar lo que no existe",
+      "item": [
+        {
+          "name": "FL-DEL-005 · A — Borrar un subject sin perfil ni lápida (404)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/sub-nadie"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PROFILE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-M2M-001 — Resolver el contacto de una persona",
+      "item": [
+        {
+          "name": "FL-M2M-001 · A — Contacto por subject (200)",
+          "description": "Familia de contacto: NO trae ninguna dirección, ni pidiéndola. El mínimo privilegio a nivel de campo solo se expresa como operación aparte con su propio scope.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notification-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{subject}}/contact"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('envoltura profile', () => pm.expect(pm.response.json()).to.have.property('profile'));",
+                  "pm.test('sin dirección', () => { const p = pm.response.json().profile; pm.expect(p).to.not.have.property('shippingAddress'); pm.expect(p).to.not.have.property('addresses'); });",
+                  "pm.test('lleva version', () => pm.expect(pm.response.json().profile.version).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-001 · B — Subject que nunca existió (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notification-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/sub-inexistente/contact"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-001 · C — Subject borrado (410)",
+          "description": "Contrato de integración, no detalle: un consumidor tiene que poder distinguir «nunca existió» de «se borró» para saber si purgar sus propias copias.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notification-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{deletedSubject}}/contact"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 410', () => pm.response.to.have.status(410));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-M2M-002 — Resolver el perfil de entrega, y el perfil incompleto",
+      "item": [
+        {
+          "name": "FL-M2M-002 · A — Perfil de entrega (200)",
+          "description": "La dirección viaja entera, CÓDIGOS INCLUIDOS: el consumidor la congela como snapshot del pedido y no puede volver a pedirla. Y sin id, sin label y sin isDefault: son de la UX del usuario.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{subject}}/delivery"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('trae shippingAddress', () => pm.expect(pm.response.json().profile).to.have.property('shippingAddress'));",
+                  "pm.test('con códigos', () => pm.expect(pm.response.json().profile.shippingAddress).to.have.property('localityCode'));",
+                  "pm.test('sin isDefault', () => pm.expect(pm.response.json().profile.shippingAddress).to.not.have.property('isDefault'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-002 · B — Perfil sin dirección por defecto (409)",
+          "description": "NO 404 ni 500: la persona existe, lo que falta es la dirección, y el llamante tiene que poder saberlo para pedirle al usuario que la complete.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{incompleteSubject}}/delivery"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PROFILE_INCOMPLETE'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-M2M-003 — Los lotes, su orden, sus no resueltos y su cota",
+      "item": [
+        {
+          "name": "FL-M2M-003 · A — Lote de entrega (200)",
+          "description": "El lote nunca falla entero por un subject que no resuelve; los dos arrays salen en el orden de la petición.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/delivery/batch",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjects\": [\n    \"sub-v5\",\n    \"{{subject}}\",\n    \"{{deletedSubject}}\",\n    \"{{incompleteSubject}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('dos arrays', () => { const b = pm.response.json(); pm.expect(b).to.have.all.keys('profiles','unresolved'); });",
+                  "pm.test('reason por cada no resuelto', () => pm.response.json().unresolved.forEach(u => pm.expect(['not-found','deleted','incomplete']).to.include(u.reason)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-003 · B — Lote de contacto: incomplete SÍ resuelve (200)",
+          "description": "Las dos familias tienen contratos distintos y no uno con campos de menos: a quien le falta la dirección no le falta el contacto.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notification-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/contact/batch",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjects\": [\n    \"{{subject}}\",\n    \"{{incompleteSubject}}\",\n    \"sub-v5\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-003 · C — Lista vacía (400)",
+          "description": "Una lista vacía es una petición mal construida, no una decisión de negocio: la rechaza la validación de forma y no lleva code propio.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/delivery/batch",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjects\": []\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-003 · D — Más de cien subjects (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/delivery/batch",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjects\": [\n    \"sub-000\",\n    \"sub-001\",\n    \"sub-002\",\n    \"sub-003\",\n    \"sub-004\",\n    \"sub-005\",\n    \"sub-006\",\n    \"sub-007\",\n    \"sub-008\",\n    \"sub-009\",\n    \"sub-010\",\n    \"sub-011\",\n    \"sub-012\",\n    \"sub-013\",\n    \"sub-014\",\n    \"sub-015\",\n    \"sub-016\",\n    \"sub-017\",\n    \"sub-018\",\n    \"sub-019\",\n    \"sub-020\",\n    \"sub-021\",\n    \"sub-022\",\n    \"sub-023\",\n    \"sub-024\",\n    \"sub-025\",\n    \"sub-026\",\n    \"sub-027\",\n    \"sub-028\",\n    \"sub-029\",\n    \"sub-030\",\n    \"sub-031\",\n    \"sub-032\",\n    \"sub-033\",\n    \"sub-034\",\n    \"sub-035\",\n    \"sub-036\",\n    \"sub-037\",\n    \"sub-038\",\n    \"sub-039\",\n    \"sub-040\",\n    \"sub-041\",\n    \"sub-042\",\n    \"sub-043\",\n    \"sub-044\",\n    \"sub-045\",\n    \"sub-046\",\n    \"sub-047\",\n    \"sub-048\",\n    \"sub-049\",\n    \"sub-050\",\n    \"sub-051\",\n    \"sub-052\",\n    \"sub-053\",\n    \"sub-054\",\n    \"sub-055\",\n    \"sub-056\",\n    \"sub-057\",\n    \"sub-058\",\n    \"sub-059\",\n    \"sub-060\",\n    \"sub-061\",\n    \"sub-062\",\n    \"sub-063\",\n    \"sub-064\",\n    \"sub-065\",\n    \"sub-066\",\n    \"sub-067\",\n    \"sub-068\",\n    \"sub-069\",\n    \"sub-070\",\n    \"sub-071\",\n    \"sub-072\",\n    \"sub-073\",\n    \"sub-074\",\n    \"sub-075\",\n    \"sub-076\",\n    \"sub-077\",\n    \"sub-078\",\n    \"sub-079\",\n    \"sub-080\",\n    \"sub-081\",\n    \"sub-082\",\n    \"sub-083\",\n    \"sub-084\",\n    \"sub-085\",\n    \"sub-086\",\n    \"sub-087\",\n    \"sub-088\",\n    \"sub-089\",\n    \"sub-090\",\n    \"sub-091\",\n    \"sub-092\",\n    \"sub-093\",\n    \"sub-094\",\n    \"sub-095\",\n    \"sub-096\",\n    \"sub-097\",\n    \"sub-098\",\n    \"sub-099\",\n    \"sub-100\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('TOO_MANY_SUBJECTS'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-M2M-004 — Autenticación y mínimo privilegio de la superficie de máquina",
+      "item": [
+        {
+          "name": "FL-M2M-004 · A — Sin credencial (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{subject}}/contact"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-004 · B — notification-service pidiendo entrega (403)",
+          "description": "Solo tiene profile-contact:read, y no hay ninguna operación que le devuelva una dirección.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notification-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{subject}}/delivery"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-004 · C — order-service pidiendo contacto (403)",
+          "description": "El corte es simétrico, y no por adorno: es lo que comprueba que el scope acota de verdad y no solo etiqueta.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{subject}}/contact"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-004 · D — Credencial de máquina en back-office (403)",
+          "description": "La superficie de back-office exige privilegio de usuario, no de servicio.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CCH-001 — Las diez vías de mutación invalidan la caché del contacto",
+      "item": [
+        {
+          "name": "FL-CCH-001 · A — Lectura que puebla la caché (200)",
+          "description": "El recorrido completo —diez ciclos leer → mutar → releer, uno por cada vía de invalidatedBy— está en validation-scenarios.md. Aquí quedan las dos puntas del ciclo.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notification-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{subject}}/contact"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.globals.set('cachedVersion', pm.response.json().profile.version);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-001 · B — Mutación por una de las diez vías (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/contact-details",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"givenName\": \"Dana\",\n  \"familyName\": \"López\",\n  \"displayName\": \"Dana L.\",\n  \"contactPhone\": \"+573001112233\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-001 · C — Relectura: el dato nuevo, no el rancio (200)",
+          "description": "Basta una vía no listada en invalidatedBy para servir datos rancios indefinidamente, y el 200 no distingue una respuesta vieja de una fresca.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notification-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{subject}}/contact"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('la versión avanzó', () => pm.expect(pm.response.json().profile.version).to.be.above(Number(pm.globals.get('cachedVersion'))));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CCH-002 — Las diez vías invalidan también la caché del perfil de entrega",
+      "item": [
+        {
+          "name": "FL-CCH-002 · A — Lectura que puebla la caché (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{subject}}/delivery"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-002 · B — Relectura tras perder la dirección por defecto (409)",
+          "description": "La vía que más fácil se escapa: la respuesta pasa de 200 con cuerpo a 409, y una invalidación incompleta seguiría entregando una dirección que el usuario ya no tiene marcada.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/{{subject}}/delivery"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-OBX-001 — El evento sobrevive a un canal indisponible",
+      "item": [
+        {
+          "name": "FL-OBX-001 · A — Mutación con el canal caído (200)",
+          "description": "Con el canal de eventos INDISPONIBLE: la mutación responde igual y el canal sigue vacío; restablecido, el evento llega exactamente una vez. Las dos negaciones son lo que hace fallable el escenario, y ninguna de las dos es comprobable desde Postman: hay que detener el canal y observarlo. El escenario completo está en validation-scenarios.md.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/contact-details",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"givenName\": \"Dana\",\n  \"familyName\": \"López\",\n  \"displayName\": \"Dana L.\",\n  \"contactPhone\": \"+573001112233\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-OBX-002 — El evento que el relay abandona no se pierde en silencio",
+      "item": [
+        {
+          "name": "FL-OBX-002 · A — Mutación cuyo evento se abandonará (200)",
+          "description": "El desenlace que este escenario mide —el relay agota su presupuesto de reintentos, lo informa, y no publica ese evento al restablecerse el canal— no se observa por la API. Ver validation-scenarios.md.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/contact-details",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"givenName\": \"Dana\",\n  \"familyName\": \"López\",\n  \"displayName\": \"Dana L.\",\n  \"contactPhone\": \"+573001112233\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-001 — Cada superficie exige lo suyo",
+      "item": [
+        {
+          "name": "FL-SEC-001 · A — /me sin credencial (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · B — Back-office sin credencial (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/management/profiles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · C — Back-office con token sin rol (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · D — Listado con profile-support (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · E — profile-support NO puede borrar (403)",
+          "description": "El corte entre los dos roles está donde está la irreversibilidad: desactivar se deshace con reactivar, borrar no se deshace nunca. Es la request que mide que el reparto de privilegio no es decorativo.",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · F — profile-support NO puede levantar lápidas (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/deleted-subjects/{{deletedSubject}}/reinstate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-002 — El preflight no muere en la cadena de seguridad",
+      "item": [
+        {
+          "name": "FL-SEC-002 · A — Preflight de un alta de dirección (200)",
+          "description": "Sin credencial, como manda un preflight. Idempotency-Key tiene que estar entre las cabeceras aceptadas o la idempotencia de addMyAddress no funcionaría desde un navegador.",
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "https://app.invalid"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              },
+              {
+                "key": "Access-Control-Request-Headers",
+                "value": "Authorization, Content-Type, Idempotency-Key"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('acepta el método', () => pm.expect(pm.response.headers.get('Access-Control-Allow-Methods') || '').to.include('POST'));",
+                  "pm.test('acepta Idempotency-Key', () => pm.expect((pm.response.headers.get('Access-Control-Allow-Headers') || '').toLowerCase()).to.include('idempotency-key'));",
+                  "pm.test('cachea el preflight', () => pm.expect(pm.response.headers.get('Access-Control-Max-Age')).to.eql('3600'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-003 — La respuesta llega utilizable al navegador",
+      "item": [
+        {
+          "name": "FL-SEC-003 · A — Petición cross-origin normal (200)",
+          "description": "No es el preflight con otras palabras: un servicio que contesta al OPTIONS y no expone sus cabeceras pasa aquel y rompe al cliente igual.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              },
+              {
+                "key": "Origin",
+                "value": "https://app.invalid"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expone X-Correlation-Id', () => pm.expect((pm.response.headers.get('Access-Control-Expose-Headers') || '').toLowerCase()).to.include('x-correlation-id'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Operaciones",
+      "description": "Una request por endpoint del contrato, con cuerpo de ejemplo, para ejercitarlo suelto fuera del hilo de un flujo.",
+      "item": [
+        {
+          "name": "updateMyAddress — reemplaza el contenido de una dirección (200)",
+          "description": "isDefault no se toca aquí: se cambia con setMyDefaultAddress.",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses/{{addressId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Casa\",\n  \"type\": \"shipping\",\n  \"postal\": {\n    \"line1\": \"Calle 10 # 43-25\",\n    \"line2\": \"Apto 501\",\n    \"line3\": null,\n    \"postalCode\": null,\n    \"countryCode\": \"CO\",\n    \"adminAreaCode\": \"CO-ANT\",\n    \"adminAreaName\": \"Antioquia\",\n    \"localityCode\": \"05001\",\n    \"localityName\": \"Medellín\"\n  }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "setMyDefaultAddress — marca la por defecto de su type (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_user}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/me/profile/addresses/{{addressId}}/default"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "getProfile — ficha por subject (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-support}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "reactivateProfile — devuelve el perfil a la vida (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/profiles/{{subject}}/reactivate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "reinstateSubject — levanta la lápida (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_profile-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/deleted-subjects/{{deletedSubject}}/reinstate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "resolveContactsBatchForServices — lote de contacto (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_notification-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/contact/batch",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjects\": [\n    \"{{subject}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "resolveDeliveryProfilesBatchForServices — lote de entrega (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/profiles/delivery/batch",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjects\": [\n    \"{{subject}}\"\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "keelVersion",
+      "value": "0.1.0"
+    }
+  ]
+}

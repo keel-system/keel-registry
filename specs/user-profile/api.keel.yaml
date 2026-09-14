@@ -1,0 +1,67 @@
+# Capa api — integración con el cliente: exposición REST de las operaciones.
+# La seguridad de estos endpoints se declara en security.keel.yaml, no aquí.
+#
+# Tres superficies separadas por prefijo, cada una con su propio contrato:
+#   /me/...            → el usuario sobre sí mismo; el subject sale del token, nunca de la ruta
+#   /management/...    → back-office y soporte, autenticado con privilegio elevado
+#   /services/...      → otros servidores (M2M), credencial de máquina
+#
+# El front habla con los dos sistemas —el servidor de identidad y este servicio— y los dos no hablan
+# entre sí. Registro, login, cambio de contraseña y MFA son pantallas del servidor de identidad y no
+# aparecen aquí; onboarding, «completa tu perfil» y «mis direcciones» son pantallas contra esta API.
+
+# VERSIONADO — es contrato, porque hay dos servidores acoplados a la superficie M2M. Dentro de
+# /api/v1 solo caben cambios ADITIVOS: campos nuevos opcionales en las respuestas, endpoints
+# nuevos, errores nuevos. Quitar un campo, volver obligatorio uno opcional o cambiar un code exige
+# /api/v2, y las dos versiones conviven mientras los consumidores migran. Los eventos se versionan
+# aparte, con el eventVersion de la envoltura estándar.
+
+style: rest
+basePath: /api/v1
+defaultAudience: users
+
+pagination:
+  style: offset
+  defaultSize: 25
+  maxSize: 100
+
+endpoints:
+
+  # --- El usuario sobre sí mismo ---------------------------------------------
+  # Ninguna ruta lleva el subject: lo estampa el servidor desde el claim del token. Quien hace la
+  # petición es justamente quien no debería poder elegir en nombre de quién actúa.
+  getMyProfile:           { method: GET,    path: "/me/profile" }
+  updateMyContactDetails: { method: PUT,    path: "/me/profile/contact-details" }
+  # Las cinco mutaciones de esta superficie devuelven 200 con el perfil entero, y no 201 ni 204:
+  # todas recalculan el status del perfil de una forma que el cliente no puede predecir, y el
+  # recurso que le importa al front de onboarding es el perfil, no la dirección. Con una sola
+  # respuesta sabe el id de lo que acaba de crear y si ya está completo.
+  addMyAddress:           { method: POST,   path: "/me/profile/addresses" }
+  updateMyAddress:        { method: PUT,    path: "/me/profile/addresses/{addressId}" }
+  removeMyAddress:        { method: DELETE, path: "/me/profile/addresses/{addressId}", successStatus: 200 }
+  setMyDefaultAddress:    { method: PUT,    path: "/me/profile/addresses/{addressId}/default" }
+  deleteMyProfile:        { method: DELETE, path: "/me/profile", successStatus: 204 }
+
+  # --- Back-office / soporte -------------------------------------------------
+  # Claveadas por subject y no por el id técnico: es la clave de negocio del agregado y la única que
+  # sobrevive al borrado, que es lo que permite que un borrado repetido responda lo mismo. El subject
+  # es opaco, así que viaja percent-encoded en la ruta.
+  listProfiles:      { method: GET,    path: "/management/profiles" }
+  getProfile:        { method: GET,    path: "/management/profiles/{subject}" }
+  deactivateProfile: { method: POST,   path: "/management/profiles/{subject}/deactivate" }
+  reactivateProfile: { method: POST,   path: "/management/profiles/{subject}/reactivate" }
+  deleteProfile:     { method: DELETE, path: "/management/profiles/{subject}", successStatus: 200 }
+  # La lápida es un recurso propio, no un estado del perfil: el perfil ya no existe cuando se opera
+  # sobre ella, así que colgarla de /profiles/{subject} sería prometer un recurso que se borró.
+  reinstateSubject:  { method: POST,   path: "/management/deleted-subjects/{subject}/reinstate", successStatus: 204 }
+
+  # --- Servidor a servidor (M2M) ---------------------------------------------
+  # Operaciones propias, con contrato propio y ninguna compartida con la superficie de usuarios.
+  # Las dos familias están separadas en la ruta además de en el scope: un consumidor que solo
+  # notifica no tiene endpoint que le devuelva una dirección.
+  # Los lotes son POST y no GET porque la lista de hasta cien subjects no cabe con garantías en una
+  # query string, y un subject es opaco: no hay longitud máxima que el diseño pueda prometer.
+  resolveContactForServices:              { method: GET,  path: "/services/profiles/{subject}/contact", audience: services }
+  resolveContactsBatchForServices:        { method: POST, path: "/services/profiles/contact/batch", audience: services }
+  resolveDeliveryProfileForServices:      { method: GET,  path: "/services/profiles/{subject}/delivery", audience: services }
+  resolveDeliveryProfilesBatchForServices: { method: POST, path: "/services/profiles/delivery/batch", audience: services }

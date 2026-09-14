@@ -1,0 +1,2907 @@
+<!doctype html>
+<!-- keel:version 0.1.0 -->
+<!--
+  Panel de servicio Keel — plantilla de forma fija.
+  NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
+  únicamente el marcador de datos de la constante KEEL (más abajo) por el objeto JSON derivado
+  del diseño. Contrato del objeto y token exacto a sustituir: ../overview-html-guide.md
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel del servicio</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #fbfcfd;
+    --border: #dfe3e8;
+    --text: #1b1f24;
+    --muted: #5c6773;
+    --accent: #2f6feb;
+    --ok-bg: #e7f5ed; --ok-fg: #17663a;
+    --off-bg: #f0f1f3; --off-fg: #6b7280;
+    --warn-bg: #fdf3e0; --warn-fg: #8a5a00;
+    --tag-bg: #eef2ff; --tag-fg: #33409e;
+    --code-bg: #f2f4f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --panel: #191d24; --panel-2: #1e232b; --border: #2c333d;
+      --text: #e6e9ee; --muted: #9aa5b1; --accent: #6ea0ff;
+      --ok-bg: #17311f; --ok-fg: #7fd6a0;
+      --off-bg: #23272e; --off-fg: #8b95a1;
+      --warn-bg: #362a11; --warn-fg: #e5bf74;
+      --tag-bg: #222a44; --tag-fg: #9fb2ff;
+      --code-bg: #12161c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+  a { color: var(--accent); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+
+  header.top { margin-bottom: 22px; }
+  .eyebrow { color: var(--muted); font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+  h1 { margin: 6px 0 8px; font-size: 30px; }
+  .lead { color: var(--muted); max-width: 72ch; margin: 0 0 12px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  h2 { font-size: 20px; margin: 34px 0 12px; }
+  h3 { font-size: 16px; margin: 22px 0 8px; }
+
+  .chip, .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 999px; font-size: 12px; white-space: nowrap;
+    background: var(--off-bg); color: var(--off-fg); border: 1px solid transparent;
+  }
+  .chip.on, .badge.on { background: var(--ok-bg); color: var(--ok-fg); }
+  .chip.tag, .badge.tag { background: var(--tag-bg); color: var(--tag-fg); }
+  .chip.warn, .badge.warn { background: var(--warn-bg); color: var(--warn-fg); }
+
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .links a {
+    display: inline-block; padding: 7px 13px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--panel); text-decoration: none; font-size: 14px;
+  }
+  .links a:hover { border-color: var(--accent); }
+
+  .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; }
+  .card.off { opacity: .62; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .card-label { font-weight: 600; }
+  .card-headline { color: var(--text); margin: 0 0 8px; font-size: 14px; }
+  .facts { margin: 0; font-size: 13px; color: var(--muted); }
+  .facts div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  .facts .k { color: var(--muted); }
+  .facts .v { color: var(--text); text-align: right; }
+  .card .note { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 14px; }
+  .toolbar input[type=search] {
+    flex: 1 1 240px; min-width: 200px; padding: 8px 11px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit;
+  }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tabs button {
+    padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font: inherit; cursor: pointer;
+  }
+  .tabs button[aria-selected=true] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  details.item {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  details.item > summary {
+    list-style: none; cursor: pointer; padding: 11px 14px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  }
+  details.item > summary::-webkit-details-marker { display: none; }
+  details.item > summary::before { content: "▸"; color: var(--muted); }
+  details.item[open] > summary::before { content: "▾"; }
+  details.item[open] > summary { border-bottom: 1px solid var(--border); background: var(--panel-2); }
+  .item-name { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .item-desc { color: var(--muted); font-size: 13px; flex: 1 1 200px; }
+  .body { padding: 12px 14px 16px; }
+  .body > section { margin-bottom: 14px; }
+  .body > section:last-child { margin-bottom: 0; }
+  .body h4 { margin: 0 0 6px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .body ul { margin: 0; padding-left: 20px; }
+  .body p { margin: 0 0 6px; }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  td.mono, th.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; font-size: 13.5px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+
+  .empty { color: var(--muted); font-style: italic; }
+  .gaps { background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 12px 16px; }
+  .gaps ul { margin: 6px 0 0; }
+  footer { margin-top: 44px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 12px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Servicio Keel</div>
+    <h1 id="svc-name">—</h1>
+    <p class="lead" id="svc-desc"></p>
+    <div class="meta" id="svc-meta"></div>
+    <nav class="links" id="links"></nav>
+  </header>
+
+  <section id="gaps-wrap" hidden>
+    <h2>Huecos del diseño</h2>
+    <div class="gaps">
+      <strong>Estos datos no se pudieron derivar del diseño:</strong>
+      <ul id="gaps"></ul>
+    </div>
+  </section>
+
+  <h2>Capacidades</h2>
+  <div class="cards" id="capabilities"></div>
+
+  <h2>Casos de uso</h2>
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Filtrar por nombre, descripción, campo, error…" aria-label="Filtrar">
+    <div class="tabs" id="tabs" role="tablist"></div>
+  </div>
+  <div id="use-cases"></div>
+
+  <section id="events-wrap" hidden>
+    <h2>Eventos</h2>
+    <div id="events"></div>
+  </section>
+
+  <section id="clients-wrap" hidden>
+    <h2>Clientes HTTP salientes</h2>
+    <div id="clients"></div>
+  </section>
+
+  <section id="domain-wrap" hidden>
+    <h2>Modelo de dominio</h2>
+    <div id="domain"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Datos del servicio. `/keel-docs` sustituye el marcador de la línea siguiente por el
+// objeto derivado del diseño (contrato y token exacto: ../overview-html-guide.md).
+// ---------------------------------------------------------------------------
+const KEEL = {
+  "service": {
+    "name": "user-profile",
+    "version": "0.1.0",
+    "description": "Posee el perfil de negocio de cada persona — contacto y direcciones — adoptando por aprovisionamiento just-in-time la identidad que crea el servidor de identidad, sin ser nunca dueño de sus credenciales.",
+    "domain": "identity",
+    "generatedAt": "2026-09-14"
+  },
+  "links": [
+    {
+      "label": "OpenAPI (visor)",
+      "href": "openapi.html",
+      "description": "Las 17 rutas, con sus cuerpos y sus errores."
+    },
+    {
+      "label": "AsyncAPI (visor)",
+      "href": "asyncapi.html",
+      "description": "Los 10 eventos publicados, con la envoltura Keel."
+    },
+    {
+      "label": "openapi.yaml",
+      "href": "openapi.yaml",
+      "description": "Contrato HTTP machine-readable."
+    },
+    {
+      "label": "asyncapi.yaml",
+      "href": "asyncapi.yaml",
+      "description": "Contrato asíncrono machine-readable."
+    },
+    {
+      "label": "Colecciones Postman",
+      "href": "postman/",
+      "description": "Un flujo de validación por carpeta; importa antes auth-collection.json."
+    },
+    {
+      "label": "Contrato de integración",
+      "href": "INTEGRATION.md",
+      "description": "Cómo consumirlo desde otro servidor."
+    },
+    {
+      "label": "Documento de diseño",
+      "href": "DESIGN.md",
+      "description": "El porqué de cada decisión, y qué alternativa se descartó."
+    }
+  ],
+  "gaps": [],
+  "capabilities": [
+    {
+      "id": "persistence",
+      "label": "Persistencia",
+      "active": true,
+      "state": "relational",
+      "headline": "Guarda el perfil, sus direcciones y la lápida de cada subject borrado. El aprovisionamiento just-in-time hace que la primera petición de un usuario nuevo ESCRIBA aunque sea un GET: ningún endpoint puede tratarse como de solo lectura.",
+      "facts": [
+        [
+          "Modelo",
+          "relational"
+        ],
+        [
+          "Entidades persistidas",
+          3
+        ],
+        [
+          "Frontera transaccional",
+          "per-operation"
+        ],
+        [
+          "Bloqueo optimista",
+          "declared"
+        ],
+        [
+          "Claves naturales",
+          1
+        ],
+        [
+          "Índices",
+          7
+        ]
+      ],
+      "note": "per-operation y no per-aggregate a sabiendas: el borrado destruye el agregado UserProfile y crea el agregado DeletedSubject, y los dos tienen que confirmar juntos."
+    },
+    {
+      "id": "messaging",
+      "label": "Broker de mensajería",
+      "active": true,
+      "headline": "Solo publica. No se suscribe a nada, y en particular no consume los eventos del servidor de identidad: el JIT ya cubre todas las vías de alta sin enumerarlas.",
+      "facts": [
+        [
+          "Canales",
+          "1 (0 externos)"
+        ],
+        [
+          "Eventos publicados",
+          10
+        ],
+        [
+          "Suscripciones",
+          0
+        ],
+        [
+          "Payload",
+          "con estado y con versión del agregado"
+        ]
+      ],
+      "note": "El broker concreto y el nombre físico del topic/cola se deciden al generar. La lista de eventos es completa sobre la superficie de mutación: de eso depende que un consumidor pueda mantener una réplica de solo lectura sin que se le pudra."
+    },
+    {
+      "id": "outbox",
+      "label": "Patrón outbox",
+      "active": true,
+      "headline": "Ningún evento se pierde si la transacción confirma. Lo fija ProfileDeleted: es la señal con la que el resto del sistema purga sus copias de datos personales, y no hay nada más abajo que la recupere.",
+      "facts": [
+        [
+          "Garantía",
+          "el evento sale si la transacción confirma"
+        ],
+        [
+          "Frontera que lo sostiene",
+          "per-operation"
+        ]
+      ]
+    },
+    {
+      "id": "cache",
+      "label": "Caché de respuestas",
+      "active": true,
+      "headline": "Solo las dos consultas M2M individuales. Las de usuario y back-office NO se cachean: consultan justo después de escribir, y servirles su propio cambio con retraso es el fallo que más desconfianza genera.",
+      "facts": [
+        [
+          "resolveContactForServices",
+          "TTL 60s · clave: subject · 10 vías de invalidación"
+        ],
+        [
+          "resolveDeliveryProfileForServices",
+          "TTL 60s · clave: subject · 10 vías de invalidación"
+        ]
+      ],
+      "note": "Las diez vías de invalidación son TODAS las vías de mutación del servicio. El TTL es el respaldo, no el mecanismo."
+    },
+    {
+      "id": "storage",
+      "label": "Almacenamiento de archivos",
+      "active": false,
+      "headline": "El servicio no declara capa storage: ningún campo del diseño es un archivo. El avatar queda fuera del alcance a propósito."
+    },
+    {
+      "id": "httpClients",
+      "label": "Integraciones HTTP salientes",
+      "active": false,
+      "headline": "No llama a nadie por HTTP. Ni siquiera al servidor de identidad: valida la firma del token en local contra sus claves públicas."
+    },
+    {
+      "id": "dependencies",
+      "label": "Depende de",
+      "active": false,
+      "headline": "No depende de ningún otro servidor: ni lee un dato ajeno ni le encarga trabajo a nadie. Es lo que lo hace arrancable en solitario — y es también por lo que no valida la división territorial contra ningún catálogo."
+    },
+    {
+      "id": "mail",
+      "label": "Correo saliente",
+      "active": false,
+      "headline": "El servicio no manda correo. Guarda el correo de contacto, que es dato de negocio, pero avisar es de otro servidor."
+    },
+    {
+      "id": "security",
+      "label": "Seguridad",
+      "active": true,
+      "state": "oidc",
+      "headline": "Tres superficies con tres exigencias distintas. En /me el alcance no lo da un rol: lo da el claim `sub`, que el servidor estampa y el cliente no puede elegir.",
+      "facts": [
+        [
+          "Protocolo",
+          "oidc"
+        ],
+        [
+          "Identidad del llamante",
+          "claim sub → callerSubject"
+        ],
+        [
+          "M2M",
+          "client-credentials · audiencia validada"
+        ],
+        [
+          "Roles",
+          2
+        ],
+        [
+          "Permisos",
+          5
+        ],
+        [
+          "Clientes máquina",
+          2
+        ],
+        [
+          "CORS",
+          "sin credenciales · preflight 3600s"
+        ]
+      ],
+      "note": "Mínimo privilegio de campo: notification-service solo tiene profile-contact:read, así que no hay ninguna operación que le devuelva una dirección postal."
+    },
+    {
+      "id": "schedule",
+      "label": "Trabajos programados",
+      "active": false,
+      "headline": "Ninguna operación declara schedule. No hay retención automática ni purga por inactividad: un perfil vive mientras nadie lo borre, y eso es una decisión."
+    }
+  ],
+  "useCases": [
+    {
+      "name": "provisionProfileFromIdentity",
+      "kind": "command",
+      "description": "Adopta en este servicio la identidad que creó el servidor de identidad. La invoca la frontera de identidad en la primera petición autenticada que llegue, sea al endpoint que sea, y es el único punto de entrada por el que nace un perfil. Deliberadamente aburrida: busca por subject y, si no está, inserta con los claims del token.",
+      "audience": "internal",
+      "trigger": {
+        "type": "internal"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "callerSubject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": "El subject del token; lo estampa el servidor desde el claim, nunca viaja en el cuerpo."
+          },
+          {
+            "name": "email",
+            "type": "EmailAddress",
+            "required": false,
+            "list": false,
+            "description": "Claim de email del token, si el token lo trae."
+          },
+          {
+            "name": "givenName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "familyName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "displayName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "actorIsPerson",
+            "type": "boolean",
+            "required": true,
+            "list": false,
+            "description": "Si el token representa a una persona o a una máquina; lo resuelve la frontera de identidad a partir del tipo de credencial."
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "preconditions": [
+        "El token representa a una persona, no a una máquina.",
+        "No existe lápida para ese subject."
+      ],
+      "rules": [
+        "Si ya existe un perfil con ese subject, no se crea ninguno: se devuelve el existente.",
+        "Si no existe, se inserta un perfil nuevo en draft con los claims que traiga el token. Solo el subject es obligatorio: si el token no trae email, nombre ni apellidos, el perfil nace igual y el usuario entra a onboarding.",
+        "Si la inserción colisiona con la restricción de unicidad de subject —tres peticiones en paralelo al arrancar un frontend ven todas que no existe y todas insertan—, se relee y se devuelve el perfil que ganó la carrera. La colisión no llega nunca al cliente.",
+        "Al crear el perfil se publica ProfileProvisioned.",
+        "Si el perfil ya existía y el claim de email del token difiere del contactEmail almacenado, se refresca el contactEmail y se publica ProfileContactEmailRefreshed. Si el token no trae claim de email, el contactEmail almacenado no se toca.",
+        "Ningún otro campo del perfil se refresca desde el token después del alta; el nombre y el teléfono son del usuario en cuanto los edita.",
+        "El refresco del contactEmail ocurre en cualquier estado del perfil, incluido deactivated: no es una edición del usuario sino el mantenimiento de una réplica cuyo dueño es el servidor de identidad."
+      ],
+      "errors": [
+        {
+          "code": "SUBJECT_NOT_PROVISIONABLE",
+          "http": 403,
+          "when": "El token es de un cliente máquina y no representa a una persona."
+        },
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "Existe lápida para ese subject: su perfil fue borrado y no se vuelve a aprovisionar sin un acto administrativo explícito."
+        }
+      ],
+      "idempotency": {
+        "keySource": "payload-field",
+        "keyField": "callerSubject"
+      },
+      "security": {
+        "level": "required"
+      },
+      "emits": [
+        "ProfileProvisioned",
+        "ProfileContactEmailRefreshed"
+      ]
+    },
+    {
+      "name": "getMyProfile",
+      "kind": "query",
+      "description": "Devuelve el perfil de quien presenta el token, con todas sus direcciones.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/me/profile"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "callerSubject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Para cuando esta operación se ejecuta, el aprovisionamiento ya corrió: un usuario nuevo recibe su perfil recién creado en draft, no un 404."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "El subject del token tiene lápida, así que el aprovisionamiento no creó ningún perfil."
+        }
+      ],
+      "security": {
+        "level": "required"
+      }
+    },
+    {
+      "name": "updateMyContactDetails",
+      "kind": "command",
+      "description": "Reemplaza el bloque de contacto editable del perfil. No incluye contactEmail — el correo de login es del servidor de identidad y aquí solo se refresca al aprovisionar.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "PUT",
+        "path": "/api/v1/me/profile/contact-details"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "callerSubject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "givenName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "familyName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "displayName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "contactPhone",
+            "type": "PhoneNumber",
+            "required": false,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "preconditions": [
+        "El perfil existe y no está deactivated."
+      ],
+      "rules": [
+        "Es un reemplazo completo del bloque, no un parche: un campo que no venga se borra. Así el contrato no tiene que distinguir 'no lo mando' de 'quiero vaciarlo', y repetir la misma petición deja el perfil igual.",
+        "Sin idempotencia declarada, y por eso mismo: fijar el bloque entero a un valor es naturalmente idempotente, así que un reintento produce el estado que ya había.",
+        "Tras aplicar el cambio se recalcula el estado del perfil."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "El subject del token tiene lápida."
+        },
+        {
+          "code": "PROFILE_DEACTIVATED",
+          "http": 409,
+          "when": "El perfil está deactivated y no admite mutaciones hasta que se reactive."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "Otra escritura sobre el mismo perfil confirmó mientras esta estaba en curso; el cliente relee y reintenta con la versión nueva."
+        }
+      ],
+      "security": {
+        "level": "required"
+      },
+      "emits": [
+        "ProfileContactDetailsChanged"
+      ]
+    },
+    {
+      "name": "addMyAddress",
+      "kind": "command",
+      "description": "Añade una dirección al perfil de quien presenta el token.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/me/profile/addresses"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "callerSubject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "label",
+            "type": "string",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "type",
+            "type": "AddressType",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "postal",
+            "type": "PostalAddress",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "isDefault",
+            "type": "boolean",
+            "required": false,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "preconditions": [
+        "El perfil existe y no está deactivated.",
+        "El perfil tiene menos de veinte direcciones.",
+        "Si postal.adminAreaCode viene, su prefijo de país coincide con postal.countryCode.",
+        "Si postal.adminAreaCode viene, postal.adminAreaName viene también."
+      ],
+      "rules": [
+        "No se comprueba contra ningún catálogo que el territorio exista, que el nombre sea el oficial ni que la localidad pertenezca a la división de primer nivel declarada: eso es responsabilidad del llamante, que lo resuelve en el borde contra su propio catálogo territorial.",
+        "Si isDefault viene en verdadero, la dirección queda por defecto para su type y se desmarca la que lo estuviera para ese mismo type.",
+        "Añadir una dirección marcándola por defecto publica únicamente AddressAdded; no se publica además DefaultAddressChanged.",
+        "Tras añadir la dirección se recalcula el estado del perfil."
+      ],
+      "errors": [
+        {
+          "code": "IDEMPOTENCY_KEY_IN_PROGRESS",
+          "http": 409,
+          "when": "Llegaron dos peticiones con la misma Idempotency-Key a la vez."
+        },
+        {
+          "code": "IDEMPOTENCY_KEY_REUSED",
+          "http": 409,
+          "when": "Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición."
+        },
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "El subject del token tiene lápida."
+        },
+        {
+          "code": "PROFILE_DEACTIVATED",
+          "http": 409,
+          "when": "El perfil está deactivated y no admite mutaciones hasta que se reactive."
+        },
+        {
+          "code": "ADDRESS_LIMIT_REACHED",
+          "http": 409,
+          "when": "El perfil ya tiene veinte direcciones."
+        },
+        {
+          "code": "SUBDIVISION_CODE_COUNTRY_MISMATCH",
+          "http": 422,
+          "when": "El adminAreaCode no es un ISO 3166-2 del país declarado en countryCode."
+        },
+        {
+          "code": "TERRITORY_NAME_MISSING",
+          "http": 422,
+          "when": "Viene un código territorial sin el nombre que le corresponde."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "Otra escritura sobre el mismo perfil confirmó mientras esta estaba en curso; el cliente relee y reintenta con la versión nueva."
+        }
+      ],
+      "idempotency": {
+        "keySource": "client-key",
+        "ttlSeconds": 86400
+      },
+      "security": {
+        "level": "required"
+      },
+      "emits": [
+        "AddressAdded"
+      ]
+    },
+    {
+      "name": "updateMyAddress",
+      "kind": "command",
+      "description": "Reemplaza el contenido de una dirección del perfil de quien presenta el token.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "PUT",
+        "path": "/api/v1/me/profile/addresses/{addressId}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "callerSubject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "addressId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "label",
+            "type": "string",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "type",
+            "type": "AddressType",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "postal",
+            "type": "PostalAddress",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "preconditions": [
+        "El perfil existe y no está deactivated.",
+        "La dirección existe y pertenece al perfil de quien presenta el token.",
+        "Si postal.adminAreaCode viene, su prefijo de país coincide con postal.countryCode.",
+        "Si postal.adminAreaCode viene, postal.adminAreaName viene también."
+      ],
+      "rules": [
+        "Es un reemplazo completo del contenido de la dirección; isDefault no se toca aquí, se cambia con setMyDefaultAddress.",
+        "Sin idempotencia declarada: reemplazar el contenido entero de una dirección identificada por su id es naturalmente idempotente.",
+        "Se valida la forma de los datos territoriales y nada más, igual que al añadir.",
+        "Tras aplicar el cambio se recalcula el estado del perfil: cambiar el type de shipping a billing puede dejar al perfil sin dirección de envío por defecto."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "El subject del token tiene lápida."
+        },
+        {
+          "code": "PROFILE_DEACTIVATED",
+          "http": 409,
+          "when": "El perfil está deactivated y no admite mutaciones hasta que se reactive."
+        },
+        {
+          "code": "ADDRESS_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una dirección con ese addressId en el perfil de quien llama."
+        },
+        {
+          "code": "SUBDIVISION_CODE_COUNTRY_MISMATCH",
+          "http": 422,
+          "when": "El adminAreaCode no es un ISO 3166-2 del país declarado en countryCode."
+        },
+        {
+          "code": "TERRITORY_NAME_MISSING",
+          "http": 422,
+          "when": "Viene un código territorial sin el nombre que le corresponde."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "Otra escritura sobre el mismo perfil confirmó mientras esta estaba en curso; el cliente relee y reintenta con la versión nueva."
+        }
+      ],
+      "security": {
+        "level": "required"
+      },
+      "emits": [
+        "AddressChanged"
+      ]
+    },
+    {
+      "name": "removeMyAddress",
+      "kind": "command",
+      "description": "Elimina una dirección del perfil de quien presenta el token.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "DELETE",
+        "path": "/api/v1/me/profile/addresses/{addressId}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "callerSubject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "addressId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "preconditions": [
+        "El perfil existe y no está deactivated.",
+        "La dirección existe y pertenece al perfil de quien presenta el token."
+      ],
+      "rules": [
+        "Si la dirección eliminada era la de por defecto de su type, el perfil queda sin dirección por defecto para ese type: no se promociona ninguna otra automáticamente, porque elegir cuál es una decisión del usuario y no del servidor.",
+        "Sin idempotencia declarada: un borrado repetido sobre una dirección que ya no existe responde ADDRESS_NOT_FOUND, que es la respuesta correcta y no un efecto duplicado.",
+        "Tras eliminar la dirección se recalcula el estado del perfil."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "El subject del token tiene lápida."
+        },
+        {
+          "code": "PROFILE_DEACTIVATED",
+          "http": 409,
+          "when": "El perfil está deactivated y no admite mutaciones hasta que se reactive."
+        },
+        {
+          "code": "ADDRESS_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una dirección con ese addressId en el perfil de quien llama."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "Otra escritura sobre el mismo perfil confirmó mientras esta estaba en curso; el cliente relee y reintenta con la versión nueva."
+        }
+      ],
+      "security": {
+        "level": "required"
+      },
+      "emits": [
+        "AddressRemoved"
+      ]
+    },
+    {
+      "name": "setMyDefaultAddress",
+      "kind": "command",
+      "description": "Marca una dirección como la de por defecto de su type.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "PUT",
+        "path": "/api/v1/me/profile/addresses/{addressId}/default"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "callerSubject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "addressId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "preconditions": [
+        "El perfil existe y no está deactivated.",
+        "La dirección existe y pertenece al perfil de quien presenta el token."
+      ],
+      "rules": [
+        "Fijar un valor es naturalmente idempotente: repetir la petición sobre la dirección que ya es la de por defecto la deja igual y responde lo mismo.",
+        "Se desmarca la dirección que estuviera por defecto para ese mismo type.",
+        "Tras el cambio se recalcula el estado del perfil."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "El subject del token tiene lápida."
+        },
+        {
+          "code": "PROFILE_DEACTIVATED",
+          "http": 409,
+          "when": "El perfil está deactivated y no admite mutaciones hasta que se reactive."
+        },
+        {
+          "code": "ADDRESS_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una dirección con ese addressId en el perfil de quien llama."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "Otra escritura sobre el mismo perfil confirmó mientras esta estaba en curso; el cliente relee y reintenta con la versión nueva."
+        }
+      ],
+      "security": {
+        "level": "required"
+      },
+      "emits": [
+        "DefaultAddressChanged"
+      ]
+    },
+    {
+      "name": "deleteMyProfile",
+      "kind": "command",
+      "description": "Borra el perfil de quien presenta el token y deja su lápida. No borra la identidad: eso es del servidor de identidad y es un acto aparte, fuera de este contrato.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "DELETE",
+        "path": "/api/v1/me/profile"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "callerSubject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "rules": [
+        "Se borra el agregado entero —perfil y todas sus direcciones— y se escribe la lápida con reason self-service y deletedBy igual al propio subject.",
+        "La lápida es la guarda de repetición: si ya existe una para ese subject, la operación responde el mismo éxito que la primera vez, no publica un segundo ProfileDeleted y no toca deletedAt ni deletedBy, que siguen siendo los del borrado real. Como la lápida es permanente, la ventana de deduplicación también.",
+        "ProfileDeleted es la señal con la que el resto del sistema purga sus copias: su fiabilidad fija la de la capa de mensajería entera.",
+        "Funciona en cualquier estado del perfil, incluido deactivated: el derecho de supresión no puede depender de que alguien —soporte, no necesariamente la propia persona— haya desactivado antes la cuenta."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_NOT_FOUND",
+          "http": 404,
+          "when": "No hay perfil ni lápida para ese subject; no hay nada que borrar."
+        }
+      ],
+      "security": {
+        "level": "required"
+      },
+      "emits": [
+        "ProfileDeleted"
+      ]
+    },
+    {
+      "name": "listProfiles",
+      "kind": "query",
+      "description": "Lista los perfiles para soporte y back-office, sin sus direcciones.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/management/profiles"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "status",
+            "type": "ProfileStatus",
+            "required": false,
+            "list": false,
+            "description": "Filtra por estado; sin él salen todos."
+          },
+          {
+            "name": "search",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": "Texto libre que se busca en contactEmail y displayName."
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": true,
+        "exclude": [
+          "addresses"
+        ]
+      },
+      "rules": [
+        "El listado no lleva direcciones: un back-office que busca a una persona no necesita su domicilio, y cargarlo en cada fila es exposición de datos personales sin motivo. Quien lo necesite abre la ficha con getProfile.",
+        "El orden por defecto es por fecha de alta descendente, que es el que espera soporte; el id del agregado desempata siempre, así que dos páginas consecutivas no repiten ni omiten filas.",
+        "search coincide por PREFIJO sobre contactEmail y sobre displayName, con OR entre los dos, ignorando mayúsculas y acentos. Prefijo y no subcadena a propósito: es lo único que un índice ordinario sostiene, así que el listado sigue respondiendo cuando el padrón crezca — y eso es cota, no rendimiento.",
+        "Sin caché: el back-office consulta justo después de escribir, y servirle su propio cambio con retraso es el fallo que más desconfianza genera en una herramienta de soporte.",
+        "Los subjects con lápida no aparecen en el listado; una lápida no es un perfil."
+      ],
+      "security": {
+        "level": "admin",
+        "permissions": [
+          "profile:read"
+        ]
+      }
+    },
+    {
+      "name": "getProfile",
+      "kind": "query",
+      "description": "Recupera la ficha completa de un perfil por su subject, con todas sus direcciones.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/management/profiles/{subject}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Sin caché a propósito: el back-office consulta justo después de escribir, y servirle su propio cambio con retraso es el fallo que más desconfianza genera en una herramienta de soporte."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_NOT_FOUND",
+          "http": 404,
+          "when": "No existe perfil con ese subject y tampoco hay lápida."
+        },
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "Ese subject tuvo perfil y fue borrado."
+        }
+      ],
+      "security": {
+        "level": "admin",
+        "permissions": [
+          "profile:read"
+        ]
+      }
+    },
+    {
+      "name": "deactivateProfile",
+      "kind": "command",
+      "description": "Desactiva un perfil. Conserva todos sus datos y no toca la identidad en el servidor de identidad.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/management/profiles/{subject}/deactivate"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "preconditions": [
+        "El perfil existe y no está ya deactivated."
+      ],
+      "rules": [
+        "La transición es irrepetible por construcción: al segundo intento el perfil ya está deactivated y la guarda la rechaza, así que un reintento no publica un segundo evento. Esa irrepetibilidad ES la guarda, y por eso la operación no declara idempotency.",
+        "Desactivar no borra ni purga nada; el perfil conserva contacto y direcciones."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_NOT_FOUND",
+          "http": 404,
+          "when": "No existe perfil con ese subject."
+        },
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "Ese subject tuvo perfil y fue borrado."
+        },
+        {
+          "code": "PROFILE_ALREADY_DEACTIVATED",
+          "http": 409,
+          "when": "El perfil ya está deactivated."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "Otra escritura sobre el mismo perfil confirmó mientras esta estaba en curso; el cliente relee y reintenta con la versión nueva."
+        }
+      ],
+      "security": {
+        "level": "admin",
+        "permissions": [
+          "profile:deactivate"
+        ]
+      },
+      "emits": [
+        "ProfileDeactivated"
+      ]
+    },
+    {
+      "name": "reactivateProfile",
+      "kind": "command",
+      "description": "Devuelve un perfil desactivado a la vida, recalculando su completitud.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/management/profiles/{subject}/reactivate"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "UserProfile",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "preconditions": [
+        "El perfil existe y está deactivated."
+      ],
+      "rules": [
+        "Se recalcula el estado con los datos que el perfil tenga en ese momento: vuelve a complete si los cumple y a draft si no. No se restaura ningún estado anterior guardado, porque no se guarda ninguno.",
+        "La transición es irrepetible por construcción; un reintento sobre un perfil ya reactivado lo rechaza la guarda, y por eso la operación no declara idempotency."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_NOT_FOUND",
+          "http": 404,
+          "when": "No existe perfil con ese subject."
+        },
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "Ese subject tuvo perfil y fue borrado."
+        },
+        {
+          "code": "PROFILE_NOT_DEACTIVATED",
+          "http": 409,
+          "when": "El perfil no está deactivated, así que no hay nada que reactivar."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "Otra escritura sobre el mismo perfil confirmó mientras esta estaba en curso; el cliente relee y reintenta con la versión nueva."
+        }
+      ],
+      "security": {
+        "level": "admin",
+        "permissions": [
+          "profile:deactivate"
+        ]
+      },
+      "emits": [
+        "ProfileReactivated"
+      ]
+    },
+    {
+      "name": "deleteProfile",
+      "kind": "command",
+      "description": "Borra administrativamente un perfil y deja su lápida. Es la operación que cierra el ciclo de vida: la baja se inicia aquí, no en el servidor de identidad.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "DELETE",
+        "path": "/api/v1/management/profiles/{subject}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "DeletedSubject",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Se borra el agregado entero —perfil y todas sus direcciones— y se escribe la lápida con reason back-office y deletedBy igual al operador autenticado.",
+        "La lápida es la guarda de repetición: un operador que reintenta tras un timeout recibe el mismo éxito que la primera vez, sin segundo ProfileDeleted y sin reescribir deletedAt ni deletedBy. Es deliberado — en la operación más irreversible del servicio, el operador no puede quedarse con la duda de si borró él o se equivocó de persona.",
+        "Borrar aquí no deshabilita la identidad en el servidor de identidad: es un acto aparte, fuera de este contrato, y el procedimiento correcto es borrar aquí primero."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_NOT_FOUND",
+          "http": 404,
+          "when": "No hay perfil ni lápida para ese subject; no hay nada que borrar."
+        }
+      ],
+      "security": {
+        "level": "admin",
+        "permissions": [
+          "profile:delete"
+        ]
+      },
+      "emits": [
+        "ProfileDeleted"
+      ]
+    },
+    {
+      "name": "reinstateSubject",
+      "kind": "command",
+      "description": "Levanta la lápida de un subject borrado, de modo que su próxima petición autenticada vuelva a aprovisionar un perfil nuevo. Es el acto administrativo explícito sin el cual un borrado no se deshace nunca.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/management/deleted-subjects/{subject}/reinstate"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "preconditions": [
+        "Existe lápida para ese subject."
+      ],
+      "rules": [
+        "No publica ningún evento: levantar la lápida no cambia ningún perfil. El hecho que interesa aguas abajo llega después, cuando el JIT vuelva a aprovisionar y publique ProfileProvisioned.",
+        "No restaura nada: el perfil que se borró no vuelve. El subject empieza de cero en draft la próxima vez que presente un token.",
+        "Repetir la operación sobre un subject sin lápida no tiene efecto y responde el mismo error; la ausencia de la lápida es la guarda, y por eso la operación no declara idempotency."
+      ],
+      "errors": [
+        {
+          "code": "SUBJECT_NOT_DELETED",
+          "http": 404,
+          "when": "No existe lápida para ese subject."
+        }
+      ],
+      "security": {
+        "level": "admin",
+        "permissions": [
+          "profile:delete"
+        ]
+      }
+    },
+    {
+      "name": "resolveContactForServices",
+      "kind": "query",
+      "description": "Resuelve el contacto de una persona por su subject, sin ninguna dirección postal.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/services/profiles/{subject}/contact"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "profile",
+            "type": "ContactDetails",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "rules": [
+        "El scope autoriza sobre cualquier subject, no solo sobre los que conciernen al consumidor: quien concede el scope está concediendo acceso al padrón entero y debe tratar la credencial en consecuencia.",
+        "La lista de invalidación cubre TODAS las vías de mutación, no solo las que tocan el contacto: los eventos de dirección cambian el status del perfil, que sí viaja en esta respuesta.",
+        "El TTL es el respaldo, no el mecanismo: cada vía de mutación desaloja la entrada. Un TTL corto acota lo que se sirve el día que la invalidación falle, y con ProfileDeleted eso es dejar de entregar datos de quien pidió el borrado."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_NOT_FOUND",
+          "http": 404,
+          "when": "No existe perfil con ese subject y tampoco hay lápida: esa persona nunca ha entrado."
+        },
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "Ese subject tuvo perfil y fue borrado; el consumidor debe purgar sus propias copias."
+        }
+      ],
+      "cache": {
+        "ttlSeconds": 60,
+        "keyFields": [
+          "subject"
+        ],
+        "invalidatedBy": [
+          "ProfileProvisioned",
+          "ProfileContactEmailRefreshed",
+          "ProfileContactDetailsChanged",
+          "AddressAdded",
+          "AddressChanged",
+          "AddressRemoved",
+          "DefaultAddressChanged",
+          "ProfileDeactivated",
+          "ProfileReactivated",
+          "ProfileDeleted"
+        ]
+      },
+      "security": {
+        "level": "service",
+        "scopes": [
+          "profile-contact:read"
+        ]
+      }
+    },
+    {
+      "name": "resolveContactsBatchForServices",
+      "kind": "query",
+      "description": "Resuelve el contacto de hasta cien personas en una llamada. Es también el arranque y la reconciliación de una réplica de solo lectura: los eventos solo dan el delta desde que alguien se suscribió, y quien llega después carga su estado inicial por aquí.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/services/profiles/contact/batch"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "subjects",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": true,
+            "description": "De uno a cien subjects. La cota superior se comprueba como precondición para que falle con un code propio y estable."
+          }
+        ]
+      },
+      "output": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "profiles",
+            "type": "ContactDetails",
+            "required": true,
+            "list": true,
+            "description": "Los subjects que se resolvieron, en el orden de la petición."
+          },
+          {
+            "name": "unresolved",
+            "type": "UnresolvedSubject",
+            "required": true,
+            "list": true,
+            "description": "Los que no, cada uno con su porqué."
+          }
+        ]
+      },
+      "preconditions": [
+        "La petición no trae más de cien subjects."
+      ],
+      "rules": [
+        "El scope autoriza sobre cualquier subject, no solo sobre los que conciernen al consumidor: quien concede el scope está concediendo acceso al padrón entero y debe tratar la credencial en consecuencia.",
+        "El lote nunca falla entero por un subject que no resuelve: los que no se pudieron resolver salen en unresolved con su reason, para que un consumidor distinga 'nunca existió' de 'se borró' y purgue solo lo que debe.",
+        "Un subject repetido en la petición se resuelve una sola vez y aparece una sola vez en la respuesta.",
+        "Los dos arrays salen en el orden de la petición: profiles con los resueltos y unresolved con los que no, cada uno conservando el orden relativo en que sus subjects llegaron.",
+        "Sin caché a propósito: una lista de hasta cien subjects no es una clave de caché útil, y cachear por elemento desde aquí duplicaría la invalidación de la operación individual."
+      ],
+      "errors": [
+        {
+          "code": "TOO_MANY_SUBJECTS",
+          "http": 422,
+          "when": "La petición trae más de cien subjects."
+        }
+      ],
+      "security": {
+        "level": "service",
+        "scopes": [
+          "profile-contact:read"
+        ]
+      }
+    },
+    {
+      "name": "resolveDeliveryProfileForServices",
+      "kind": "query",
+      "description": "Resuelve el contacto de una persona junto con su dirección de envío por defecto. Es lo que necesita quien tiene que entregarle algo, y lo que congela como snapshot inmutable del pedido.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/services/profiles/{subject}/delivery"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "output": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "profile",
+            "type": "DeliveryProfile",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      "rules": [
+        "El scope autoriza sobre cualquier subject, no solo sobre los que conciernen al consumidor: quien concede el scope está concediendo acceso al padrón entero y debe tratar la credencial en consecuencia.",
+        "La dirección viaja entera, códigos incluidos: el consumidor la congela y no puede volver a pedirla, así que un snapshot sin códigos no sirve para liquidar impuestos ni para enrutar reparto después.",
+        "No viajan ni el id, ni el label, ni el isDefault de la dirección: son de la UX con la que el usuario la eligió, no del consumidor."
+      ],
+      "errors": [
+        {
+          "code": "PROFILE_NOT_FOUND",
+          "http": 404,
+          "when": "No existe perfil con ese subject y tampoco hay lápida."
+        },
+        {
+          "code": "PROFILE_DELETED",
+          "http": 410,
+          "when": "Ese subject tuvo perfil y fue borrado; el consumidor debe purgar sus propias copias."
+        },
+        {
+          "code": "PROFILE_INCOMPLETE",
+          "http": 409,
+          "when": "El perfil existe pero no tiene dirección de tipo shipping marcada por defecto; la respuesta enumera qué falta."
+        }
+      ],
+      "cache": {
+        "ttlSeconds": 60,
+        "keyFields": [
+          "subject"
+        ],
+        "invalidatedBy": [
+          "ProfileProvisioned",
+          "ProfileContactEmailRefreshed",
+          "ProfileContactDetailsChanged",
+          "AddressAdded",
+          "AddressChanged",
+          "AddressRemoved",
+          "DefaultAddressChanged",
+          "ProfileDeactivated",
+          "ProfileReactivated",
+          "ProfileDeleted"
+        ]
+      },
+      "security": {
+        "level": "service",
+        "scopes": [
+          "profile-delivery:read"
+        ]
+      }
+    },
+    {
+      "name": "resolveDeliveryProfilesBatchForServices",
+      "kind": "query",
+      "description": "Resuelve contacto y dirección de envío por defecto de hasta cien personas en una llamada, para que un listado de pedidos no sea cien llamadas. Sirve también de arranque y reconciliación de una réplica de solo lectura.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/services/profiles/delivery/batch"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "subjects",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": true,
+            "description": "De uno a cien subjects."
+          }
+        ]
+      },
+      "output": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "profiles",
+            "type": "DeliveryProfile",
+            "required": true,
+            "list": true,
+            "description": "Los subjects que se resolvieron, en el orden de la petición."
+          },
+          {
+            "name": "unresolved",
+            "type": "UnresolvedSubject",
+            "required": true,
+            "list": true,
+            "description": "Los que no, cada uno con su porqué — incluidos los perfiles incompletos, con reason incomplete."
+          }
+        ]
+      },
+      "preconditions": [
+        "La petición no trae más de cien subjects."
+      ],
+      "rules": [
+        "El scope autoriza sobre cualquier subject, no solo sobre los que conciernen al consumidor: quien concede el scope está concediendo acceso al padrón entero y debe tratar la credencial en consecuencia.",
+        "Un perfil sin dirección de envío por defecto sale en unresolved con reason incomplete, no se omite en silencio: el consumidor tiene que poder distinguir 'no hay nadie' de 'hay alguien pero le falta la dirección' para saber si pedirle al usuario que la complete.",
+        "Un subject repetido en la petición se resuelve una sola vez y aparece una sola vez en la respuesta.",
+        "Los dos arrays salen en el orden de la petición: profiles con los resueltos y unresolved con los que no, cada uno conservando el orden relativo en que sus subjects llegaron.",
+        "Sin caché, por el mismo motivo que el lote de contacto."
+      ],
+      "errors": [
+        {
+          "code": "TOO_MANY_SUBJECTS",
+          "http": 422,
+          "when": "La petición trae más de cien subjects."
+        }
+      ],
+      "security": {
+        "level": "service",
+        "scopes": [
+          "profile-delivery:read"
+        ]
+      }
+    }
+  ],
+  "events": {
+    "envelope": "keel",
+    "reliability": "outbox",
+    "published": [
+      {
+        "name": "ProfileProvisioned",
+        "description": "Nació un perfil al adoptar una identidad en la primera petición autenticada de esa persona. Es el primer hecho de todo perfil y el que arranca cualquier réplica.",
+        "channel": "profileEvents",
+        "emittedBy": [
+          "provisionProfileFromIdentity"
+        ],
+        "payload": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "contactEmail",
+            "type": "EmailAddress",
+            "required": false,
+            "list": false,
+            "description": "Puede no venir: si el token no traía claim de email, el perfil nace sin él."
+          },
+          {
+            "name": "givenName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "familyName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "displayName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "contactPhone",
+            "type": "PhoneNumber",
+            "required": false,
+            "list": false,
+            "description": "Nunca viene en el alta; el teléfono lo pone la persona después."
+          },
+          {
+            "name": "status",
+            "type": "ProfileStatus",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      {
+        "name": "ProfileContactEmailRefreshed",
+        "description": "El correo de contacto se refrescó desde el claim del token durante un aprovisionamiento.",
+        "channel": "profileEvents",
+        "emittedBy": [
+          "provisionProfileFromIdentity"
+        ],
+        "payload": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "contactEmail",
+            "type": "EmailAddress",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      {
+        "name": "ProfileContactDetailsChanged",
+        "description": "La persona reemplazó su bloque de contacto editable. No incluye el correo, que no se edita por la API.",
+        "channel": "profileEvents",
+        "emittedBy": [
+          "updateMyContactDetails"
+        ],
+        "payload": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "givenName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "familyName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "displayName",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "contactPhone",
+            "type": "PhoneNumber",
+            "required": false,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "status",
+            "type": "ProfileStatus",
+            "required": true,
+            "list": false,
+            "description": "El estado recalculado tras el cambio; los cambios de completitud no tienen evento propio y viajan aquí."
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      {
+        "name": "AddressAdded",
+        "description": "La persona añadió una dirección a su perfil.",
+        "channel": "profileEvents",
+        "emittedBy": [
+          "addMyAddress"
+        ],
+        "payload": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "addressId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "label",
+            "type": "string",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "type",
+            "type": "AddressType",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "postal",
+            "type": "PostalAddress",
+            "required": true,
+            "list": false,
+            "description": "La dirección entera, con el nombre de cada territorio al lado de su código, tal como se guardó."
+          },
+          {
+            "name": "isDefault",
+            "type": "boolean",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "status",
+            "type": "ProfileStatus",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      {
+        "name": "AddressChanged",
+        "description": "La persona reemplazó el contenido de una de sus direcciones.",
+        "channel": "profileEvents",
+        "emittedBy": [
+          "updateMyAddress"
+        ],
+        "payload": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "addressId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "label",
+            "type": "string",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "type",
+            "type": "AddressType",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "postal",
+            "type": "PostalAddress",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "isDefault",
+            "type": "boolean",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "status",
+            "type": "ProfileStatus",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      {
+        "name": "AddressRemoved",
+        "description": "La persona eliminó una de sus direcciones.",
+        "channel": "profileEvents",
+        "emittedBy": [
+          "removeMyAddress"
+        ],
+        "payload": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "addressId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "type",
+            "type": "AddressType",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "wasDefault",
+            "type": "boolean",
+            "required": true,
+            "list": false,
+            "description": "Si la eliminada era la de por defecto de su type; en ese caso el perfil queda sin ninguna para ese type, porque no se promociona otra automáticamente."
+          },
+          {
+            "name": "status",
+            "type": "ProfileStatus",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      {
+        "name": "DefaultAddressChanged",
+        "description": "La persona eligió otra dirección por defecto para un type.",
+        "channel": "profileEvents",
+        "emittedBy": [
+          "setMyDefaultAddress"
+        ],
+        "payload": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "type",
+            "type": "AddressType",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "addressId",
+            "type": "uuid",
+            "required": true,
+            "list": false,
+            "description": "La que pasa a ser la de por defecto."
+          },
+          {
+            "name": "previousAddressId",
+            "type": "uuid",
+            "required": false,
+            "list": false,
+            "description": "La que deja de serlo; no viene si no había ninguna."
+          },
+          {
+            "name": "status",
+            "type": "ProfileStatus",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      {
+        "name": "ProfileDeactivated",
+        "description": "Un administrador desactivó el perfil. Conserva todos sus datos; no es una baja.",
+        "channel": "profileEvents",
+        "emittedBy": [
+          "deactivateProfile"
+        ],
+        "payload": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "status",
+            "type": "ProfileStatus",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      {
+        "name": "ProfileReactivated",
+        "description": "Un administrador reactivó el perfil, que vuelve a draft o a complete según los datos que tenga.",
+        "channel": "profileEvents",
+        "emittedBy": [
+          "reactivateProfile"
+        ],
+        "payload": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "status",
+            "type": "ProfileStatus",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      },
+      {
+        "name": "ProfileDeleted",
+        "description": "Se borró el perfil y su información personal quedó purgada. Es la señal con la que cada consumidor purga sus propias copias; una réplica de solo lectura debe borrar la suya, y un snapshot inmutable ya congelado en un pedido no es una copia del perfil y no se toca.",
+        "channel": "profileEvents",
+        "emittedBy": [
+          "deleteMyProfile",
+          "deleteProfile"
+        ],
+        "payload": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": "La versión que tenía el agregado al borrarse; ordena el borrado frente a cualquier evento anterior que llegue tarde."
+          },
+          {
+            "name": "deletedAt",
+            "type": "timestamp",
+            "required": true,
+            "list": false,
+            "description": null
+          },
+          {
+            "name": "reason",
+            "type": "DeletionReason",
+            "required": true,
+            "list": false,
+            "description": null
+          }
+        ]
+      }
+    ],
+    "subscriptions": []
+  },
+  "domain": {
+    "entities": [
+      {
+        "name": "UserProfile",
+        "description": "Lo que este servicio sabe de una persona para poder operar con ella: contacto, direcciones y estado de negocio. Nada de lo que sirve para entrar (credenciales, MFA, sesiones, roles) vive aquí: eso es del servidor de identidad.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "description": null,
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "list": false,
+            "description": "Clave de negocio del perfil, copiada del subject del token en el aprovisionamiento. Inmutable.",
+            "flags": [
+              "requerido",
+              "único"
+            ]
+          },
+          {
+            "name": "contactEmail",
+            "type": "EmailAddress",
+            "list": false,
+            "description": "Correo de contacto, réplica del claim del token.",
+            "flags": []
+          },
+          {
+            "name": "givenName",
+            "type": "string",
+            "list": false,
+            "description": "Nombre de pila.",
+            "flags": []
+          },
+          {
+            "name": "familyName",
+            "type": "string",
+            "list": false,
+            "description": "Apellidos.",
+            "flags": []
+          },
+          {
+            "name": "displayName",
+            "type": "string",
+            "list": false,
+            "description": "Nombre con el que dirigirse a la persona; se siembra del token al aprovisionar y el usuario puede cambiarlo.",
+            "flags": []
+          },
+          {
+            "name": "contactPhone",
+            "type": "PhoneNumber",
+            "list": false,
+            "description": "Teléfono de contacto del negocio, nunca una credencial.",
+            "flags": []
+          },
+          {
+            "name": "status",
+            "type": "ProfileStatus",
+            "list": false,
+            "description": null,
+            "flags": [
+              "default: draft"
+            ]
+          },
+          {
+            "name": "lockVersion",
+            "type": "int",
+            "list": false,
+            "description": null,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "createdAt",
+            "type": "timestamp",
+            "list": false,
+            "description": null,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "updatedAt",
+            "type": "timestamp",
+            "list": false,
+            "description": null,
+            "flags": [
+              "generado"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "addresses",
+            "entity": "Address",
+            "cardinality": "one-to-many"
+          }
+        ],
+        "lifecycle": {
+          "field": "status",
+          "transitions": {
+            "draft": [
+              "complete",
+              "deactivated"
+            ],
+            "complete": [
+              "draft",
+              "deactivated"
+            ],
+            "deactivated": [
+              "draft",
+              "complete"
+            ]
+          }
+        },
+        "invariants": [
+          "Un perfil está complete si y solo si tiene contactEmail, contactPhone y displayName con valor y además una dirección de tipo shipping marcada como isDefault; en cualquier otro caso está draft.",
+          "El estado se recalcula al aplicar cada cambio del perfil o de sus direcciones, incluida la reactivación, que devuelve el perfil a draft o a complete según los datos que tenga en ese momento.",
+          "Un perfil en draft es un estado válido y esperado, no un error: el perfil nace incompleto y se completa por perfilado progresivo.",
+          "El subject es inmutable, ninguna operación lo cambia después del aprovisionamiento, y no pueden existir dos perfiles con el mismo subject.",
+          "contactEmail solo se escribe durante el aprovisionamiento, copiando el claim del token; ninguna operación de la API permite cambiarlo.",
+          "Un perfil deactivated conserva todos sus datos y todas sus direcciones; desactivar no es borrar.",
+          "Un perfil deactivated no admite ninguna mutación de contacto ni de direcciones POR LA API hasta que se reactive; el refresco del contactEmail desde el claim del token durante el aprovisionamiento sí ocurre en cualquier estado.",
+          "Las direcciones pertenecen al perfil y desaparecen con él.",
+          "Un perfil tiene como mucho veinte direcciones.",
+          "Un perfil vive mientras nadie lo borre: no hay retención automática, ni purga por inactividad, ni archivado. La única salida del ciclo de vida es un borrado explícito."
+        ]
+      },
+      {
+        "name": "Address",
+        "description": "Una ranura con etiqueta, tipo y marca de defecto que contiene una dirección postal. La dirección que contiene es un hecho histórico: guarda el territorio que le dijeron en el momento en que se lo dijeron, no una referencia viva a un catálogo territorial.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "description": null,
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "label",
+            "type": "string",
+            "list": false,
+            "description": "Nombre con el que la persona reconoce la dirección (casa, oficina).",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "type",
+            "type": "AddressType",
+            "list": false,
+            "description": "Para qué sirve la dirección; una que sirva para las dos cosas se guarda dos veces, con su propio isDefault cada una.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "postal",
+            "type": "PostalAddress",
+            "list": false,
+            "description": null,
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "isDefault",
+            "type": "boolean",
+            "list": false,
+            "description": "Marca la dirección elegida por defecto para su type.",
+            "flags": [
+              "default: False"
+            ]
+          },
+          {
+            "name": "createdAt",
+            "type": "timestamp",
+            "list": false,
+            "description": null,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "updatedAt",
+            "type": "timestamp",
+            "list": false,
+            "description": null,
+            "flags": [
+              "generado"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "profile",
+            "entity": "UserProfile",
+            "cardinality": "many-to-one"
+          }
+        ],
+        "invariants": [
+          "El nombre de cada nivel territorial se copia en el momento de guardar la dirección y no se vuelve a resolver ni a refrescar nunca, aunque el territorio se renombre o se fusione después.",
+          "Si postal.adminAreaCode tiene valor, postal.adminAreaName es obligatorio. Nunca se acepta un código sin su nombre.",
+          "Cuando postal.adminAreaCode tiene valor, su prefijo de país coincide con postal.countryCode y su forma es un ISO 3166-2 válido.",
+          "postal.localityCode se interpreta contra la codificación nacional del país declarado en postal.countryCode; la dirección no guarda ningún identificador de esquema aparte.",
+          "Este servicio valida la forma de los datos territoriales y nada más; no comprueba contra ningún catálogo que el territorio exista, que el código y el nombre se correspondan, ni que la localidad pertenezca a la división de primer nivel declarada.",
+          "Un perfil tiene como mucho una dirección marcada isDefault por cada type.",
+          "Marcar una dirección como isDefault desmarca la que lo estuviera para ese mismo type."
+        ]
+      },
+      {
+        "name": "DeletedSubject",
+        "description": "Lápida de un subject cuyo perfil fue borrado. Existe porque este servicio nunca llama al servidor de identidad: la identidad sigue viva después del borrado y puede presentar un token válido al día siguiente. Sin esta marca, el aprovisionamiento just-in-time le crearía un perfil nuevo en draft y el borrado se habría deshecho solo, sin error y sin traza.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "subject",
+            "type": "SubjectIdentifier",
+            "list": false,
+            "description": "El subject borrado; es la clave de la lápida.",
+            "flags": [
+              "id"
+            ]
+          },
+          {
+            "name": "deletedAt",
+            "type": "timestamp",
+            "list": false,
+            "description": "Cuándo se borró el perfil.",
+            "flags": [
+              "requerido",
+              "generado"
+            ]
+          },
+          {
+            "name": "deletedBy",
+            "type": "string",
+            "list": false,
+            "description": "Quién pidió el borrado — el propio subject si fue autoservicio, el operador si fue back-office.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "reason",
+            "type": "DeletionReason",
+            "list": false,
+            "description": null,
+            "flags": [
+              "requerido"
+            ]
+          }
+        ],
+        "invariants": [
+          "La lápida no guarda ningún dato de contacto ni ninguna dirección; toda la información personal del perfil se purga en el borrado y solo sobrevive el identificador pseudónimo y el rastro de quién y cuándo.",
+          "Mientras exista lápida para un subject, el aprovisionamiento just-in-time no crea perfil para él.",
+          "La lápida es permanente: no caduca por retención y solo la levanta un acto administrativo explícito.",
+          "No pueden coexistir una lápida y un perfil para el mismo subject.",
+          "Un borrado repetido sobre un subject que ya tiene lápida no la reescribe: deletedAt y deletedBy siguen siendo los del borrado real."
+        ]
+      }
+    ],
+    "aggregates": [
+      {
+        "name": "UserProfile",
+        "root": "UserProfile",
+        "entities": [
+          "Address"
+        ],
+        "description": "El perfil posee sus direcciones; se modifican en la misma transacción y el estado se recalcula con ellas."
+      },
+      {
+        "name": "DeletedSubject",
+        "root": "DeletedSubject",
+        "entities": [],
+        "description": "La lápida es su propia frontera; nace cuando el agregado UserProfile deja de existir."
+      }
+    ],
+    "types": [
+      {
+        "name": "SubjectIdentifier",
+        "kind": "escalar",
+        "detail": "string · minLength 1 · maxLength 255",
+        "description": "Identificador opaco e inmutable del sujeto tal como lo emite el servidor de identidad. Es la clave de negocio del perfil: no se interpreta, no se parsea y no se deriva de él ningún otro dato. Nunca se usa el email como clave — el email cambia de dueño, el subject no."
+      },
+      {
+        "name": "EmailAddress",
+        "kind": "escalar",
+        "detail": "string · pattern ^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$ · maxLength 254",
+        "description": "Dirección de correo electrónico de contacto."
+      },
+      {
+        "name": "PhoneNumber",
+        "kind": "escalar",
+        "detail": "string · pattern ^\\+[1-9]\\d{1,14}$",
+        "description": "Teléfono de contacto en formato E.164, con prefijo internacional."
+      },
+      {
+        "name": "CountryCode",
+        "kind": "escalar",
+        "detail": "string · pattern ^[A-Z]{2}$",
+        "description": "País de la dirección, en ISO 3166-1 alpha-2."
+      },
+      {
+        "name": "PostalCode",
+        "kind": "escalar",
+        "detail": "string · minLength 1 · maxLength 16",
+        "description": "Código postal tal como lo escribe quien envía la dirección. Sin pattern a propósito: cada país tiene el suyo y hay países que no tienen ninguno, así que una expresión única sería una garantía falsa que rechazaría direcciones válidas."
+      },
+      {
+        "name": "SubdivisionCode",
+        "kind": "escalar",
+        "detail": "string · pattern ^[A-Z]{2}-[A-Z0-9]{1,3}$",
+        "description": "Código de la división territorial de primer nivel en ISO 3166-2 (por ejemplo CO-ANT, ES-M, US-CA). Es la única codificación territorial con cobertura mundial publicada, por eso es la única cuya forma valida este servicio."
+      },
+      {
+        "name": "TerritoryCode",
+        "kind": "escalar",
+        "detail": "string · minLength 1 · maxLength 32",
+        "description": "Código de la división territorial de segundo nivel en la codificación nacional que corresponda. Opaco y sin pattern: no existe una codificación universal de nivel 2, y hay países que no publican ninguna."
+      },
+      {
+        "name": "ProfileStatus",
+        "kind": "enum",
+        "detail": "draft · complete · deactivated",
+        "description": "Situación del perfil respecto de su completitud y su vigencia operativa."
+      },
+      {
+        "name": "AddressType",
+        "kind": "enum",
+        "detail": "shipping · billing",
+        "description": "Para qué sirve la dirección en el negocio."
+      },
+      {
+        "name": "DeletionReason",
+        "kind": "enum",
+        "detail": "self-service · back-office",
+        "description": "Por qué vía se pidió el borrado. Enum cerrado y no texto libre a propósito: la lápida no puede acumular datos personales por la puerta de atrás de un campo de observaciones."
+      },
+      {
+        "name": "PostalAddress",
+        "kind": "value object",
+        "detail": "line1: string*, line2: string, line3: string, postalCode: PostalCode, countryCode: CountryCode*, adminAreaCode: SubdivisionCode, adminAreaName: string, localityCode: TerritoryCode, localityName: string*",
+        "description": "Dirección postal tal como la escribió quien la dio, con el nombre de cada territorio al lado de su código. Viaja entera y se congela entera: dentro de diez años tiene que seguir significando lo mismo que el día que se escribió."
+      },
+      {
+        "name": "ContactDetails",
+        "kind": "value object",
+        "detail": "subject: SubjectIdentifier*, displayName: string, givenName: string, familyName: string, contactEmail: EmailAddress, contactPhone: PhoneNumber, status: ProfileStatus*, version: int*, updatedAt: timestamp*",
+        "description": "Bloque de contacto de una persona, sin ninguna dirección postal."
+      },
+      {
+        "name": "DeliveryProfile",
+        "kind": "value object",
+        "detail": "subject: SubjectIdentifier*, displayName: string, givenName: string, familyName: string, contactEmail: EmailAddress, contactPhone: PhoneNumber, status: ProfileStatus*, version: int*, updatedAt: timestamp*, shippingAddress: PostalAddress*",
+        "description": "Contacto de una persona más su dirección de envío por defecto. Es lo que necesita quien tiene que entregarle algo, y lo que congela como snapshot del pedido."
+      },
+      {
+        "name": "UnresolvedReason",
+        "kind": "enum",
+        "detail": "not-found · deleted · incomplete",
+        "description": "Por qué un subject pedido en un lote no se pudo resolver."
+      },
+      {
+        "name": "UnresolvedSubject",
+        "kind": "value object",
+        "detail": "subject: SubjectIdentifier*, reason: UnresolvedReason*",
+        "description": "Un subject que el lote no pudo resolver, con el porqué. Distinguir not-found de deleted es contrato y no detalle de implementación: es lo que permite a un consumidor purgar sus propias copias de quien se borró sin purgar las de quien todavía no ha entrado."
+      }
+    ]
+  }
+};
+
+(function () {
+  'use strict';
+
+  if (!KEEL) {
+    document.getElementById('svc-name').textContent = 'Plantilla sin datos';
+    document.getElementById('svc-desc').textContent =
+      'Este archivo es la plantilla de /keel-docs: el placeholder KEEL_DATA no fue sustituido.';
+    return;
+  }
+
+  var AUDIENCES = [
+    { id: 'users',    label: 'Usuarios' },
+    { id: 'services', label: 'Servidores (M2M)' },
+    { id: 'both',     label: 'Ambos' },
+    { id: 'internal', label: 'Internos' }
+  ];
+  var LEVEL_LABEL = { public: 'pública', required: 'protegida', admin: 'admin', service: 'M2M' };
+
+  // -- helpers --------------------------------------------------------------
+  function el(tag, attrs, children) {
+    var n = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (k === 'class') n.className = attrs[k];
+      else if (k === 'text') n.textContent = attrs[k];
+      else if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) n.appendChild(c); });
+    return n;
+  }
+  function txt(tag, s, cls) { return el(tag, cls ? { class: cls, text: s } : { text: s }); }
+  function badge(label, kind) { return el('span', { class: 'badge' + (kind ? ' ' + kind : ''), text: label }); }
+  function list(arr) { return (arr && arr.length) ? arr.join(', ') : null; }
+  function has(x) { return x !== null && x !== undefined && x !== '' && !(Array.isArray(x) && !x.length); }
+  function section(title, node) { return el('section', {}, [txt('h4', title), node]); }
+  function ul(items) { return el('ul', {}, (items || []).map(function (i) { return txt('li', i); })); }
+  function kv(pairs) {
+    var d = el('dl', { class: 'kv' });
+    pairs.forEach(function (p) {
+      if (!has(p[1])) return;
+      d.appendChild(txt('dt', p[0]));
+      d.appendChild(txt('dd', String(p[1])));
+    });
+    return d.children.length ? d : null;
+  }
+  function table(headers, rows, monoCols) {
+    if (!rows || !rows.length) return null;
+    var thead = el('tr', {}, headers.map(function (h) { return txt('th', h); }));
+    var tb = el('tbody', {}, rows.map(function (r) {
+      return el('tr', {}, r.map(function (c, i) {
+        return el('td', { class: (monoCols || []).indexOf(i) >= 0 ? 'mono' : null, text: c === null || c === undefined ? '—' : String(c) });
+      }));
+    }));
+    return el('div', { class: 'scroll' }, [el('table', {}, [el('thead', {}, [thead]), tb])]);
+  }
+  function fieldsTable(fields) {
+    return table(['Campo', 'Tipo', 'Requerido', 'Descripción'], (fields || []).map(function (f) {
+      return [f.name, f.type + (f.list ? '[]' : ''), f.required ? 'sí' : 'no', f.description || '—'];
+    }), [0, 1]);
+  }
+  function payloadNode(p) {
+    if (!p) return txt('p', 'void', 'empty');
+    if (p.kind === 'void') return txt('p', 'void', 'empty');
+    if (p.kind === 'entity') {
+      var s = p.entity + (p.list ? '[] (lista)' : '') + (p.paginated ? ' — paginado' : '');
+      if (has(p.exclude)) s += ' · excluye: ' + p.exclude.join(', ');
+      return txt('p', s, 'mono');
+    }
+    return fieldsTable(p.fields) || txt('p', 'sin campos declarados', 'empty');
+  }
+
+  // -- cabecera -------------------------------------------------------------
+  var svc = KEEL.service || {};
+  document.title = svc.name ? 'Panel · ' + svc.name : 'Panel del servicio';
+  document.getElementById('svc-name').textContent = svc.name || '—';
+  document.getElementById('svc-desc').textContent = svc.description || '';
+  var meta = document.getElementById('svc-meta');
+  [['versión ' + (svc.version || '—'), 'tag'], svc.domain ? ['dominio: ' + svc.domain, null] : null,
+   svc.basedOn ? ['derivado de ' + svc.basedOn, null] : null]
+    .forEach(function (m) { if (m) meta.appendChild(badge(m[0], m[1])); });
+
+  var links = document.getElementById('links');
+  (KEEL.links || []).forEach(function (l) {
+    links.appendChild(el('a', { href: l.href, title: l.description || '', text: l.label }));
+  });
+
+  // -- huecos ---------------------------------------------------------------
+  if (has(KEEL.gaps)) {
+    document.getElementById('gaps-wrap').hidden = false;
+    var g = document.getElementById('gaps');
+    KEEL.gaps.forEach(function (s) { g.appendChild(txt('li', s)); });
+  }
+
+  // -- capacidades ----------------------------------------------------------
+  var caps = document.getElementById('capabilities');
+  (KEEL.capabilities || []).forEach(function (c) {
+    var card = el('div', { class: 'card' + (c.active ? '' : ' off') }, [
+      el('div', { class: 'card-head' }, [
+        txt('span', c.label, 'card-label'),
+        badge(c.active ? (c.state || 'sí') : 'no aplica', c.active ? 'on' : null)
+      ]),
+      c.headline ? txt('p', c.headline, 'card-headline') : null
+    ]);
+    if (has(c.facts)) {
+      var f = el('div', { class: 'facts' });
+      c.facts.forEach(function (p) {
+        f.appendChild(el('div', {}, [txt('span', p[0], 'k'), txt('span', String(p[1]), 'v')]));
+      });
+      card.appendChild(f);
+    }
+    if (c.note) card.appendChild(txt('p', c.note, 'note'));
+    caps.appendChild(card);
+  });
+
+  // -- casos de uso ---------------------------------------------------------
+  var ucs = KEEL.useCases || [];
+  var host = document.getElementById('use-cases');
+  var present = AUDIENCES.filter(function (a) {
+    return ucs.some(function (u) { return (u.audience || 'internal') === a.id; });
+  });
+  var tabs = document.getElementById('tabs');
+  var current = 'all';
+  [{ id: 'all', label: 'Todos (' + ucs.length + ')' }].concat(present.map(function (a) {
+    var n = ucs.filter(function (u) { return (u.audience || 'internal') === a.id; }).length;
+    return { id: a.id, label: a.label + ' (' + n + ')' };
+  })).forEach(function (t) {
+    var b = el('button', { type: 'button', role: 'tab', 'data-aud': t.id, text: t.label });
+    b.setAttribute('aria-selected', t.id === 'all' ? 'true' : 'false');
+    b.addEventListener('click', function () {
+      current = t.id;
+      Array.prototype.forEach.call(tabs.children, function (o) {
+        o.setAttribute('aria-selected', String(o.getAttribute('data-aud') === current));
+      });
+      applyFilter();
+    });
+    tabs.appendChild(b);
+  });
+
+  function triggerText(t) {
+    if (!t) return '—';
+    if (t.type === 'http') return (t.method || '') + ' ' + (t.path || '');
+    if (t.type === 'event') return 'evento ' + (t.event || '');
+    if (t.type === 'schedule') return 'programado · ' + (t.cron || '');
+    return 'interna';
+  }
+
+  ucs.forEach(function (u) {
+    var d = el('details', { class: 'item', 'data-aud': u.audience || 'internal' });
+    var sum = el('summary', {}, [
+      txt('span', u.name, 'item-name'),
+      badge(u.kind || 'command', 'tag'),
+      u.trigger && u.trigger.type === 'http' ? badge(triggerText(u.trigger)) : null,
+      u.trigger && u.trigger.type === 'event' ? badge('por evento') : null,
+      u.trigger && u.trigger.type === 'schedule' ? badge('programado') : null,
+      u.idempotency ? badge('idempotente', 'on') : null,
+      u.cache ? badge('cacheada', 'on') : null,
+      u.security ? badge(LEVEL_LABEL[u.security.level] || u.security.level,
+        u.security.level === 'public' ? 'warn' : 'tag') : null,
+      txt('span', u.description || '', 'item-desc')
+    ]);
+    var body = el('div', { class: 'body' });
+    if (u.description) body.appendChild(section('Qué hace', txt('p', u.description)));
+    body.appendChild(section('Disparador', txt('p', triggerText(u.trigger), 'mono')));
+    body.appendChild(section('Entrada', payloadNode(u.input)));
+    body.appendChild(section('Salida', payloadNode(u.output)));
+    if (has(u.preconditions)) body.appendChild(section('Precondiciones', ul(u.preconditions)));
+    if (has(u.rules)) body.appendChild(section('Reglas', ul(u.rules)));
+    if (has(u.errors)) {
+      body.appendChild(section('Errores', table(['Código', 'HTTP', 'Cuándo'], u.errors.map(function (e) {
+        return [e.code, e.http || '—', e.when || '—'];
+      }), [0])));
+    }
+    var pol = [];
+    if (u.idempotency) pol.push(['Idempotencia', 'keySource: ' + u.idempotency.keySource +
+      (has(u.idempotency.ttlSeconds) ? ' · TTL ' + u.idempotency.ttlSeconds + 's' : '')]);
+    if (u.cache) pol.push(['Caché', 'TTL ' + u.cache.ttlSeconds + 's' +
+      (has(u.cache.keyFields) ? ' · clave: ' + u.cache.keyFields.join(', ') : '') +
+      (has(u.cache.invalidatedBy) ? ' · invalida: ' + u.cache.invalidatedBy.join(', ') : '')]);
+    if (u.schedule) pol.push(['Programación', u.schedule.cron]);
+    if (pol.length) body.appendChild(section('Políticas', kv(pol)));
+    if (u.security) {
+      body.appendChild(section('Seguridad', kv([
+        ['Nivel', (LEVEL_LABEL[u.security.level] || u.security.level) + ' (' + u.security.level + ')'],
+        ['Roles', list(u.security.roles)],
+        ['Permisos', list(u.security.permissions)],
+        ['Scopes', list(u.security.scopes)]
+      ])));
+    }
+    if (has(u.emits)) body.appendChild(section('Eventos que emite', txt('p', u.emits.join(', '), 'mono')));
+    d.appendChild(sum);
+    d.appendChild(body);
+    d.setAttribute('data-text', (u.name + ' ' + (u.description || '') + ' ' + JSON.stringify(u)).toLowerCase());
+    host.appendChild(d);
+  });
+  if (!ucs.length) host.appendChild(txt('p', 'El diseño no declara operaciones.', 'empty'));
+
+  var q = document.getElementById('q');
+  function applyFilter() {
+    var needle = q.value.trim().toLowerCase();
+    Array.prototype.forEach.call(host.children, function (n) {
+      if (!n.getAttribute) return;
+      var okAud = current === 'all' || n.getAttribute('data-aud') === current;
+      var okTxt = !needle || (n.getAttribute('data-text') || '').indexOf(needle) >= 0;
+      n.hidden = !(okAud && okTxt);
+    });
+  }
+  q.addEventListener('input', applyFilter);
+
+  // -- eventos --------------------------------------------------------------
+  var ev = KEEL.events;
+  if (ev && (has(ev.published) || has(ev.subscriptions))) {
+    document.getElementById('events-wrap').hidden = false;
+    var eh = document.getElementById('events');
+    eh.appendChild(txt('p', 'Envoltura: ' + (ev.envelope || 'keel') +
+      ' (metadata + data)' + (ev.reliability ? ' · fiabilidad de publicación: ' + ev.reliability : ''),
+      'item-desc'));
+    if (has(ev.published)) {
+      eh.appendChild(txt('h3', 'Publicados'));
+      ev.published.forEach(function (e) {
+        var b = el('div', { class: 'body' }, [
+          e.description ? section('Descripción', txt('p', e.description)) : null,
+          section('Payload (data)', fieldsTable(e.payload) || txt('p', 'sin campos', 'empty')),
+          section('Detalles', kv([
+            ['Canal', e.channel || 'por convención del generador'],
+            ['Emitido por', list(e.emittedBy)],
+            ['Entrega', e.reliability || ev.reliability]
+          ]))
+        ]);
+        eh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', e.name, 'item-name'), badge('publicado', 'on'),
+            e.channel ? badge(e.channel) : null, txt('span', e.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+    if (has(ev.subscriptions)) {
+      eh.appendChild(txt('h3', 'Suscripciones'));
+      ev.subscriptions.forEach(function (s) {
+        var c = s.contract || {};
+        var b = el('div', { class: 'body' }, [
+          s.description ? section('Descripción', txt('p', s.description)) : null,
+          section('Payload esperado', fieldsTable(s.payload) || txt('p', 'sin campos', 'empty')),
+          section('Contrato de recepción', kv([
+            ['Origen', s.source],
+            ['Canal', s.channel],
+            ['Envoltura', c.envelope],
+            ['Ruta del payload', c.payloadPath],
+            ['Formato', c.format],
+            ['Discriminador', c.discriminator],
+            ['Clave de dedupe', c.messageId],
+            ['Campos desconocidos', c.unknownFields]
+          ])),
+          section('Al fallar', kv([
+            ['Reintentos', s.onFailure && s.onFailure.retry],
+            ['Dead letter', s.onFailure && (s.onFailure.deadLetter ? 'sí' : 'no')]
+          ]) || txt('p', 'sin política declarada', 'empty'))
+        ]);
+        eh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', s.name, 'item-name'), badge('consumido', 'tag'),
+            s.source ? badge('de ' + s.source) : null,
+            s.triggers ? badge('→ ' + s.triggers) : null,
+            txt('span', s.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+  }
+
+  // -- clientes HTTP --------------------------------------------------------
+  if (has(KEEL.httpClients)) {
+    document.getElementById('clients-wrap').hidden = false;
+    var ch = document.getElementById('clients');
+    KEEL.httpClients.forEach(function (c) {
+      var b = el('div', { class: 'body' }, [
+        c.purpose ? section('Propósito', txt('p', c.purpose)) : null,
+        section('Autenticación saliente', txt('p', c.auth || 'none', 'mono')),
+        section('Llamadas', table(
+          ['Llamada', 'Método y ruta', 'Timeout', 'Retry', 'Circuit breaker', 'Fallback'],
+          (c.calls || []).map(function (k) {
+            return [k.name, has(k.method) ? k.method + ' ' + (k.path || '') : (k.contract || '—'),
+              has(k.timeoutMs) ? k.timeoutMs + ' ms' : '—', k.retry || '—',
+              k.circuitBreaker || '—', k.fallback || '—'];
+          }), [0, 1]) || txt('p', 'sin llamadas declaradas', 'empty'))
+      ]);
+      ch.appendChild(el('details', { class: 'item' }, [
+        el('summary', {}, [txt('span', c.name, 'item-name'),
+          badge((c.calls || []).length + ' llamada(s)', 'tag'),
+          txt('span', c.purpose || '', 'item-desc')]),
+        b
+      ]));
+    });
+  }
+
+  // -- dominio --------------------------------------------------------------
+  var dom = KEEL.domain;
+  if (dom && (has(dom.entities) || has(dom.aggregates) || has(dom.types))) {
+    document.getElementById('domain-wrap').hidden = false;
+    var dh = document.getElementById('domain');
+    if (has(dom.aggregates)) {
+      dh.appendChild(txt('h3', 'Agregados'));
+      dh.appendChild(table(['Agregado', 'Raíz', 'Entidades internas', 'Descripción'],
+        dom.aggregates.map(function (a) {
+          return [a.name, a.root, list(a.entities) || '—', a.description || '—'];
+        }), [0, 1, 2]));
+    }
+    if (has(dom.entities)) {
+      dh.appendChild(txt('h3', 'Entidades'));
+      dom.entities.forEach(function (e) {
+        var b = el('div', { class: 'body' }, [
+          e.description ? section('Descripción', txt('p', e.description)) : null,
+          section('Campos', table(['Campo', 'Tipo', 'Atributos', 'Descripción'],
+            (e.fields || []).map(function (f) {
+              return [f.name, f.type + (f.list ? '[]' : ''), list(f.flags) || '—', f.description || '—'];
+            }), [0, 1]) || txt('p', 'sin campos', 'empty')),
+          has(e.relations) ? section('Relaciones', table(['Relación', 'Entidad', 'Cardinalidad'],
+            e.relations.map(function (r) { return [r.name, r.entity, r.cardinality]; }), [0, 1])) : null,
+          e.lifecycle ? section('Ciclo de vida (' + e.lifecycle.field + ')',
+            table(['Estado', 'Transiciona a'], Object.keys(e.lifecycle.transitions || {}).map(function (k) {
+              return [k, list(e.lifecycle.transitions[k]) || 'terminal'];
+            }), [0, 1])) : null,
+          has(e.invariants) ? section('Invariantes', ul(e.invariants)) : null
+        ]);
+        dh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', e.name, 'item-name'),
+            badge((e.fields || []).length + ' campo(s)', 'tag'),
+            e.persisted ? badge('persistida', 'on') : null,
+            txt('span', e.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+    if (has(dom.types)) {
+      dh.appendChild(txt('h3', 'Value types'));
+      dh.appendChild(table(['Tipo', 'Forma', 'Detalle', 'Descripción'], dom.types.map(function (t) {
+        return [t.name, t.kind, t.detail || '—', t.description || '—'];
+      }), [0, 1, 2]));
+    }
+  }
+
+  document.getElementById('footer').textContent =
+    'Derivado del diseño Keel de ' + (svc.name || '—') + ' v' + (svc.version || '—') +
+    (svc.generatedAt ? ' · generado el ' + svc.generatedAt : '') +
+    ' · La fuente de verdad son los artefactos de specs/. No edites este archivo a mano: regenéralo con /keel-docs.';
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+# Capa security — autenticación y autorización.
+# Las reglas se declaran por operación (nombre estable), no por ruta.
+# Agnóstico de proveedor: el servidor de identidad concreto se decide al generar.
+#
+# Este servicio NUNCA llama al servidor de identidad, ni siquiera para validar el token: comprueba
+# la firma en local contra las claves públicas del emisor. El emisor concreto y su URL son
+# configuración de despliegue, no diseño — por eso el mismo spec vale para cualquier proveedor.
+
+authentication:
+  protocol: oidc
+  tokenLocation: header
+
+  # La costura entre el servidor de identidad y este servicio es un único campo. El subject del
+  # token se estampa en el input de las operaciones de /me y del aprovisionamiento, y DEJA DE VIAJAR
+  # en el cuerpo: quien hace la petición es justamente quien no debería poder elegir en nombre de
+  # quién actúa. Las operaciones de back-office y M2M usan otro campo, `subject`, que sí es un dato
+  # de la petición: es la persona sobre la que se actúa, no quien actúa.
+  callerIdentity:
+    field: callerSubject
+    from: { source: claim, name: sub }
+
+  serviceAuth:
+    protocol: client-credentials
+    validateAudience: true
+    audience: user-profile
+
+roles:
+  profile-support:
+    description: Atiende a los usuarios desde soporte; puede consultar, desactivar y reactivar, todo reversible.
+  profile-admin:
+    description: Además de lo anterior, borra perfiles y levanta lápidas — las dos acciones irreversibles del servicio.
+
+permissions:
+  profile:read:
+    description: Consultar el listado y la ficha completa de cualquier perfil desde el back-office.
+  profile:deactivate:
+    description: Desactivar y reactivar un perfil, sin perder ningún dato.
+  profile:delete:
+    description: "Borrar un perfil purgando su información personal, y levantar la lápida que impide que su subject vuelva a aprovisionarse."
+  profile-contact:read:
+    description: Resolver el contacto de una persona por su subject, sin ninguna dirección postal.
+  profile-delivery:read:
+    description: Resolver el contacto de una persona junto con su dirección de envío por defecto.
+
+# El corte entre los dos roles está donde está la irreversibilidad: desactivar se deshace con
+# reactivar, borrar no se deshace nunca — la PII se purga y la lápida es permanente.
+roleGrants:
+  profile-support: [profile:read, profile:deactivate]
+  profile-admin:   [profile:read, profile:deactivate, profile:delete]
+
+cors:
+  description: >-
+    El front de onboarding, «completa tu perfil» y «mis direcciones» es una aplicación de navegador
+    que llama directamente a esta API, en paralelo a las pantallas del servidor de identidad.
+  allowCredentials: false
+  # Idempotency-Key está aquí porque sin ella la idempotencia de addMyAddress no funciona desde un
+  # navegador: el preflight rechazaría la cabecera y el alta se ejecutaría sin deduplicar.
+  allowedHeaders: [Authorization, Content-Type, Idempotency-Key]
+  exposedHeaders: [X-Correlation-Id]
+  maxAgeSeconds: 3600
+
+# Consumidores máquina. Mínimo privilegio por cliente, y el mínimo privilegio aquí es de campo:
+# notification-service no tiene el scope de entrega, así que no hay ninguna operación que le
+# devuelva una dirección postal. No puede verla ni pidiéndola.
+serviceClients:
+  order-service:
+    description: Resuelve contacto y dirección de envío por defecto para congelarlos como snapshot del pedido, de uno en uno o por lotes al pintar un listado.
+    scopes: [profile-delivery:read]
+  notification-service:
+    description: Resuelve el contacto de la persona a la que va dirigido un aviso; no necesita ni recibe direcciones postales.
+    scopes: [profile-contact:read]
+
+access:
+  # Todo lo que no se nombre abajo exige usuario autenticado.
+  default: { level: required }
+  rules:
+    # --- El usuario sobre sí mismo -------------------------------------------
+    # Sin permiso: todo usuario autenticado gestiona su propio perfil. Quién alcanza no lo decide
+    # un rol sino el subject del token, que el servidor estampa y el cliente no elige.
+    getMyProfile:           { level: required }
+    updateMyContactDetails: { level: required }
+    addMyAddress:           { level: required }
+    updateMyAddress:        { level: required }
+    removeMyAddress:        { level: required }
+    setMyDefaultAddress:    { level: required }
+    deleteMyProfile:        { level: required }
+
+    # --- Back-office / soporte -----------------------------------------------
+    listProfiles:      { level: admin, permissions: [profile:read] }
+    getProfile:        { level: admin, permissions: [profile:read] }
+    deactivateProfile: { level: admin, permissions: [profile:deactivate] }
+    reactivateProfile: { level: admin, permissions: [profile:deactivate] }
+    deleteProfile:     { level: admin, permissions: [profile:delete] }
+    reinstateSubject:  { level: admin, permissions: [profile:delete] }
+
+    # --- Servidor a servidor ---------------------------------------------------
+    resolveContactForServices:               { level: service, scopes: [profile-contact:read] }
+    resolveContactsBatchForServices:         { level: service, scopes: [profile-contact:read] }
+    resolveDeliveryProfileForServices:       { level: service, scopes: [profile-delivery:read] }
+    resolveDeliveryProfilesBatchForServices: { level: service, scopes: [profile-delivery:read] }

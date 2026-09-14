@@ -1,0 +1,268 @@
+# Capa domain — modelado del dominio: value types, entidades, relaciones, ciclo de vida e invariantes.
+# Cero tecnología: nada de tablas, ORMs ni frameworks.
+#
+# Tesis del diseño: hay un solo dueño de la identidad (el servidor de identidad) y un solo dueño del
+# perfil (este servicio), nunca los dos sobre el mismo dato. La costura entre ambos es un único
+# campo, subject, que es la clave de negocio del agregado.
+
+types:
+  SubjectIdentifier:
+    base: string
+    description: >-
+      Identificador opaco e inmutable del sujeto tal como lo emite el servidor de identidad. Es la
+      clave de negocio del perfil: no se interpreta, no se parsea y no se deriva de él ningún otro
+      dato. Nunca se usa el email como clave — el email cambia de dueño, el subject no.
+    constraints: { minLength: 1, maxLength: 255 }
+
+  EmailAddress:
+    base: string
+    description: Dirección de correo electrónico de contacto.
+    constraints: { pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", maxLength: 254 }
+
+  PhoneNumber:
+    base: string
+    description: Teléfono de contacto en formato E.164, con prefijo internacional.
+    constraints: { pattern: "^\\+[1-9]\\d{1,14}$" }
+
+  CountryCode:
+    base: string
+    description: País de la dirección, en ISO 3166-1 alpha-2.
+    constraints: { pattern: "^[A-Z]{2}$" }
+
+  PostalCode:
+    base: string
+    description: >-
+      Código postal tal como lo escribe quien envía la dirección. Sin pattern a propósito: cada país
+      tiene el suyo y hay países que no tienen ninguno, así que una expresión única sería una
+      garantía falsa que rechazaría direcciones válidas.
+    constraints: { minLength: 1, maxLength: 16 }
+
+  SubdivisionCode:
+    base: string
+    description: >-
+      Código de la división territorial de primer nivel en ISO 3166-2 (por ejemplo CO-ANT, ES-M,
+      US-CA). Es la única codificación territorial con cobertura mundial publicada, por eso es la
+      única cuya forma valida este servicio.
+    constraints: { pattern: "^[A-Z]{2}-[A-Z0-9]{1,3}$" }
+
+  TerritoryCode:
+    base: string
+    description: >-
+      Código de la división territorial de segundo nivel en la codificación nacional que corresponda.
+      Opaco y sin pattern: no existe una codificación universal de nivel 2, y hay países que no
+      publican ninguna.
+    constraints: { minLength: 1, maxLength: 32 }
+
+  ProfileStatus:
+    description: Situación del perfil respecto de su completitud y su vigencia operativa.
+    values: [draft, complete, deactivated]
+
+  AddressType:
+    description: Para qué sirve la dirección en el negocio.
+    values: [shipping, billing]
+
+  DeletionReason:
+    description: >-
+      Por qué vía se pidió el borrado. Enum cerrado y no texto libre a propósito: la lápida no puede
+      acumular datos personales por la puerta de atrás de un campo de observaciones.
+    values: [self-service, back-office]
+
+  # La dirección postal es un value object y no un puñado de campos sueltos de la entidad porque es
+  # la unidad que viaja: es lo que un consumidor congela como snapshot inmutable del pedido, lo que
+  # publica un evento de dirección y lo que devuelve la superficie servidor-a-servidor. La división
+  # territorial va en dos niveles con nombres genéricos — nivel 1 es departamento en Colombia,
+  # provincia en España y state en EE. UU.; nivel 2 es municipio, ayuntamiento o city — porque
+  # llamarlos department/municipality convertiría un tipo universal en uno colombiano.
+  PostalAddress:
+    description: >-
+      Dirección postal tal como la escribió quien la dio, con el nombre de cada territorio al lado de
+      su código. Viaja entera y se congela entera: dentro de diez años tiene que seguir significando
+      lo mismo que el día que se escribió.
+    fields:
+      line1:         { type: string, required: true, constraints: { maxLength: 140 }, description: "Vía y número." }
+      line2:         { type: string, constraints: { maxLength: 140 }, description: "Complemento (piso, puerta, torre)." }
+      line3:         { type: string, constraints: { maxLength: 140 }, description: "Referencias adicionales de entrega." }
+      postalCode:    { type: PostalCode, description: "Código postal, opcional porque hay países donde no existe y países donde existe pero nadie lo escribe." }
+      countryCode:   { type: CountryCode, required: true }
+      adminAreaCode: { type: SubdivisionCode, description: "Código de la división de primer nivel, opcional." }
+      adminAreaName: { type: string, constraints: { maxLength: 120 }, description: "Nombre de la división de primer nivel, opcional: hay países que no tienen ese nivel o no lo escriben en la dirección." }
+      localityCode:  { type: TerritoryCode, description: "Código de la división de segundo nivel en la codificación nacional, opcional porque no todos los países publican una." }
+      localityName:  { type: string, required: true, constraints: { maxLength: 120 }, description: "Nombre de la localidad, obligatorio: no hay país donde una dirección postal no nombre una." }
+
+  # Las tres proyecciones de la superficie servidor-a-servidor. Viven aquí porque el DSL exige un
+  # tipo declarado para el elemento de una colección, y porque son conceptos de negocio con nombre:
+  # el contacto de una persona, lo que necesita quien tiene que entregarle algo, y el subject que no
+  # se pudo resolver. Contacto y entrega están separados a propósito — un consumidor que solo
+  # notifica no puede recibir una dirección ni pidiéndola, porque no hay operación que se la dé.
+  ContactDetails:
+    description: Bloque de contacto de una persona, sin ninguna dirección postal.
+    fields:
+      subject:      { type: SubjectIdentifier, required: true }
+      displayName:  { type: string, constraints: { maxLength: 200 } }
+      givenName:    { type: string, constraints: { maxLength: 100 } }
+      familyName:   { type: string, constraints: { maxLength: 100 } }
+      contactEmail: { type: EmailAddress }
+      contactPhone: { type: PhoneNumber }
+      status:       { type: ProfileStatus, required: true }
+      version:      { type: int, required: true, description: "Versión del agregado al responder; permite a un consumidor descartar una actualización más vieja que la que ya aplicó." }
+      updatedAt:    { type: timestamp, required: true }
+
+  DeliveryProfile:
+    description: >-
+      Contacto de una persona más su dirección de envío por defecto. Es lo que necesita quien tiene
+      que entregarle algo, y lo que congela como snapshot del pedido.
+    fields:
+      subject:         { type: SubjectIdentifier, required: true }
+      displayName:     { type: string, constraints: { maxLength: 200 } }
+      givenName:       { type: string, constraints: { maxLength: 100 } }
+      familyName:      { type: string, constraints: { maxLength: 100 } }
+      contactEmail:    { type: EmailAddress }
+      contactPhone:    { type: PhoneNumber }
+      status:          { type: ProfileStatus, required: true }
+      version:         { type: int, required: true }
+      updatedAt:       { type: timestamp, required: true }
+      shippingAddress: { type: PostalAddress, required: true, description: "La dirección de tipo shipping marcada por defecto, sin etiqueta ni marca de defecto: al consumidor le importa la dirección, no la UX con la que el usuario la eligió." }
+
+  UnresolvedReason:
+    description: Por qué un subject pedido en un lote no se pudo resolver.
+    values: [not-found, deleted, incomplete]
+
+  UnresolvedSubject:
+    description: >-
+      Un subject que el lote no pudo resolver, con el porqué. Distinguir not-found de deleted es
+      contrato y no detalle de implementación: es lo que permite a un consumidor purgar sus propias
+      copias de quien se borró sin purgar las de quien todavía no ha entrado.
+    fields:
+      subject: { type: SubjectIdentifier, required: true }
+      reason:  { type: UnresolvedReason, required: true }
+
+entities:
+  UserProfile:
+    description: >-
+      Lo que este servicio sabe de una persona para poder operar con ella: contacto, direcciones y
+      estado de negocio. Nada de lo que sirve para entrar (credenciales, MFA, sesiones, roles) vive
+      aquí: eso es del servidor de identidad.
+    fields:
+      id:           { type: uuid, id: true, generated: true }
+      subject:      { type: SubjectIdentifier, required: true, unique: true, description: "Clave de negocio del perfil, copiada del subject del token en el aprovisionamiento. Inmutable." }
+      # Réplica de solo lectura del claim de email del token. Es la única duplicación legítima de un
+      # dato del servidor de identidad, y existe para poder buscar y pintar listados de back-office
+      # sin una llamada al servidor de identidad por fila. Ninguna operación de la API lo cambia: el
+      # email de login es del servidor de identidad, y aquí solo se refresca al aprovisionar.
+      contactEmail: { type: EmailAddress, description: "Correo de contacto, réplica del claim del token." }
+      givenName:    { type: string, constraints: { maxLength: 100 }, description: "Nombre de pila." }
+      familyName:   { type: string, constraints: { maxLength: 100 }, description: "Apellidos." }
+      displayName:  { type: string, constraints: { maxLength: 200 }, description: "Nombre con el que dirigirse a la persona; se siembra del token al aprovisionar y el usuario puede cambiarlo." }
+      # El teléfono de contacto es dato de negocio y vive aquí. El que actúa como segundo factor o
+      # como login por SMS es una credencial y vive en el servidor de identidad: aunque sea el mismo
+      # número, son dos registros con dos dueños, y cambiar este no cambia aquel.
+      contactPhone: { type: PhoneNumber, description: "Teléfono de contacto del negocio, nunca una credencial." }
+      # No es computed: draft ⇄ complete sí se deriva de los datos, pero deactivated lo provoca un
+      # command y no se deriva de ningún campo. Que el cliente no lo envíe lo garantiza que no
+      # aparece en el input de ninguna operación, no un atributo del campo.
+      status:       { type: ProfileStatus, default: draft }
+      # Campo reservado: lo activa persistence con consistency.optimisticLocking: declared. Se
+      # declara aquí, en vez de dejar la política en 'all', para que la versión sea parte del
+      # contrato y pueda viajar en los eventos — sin ella, dos eventos del mismo perfil que lleguen
+      # desordenados dejan la réplica del consumidor mal para siempre y sin síntoma.
+      lockVersion:  { type: int, generated: true }
+      # Campos reservados: los activa persistence con audit.timestamps: declared.
+      createdAt:    { type: timestamp, generated: true }
+      updatedAt:    { type: timestamp, generated: true }
+    relations:
+      addresses: { entity: Address, cardinality: one-to-many, description: "Direcciones de la persona, dentro del mismo agregado." }
+    lifecycle:
+      field: status
+      transitions:
+        draft:       [complete, deactivated]
+        complete:    [draft, deactivated]
+        deactivated: [draft, complete]
+    invariants:
+      - "Un perfil está complete si y solo si tiene contactEmail, contactPhone y displayName con valor y además una dirección de tipo shipping marcada como isDefault; en cualquier otro caso está draft."
+      - "El estado se recalcula al aplicar cada cambio del perfil o de sus direcciones, incluida la reactivación, que devuelve el perfil a draft o a complete según los datos que tenga en ese momento."
+      - "Un perfil en draft es un estado válido y esperado, no un error: el perfil nace incompleto y se completa por perfilado progresivo."
+      - "El subject es inmutable, ninguna operación lo cambia después del aprovisionamiento, y no pueden existir dos perfiles con el mismo subject."
+      - "contactEmail solo se escribe durante el aprovisionamiento, copiando el claim del token; ninguna operación de la API permite cambiarlo."
+      - "Un perfil deactivated conserva todos sus datos y todas sus direcciones; desactivar no es borrar."
+      # El refresco del contactEmail dentro del aprovisionamiento es la única excepción, y no es una
+      # mutación del usuario: mantiene una réplica cuyo dueño es el servidor de identidad. Sin ella,
+      # quien cambió su correo de login estando desactivado vuelve con un contactEmail que ya no
+      # existe, y el primer aviso que se le mande va a una dirección ajena sin que nada lo detecte.
+      - "Un perfil deactivated no admite ninguna mutación de contacto ni de direcciones POR LA API hasta que se reactive; el refresco del contactEmail desde el claim del token durante el aprovisionamiento sí ocurre en cualquier estado."
+      - Las direcciones pertenecen al perfil y desaparecen con él.
+      - Un perfil tiene como mucho veinte direcciones.
+      # Retención: decidida, no omitida. Un borrado automático por inactividad sería irreversible y
+      # silencioso a la vez, que es la peor combinación posible. Quien adopte este diseño con una
+      # obligación legal de conservación limitada tiene que añadirla él, y sabe que no está.
+      - "Un perfil vive mientras nadie lo borre: no hay retención automática, ni purga por inactividad, ni archivado. La única salida del ciclo de vida es un borrado explícito."
+
+  Address:
+    description: >-
+      Una ranura con etiqueta, tipo y marca de defecto que contiene una dirección postal. La
+      dirección que contiene es un hecho histórico: guarda el territorio que le dijeron en el momento
+      en que se lo dijeron, no una referencia viva a un catálogo territorial.
+    fields:
+      id:        { type: uuid, id: true, generated: true }
+      label:     { type: string, required: true, constraints: { maxLength: 60 }, description: "Nombre con el que la persona reconoce la dirección (casa, oficina)." }
+      type:      { type: AddressType, required: true, description: "Para qué sirve la dirección; una que sirva para las dos cosas se guarda dos veces, con su propio isDefault cada una." }
+      postal:    { type: PostalAddress, required: true }
+      isDefault: { type: boolean, default: false, description: "Marca la dirección elegida por defecto para su type." }
+      createdAt: { type: timestamp, generated: true }
+      updatedAt: { type: timestamp, generated: true }
+    relations:
+      profile: { entity: UserProfile, cardinality: many-to-one, required: true, description: "Perfil al que pertenece la dirección." }
+    invariants:
+      # El nombre viaja junto al código, denormalizado y copiado en el momento de guardar, no resuelto
+      # al leer: los territorios se crean, se fusionan y se renombran, así que una dirección que solo
+      # guardara el código dejaría de significar lo mismo el día que su territorio cambie. Que código
+      # y nombre diverjan con los años no es una inconsistencia que haya que arreglar: es la historia.
+      - "El nombre de cada nivel territorial se copia en el momento de guardar la dirección y no se vuelve a resolver ni a refrescar nunca, aunque el territorio se renombre o se fusione después."
+      - "Si postal.adminAreaCode tiene valor, postal.adminAreaName es obligatorio. Nunca se acepta un código sin su nombre."
+      - "Cuando postal.adminAreaCode tiene valor, su prefijo de país coincide con postal.countryCode y su forma es un ISO 3166-2 válido."
+      # El país es el esquema implícito del código de nivel 2: la dirección no lleva un campo que
+      # nombre la codificación. En un país con más de una codificación en circulación el código
+      # queda huérfano, y se acepta a sabiendas — el nombre denormalizado viaja siempre al lado,
+      # así que la dirección sigue siendo imprimible aunque el código deje de ser resoluble.
+      - "postal.localityCode se interpreta contra la codificación nacional del país declarado en postal.countryCode; la dirección no guarda ningún identificador de esquema aparte."
+      # Este servicio NO valida la división territorial contra ningún catálogo, y es una decisión, no
+      # un olvido: quien se integre tiene que saber que el servidor acepta un localityName inventado
+      # sin rechistar. Que el territorio exista, que pertenezca a esa división de primer nivel y que
+      # el nombre sea el oficial es responsabilidad del llamante, que lo resuelve en el borde contra
+      # su propio catálogo territorial, que es además donde está la UX de elegir localidad.
+      - "Este servicio valida la forma de los datos territoriales y nada más; no comprueba contra ningún catálogo que el territorio exista, que el código y el nombre se correspondan, ni que la localidad pertenezca a la división de primer nivel declarada."
+      - Un perfil tiene como mucho una dirección marcada isDefault por cada type.
+      - Marcar una dirección como isDefault desmarca la que lo estuviera para ese mismo type.
+
+  DeletedSubject:
+    description: >-
+      Lápida de un subject cuyo perfil fue borrado. Existe porque este servicio nunca llama al
+      servidor de identidad: la identidad sigue viva después del borrado y puede presentar un token
+      válido al día siguiente. Sin esta marca, el aprovisionamiento just-in-time le crearía un perfil
+      nuevo en draft y el borrado se habría deshecho solo, sin error y sin traza.
+    fields:
+      subject:   { type: SubjectIdentifier, id: true, description: "El subject borrado; es la clave de la lápida." }
+      deletedAt: { type: timestamp, generated: true, required: true, description: "Cuándo se borró el perfil." }
+      deletedBy: { type: string, required: true, constraints: { maxLength: 255 }, description: "Quién pidió el borrado — el propio subject si fue autoservicio, el operador si fue back-office." }
+      reason:    { type: DeletionReason, required: true }
+    invariants:
+      - La lápida no guarda ningún dato de contacto ni ninguna dirección; toda la información personal del perfil se purga en el borrado y solo sobrevive el identificador pseudónimo y el rastro de quién y cuándo.
+      - Mientras exista lápida para un subject, el aprovisionamiento just-in-time no crea perfil para él.
+      - "La lápida es permanente: no caduca por retención y solo la levanta un acto administrativo explícito."
+      # Esta invariante CRUZA los dos agregados, que es justo lo que una invariante no debería hacer,
+      # y solo la sostiene persistence.consistency.transactionalBoundary: per-operation. Quien la
+      # cambie a per-aggregate rompe esta invariante, y tiene que poder verlo desde aquí.
+      - No pueden coexistir una lápida y un perfil para el mismo subject.
+      - "Un borrado repetido sobre un subject que ya tiene lápida no la reescribe: deletedAt y deletedBy siguen siendo los del borrado real."
+
+# Fronteras de consistencia: el perfil y sus direcciones cambian siempre juntos, en la misma
+# transacción. La lápida es su propia frontera a propósito — tiene que sobrevivir precisamente al
+# borrado del agregado UserProfile, así que no puede vivir dentro de él.
+aggregates:
+  UserProfile:
+    description: El perfil posee sus direcciones; se modifican en la misma transacción y el estado se recalcula con ellas.
+    root: UserProfile
+    entities: [Address]
+
+  DeletedSubject:
+    description: La lápida es su propia frontera; nace cuando el agregado UserProfile deja de existir.
+    root: DeletedSubject

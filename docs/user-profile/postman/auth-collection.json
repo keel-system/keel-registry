@@ -1,0 +1,318 @@
+{
+  "info": {
+    "name": "user-profile — auth",
+    "description": "Emite los tokens que consume la colección de negocio y los guarda en globals.\n\nEl diseño es agnóstico del proveedor de identidad: rellena `tokenUrl`, los client y los usuarios de prueba según el servidor de identidad del despliegue (con Keycloak, `tokenUrl` es http://localhost:8180/realms/<realm>/protocol/openid-connect/token).\n\n`token_user` es un token de PERSONA sin ningún rol: es lo único que exigen las siete operaciones de /me, porque su alcance no lo da un rol sino el claim `sub`. Los flujos que actúan sobre varios subjects distintos exigen reemitirlo con otro usuario entre medias.\n\nLos dos tokens M2M se emiten por client_credentials con la audiencia `user-profile`: un token emitido para otra audiencia responde 403, no 401.\n\nEste archivo es IDEMPOTENTE: /keel-docs no lo sobrescribe si ya existe, así que los ajustes manuales del equipo sobreviven a una regeneración.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Token — user",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_user}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_user}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_user', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — profile-support",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_profile-support}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_profile-support}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_profile-support', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — profile-admin",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_profile-admin}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_profile-admin}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_profile-admin', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — order-service",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_order-service}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_order-service}}"
+            },
+            {
+              "key": "scope",
+              "value": "profile-delivery:read"
+            },
+            {
+              "key": "audience",
+              "value": "user-profile"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_order-service', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — notification-service",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_notification-service}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_notification-service}}"
+            },
+            {
+              "key": "scope",
+              "value": "profile-contact:read"
+            },
+            {
+              "key": "audience",
+              "value": "user-profile"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_notification-service', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "tokenUrl",
+      "value": "",
+      "description": "Endpoint de token del servidor de identidad."
+    },
+    {
+      "key": "clientId",
+      "value": "",
+      "description": "Client público para los tokens de usuario."
+    },
+    {
+      "key": "clientSecret",
+      "value": ""
+    },
+    {
+      "key": "username_user",
+      "value": "",
+      "description": "Persona sin rol; gobierna sobre qué perfil actúa /me."
+    },
+    {
+      "key": "password_user",
+      "value": ""
+    },
+    {
+      "key": "username_profile-support",
+      "value": ""
+    },
+    {
+      "key": "password_profile-support",
+      "value": ""
+    },
+    {
+      "key": "username_profile-admin",
+      "value": ""
+    },
+    {
+      "key": "password_profile-admin",
+      "value": ""
+    },
+    {
+      "key": "clientId_order-service",
+      "value": "",
+      "description": "serviceClient con profile-delivery:read."
+    },
+    {
+      "key": "clientSecret_order-service",
+      "value": ""
+    },
+    {
+      "key": "clientId_notification-service",
+      "value": "",
+      "description": "serviceClient con profile-contact:read."
+    },
+    {
+      "key": "clientSecret_notification-service",
+      "value": ""
+    }
+  ]
+}

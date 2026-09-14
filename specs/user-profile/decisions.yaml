@@ -1,0 +1,21 @@
+# Obligaciones de diseño que este servicio deja abiertas a sabiendas.
+# No es una capa del DSL: no describe lo que el servicio hace, sino qué se decidió
+# no declarar y por qué. Ver docs/design-obligations.md.
+
+decisions:
+  - id: OBL-CONCURRENCY-CODE
+    scope: persistence
+    reason: >
+      No está sin decidir: CONCURRENT_MODIFICATION (409), el código canónico, está DECLARADO en
+      los errors de las siete operaciones donde el conflicto es observable —las cinco mutaciones
+      de /me más deactivateProfile y reactivateProfile—, que son todas las que escriben la raíz
+      UserProfile con lockVersion. La obligación sigue listada por el mismo defecto del
+      comprobador que documenta specs/catalog/decisions.yaml: overrideFor exige exactamente un
+      candidato entre los errors agregados del servicio y no deduplica por code, así que
+      declarar el mismo código canónico en siete operaciones produce siete candidatos y la da
+      por no cerrada. Verificado en 0.1.0 dejando el code en una sola operación: la obligación
+      se cerró y `keel validate` dio verde. La salida que el comprobador pide —declararlo en una
+      sola— publicaría el 409 en el openapi de un endpoint y lo callaría en los otros seis, que
+      es peor contrato para quien se integra: las siete pueden devolverlo. Se mantiene declarado
+      en las siete y se acepta el aviso.
+    since: 0.1.0
