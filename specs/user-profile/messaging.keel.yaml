@@ -47,8 +47,9 @@ publishing:
 
     ProfileProvisioned:
       description: >-
-        Nació un perfil al adoptar una identidad en la primera petición autenticada de esa persona.
-        Es el primer hecho de todo perfil y el que arranca cualquier réplica.
+        Nació un perfil: era la primera petición autenticada de esa persona y el aprovisionamiento
+        se lo creó. Es el primer hecho de todo perfil y el que arranca cualquier réplica. El
+        aprovisionamiento corre en todas las peticiones, pero este evento solo sale cuando crea.
       channel: profileEvents
       payload:
         subject:      { type: SubjectIdentifier, required: true }

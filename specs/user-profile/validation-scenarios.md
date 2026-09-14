@@ -1,7 +1,7 @@
 # user-profile — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/user-profile v0.1.0. Contrato de validación para la fase de generación.
+> specs/user-profile v0.1.1. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -23,7 +23,7 @@ Valen para **todo** el servicio y ningún escenario las repite.
 
 | Operación | Flujos | Superficie |
 |---|---|---|
-| `provisionProfileFromIdentity` | FL-PRV-001, FL-PRV-002, FL-PRV-003, FL-PRV-004, FL-DEL-003, FL-DEL-004 | interna (frontera de identidad) |
+| `provisionProfileFromIdentity` | FL-PRV-001, FL-PRV-002, FL-PRV-003, FL-PRV-004, FL-DEL-003, FL-DEL-004 | interna (se ejecuta al validar el token de cada petición) |
 | `getMyProfile` | FL-PRV-001, FL-ME-001, FL-DEL-001, FL-SEC-001 | usuarios |
 | `updateMyContactDetails` | FL-ME-001, FL-ME-002, FL-ME-003 | usuarios |
 | `addMyAddress` | FL-ADR-001, FL-ADR-003, FL-ADR-004, FL-ADR-005, FL-TER-001, FL-TER-002, FL-ME-003 | usuarios |
@@ -174,7 +174,7 @@ addresses: [ { id, label, type, isDefault, createdAt, updatedAt,
 
 **Given**: no existe perfil ni lápida para `sub-carol`. El canal está purgado.
 
-**When**: tres `GET /api/v1/me/profile` **a la vez**, las tres con el token de `sub-carol`.
+**When**: tres `GET /api/v1/me/profile` **a la vez**, las tres con el token de `sub-carol`. Las tres disparan `provisionProfileFromIdentity` con la **misma clave de idempotencia** — el `callerSubject`, que es `payload-field` sobre la clave natural del agregado.
 
 **Then**:
 1. Las tres responden `200` con el **mismo** `id` y el mismo `subject`.
@@ -840,7 +840,7 @@ addresses: [ { id, label, type, isDefault, createdAt, updatedAt,
 | `listProfiles`, `getProfile` | `401` | token de usuario sin rol → `403` |
 | `deactivateProfile`, `reactivateProfile` | `401` | token de usuario sin rol → `403` |
 | `deleteProfile`, `reinstateSubject` | `401` | rol `profile-support` → `403` |
-| las 4 de `/services` | `401` | credencial de máquina del otro `serviceClient` → `403` (FL-M2M-004) |
+| las 4 de `/services` | `401` | `403` con la credencial de máquina del cliente `order-service` sobre la familia de contacto, y con la del cliente `notification-service` sobre la de entrega (FL-M2M-004) |
 
 `provisionProfileFromIdentity` no aparece: es `internal: true` y no tiene endpoint propio — su control de acceso se ejercita en FL-PRV-002, donde una credencial de máquina no aprovisiona.
 

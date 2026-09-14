@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.0 -->
+<!-- keel:version 0.1.1 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,7 +188,7 @@
 const KEEL = {
   "service": {
     "name": "user-profile",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Posee el perfil de negocio de cada persona — contacto y direcciones — adoptando por aprovisionamiento just-in-time la identidad que crea el servidor de identidad, sin ser nunca dueño de sus credenciales.",
     "domain": "identity",
     "generatedAt": "2026-09-14"
@@ -397,7 +397,7 @@ const KEEL = {
     {
       "name": "provisionProfileFromIdentity",
       "kind": "command",
-      "description": "Adopta en este servicio la identidad que creó el servidor de identidad. La invoca la frontera de identidad en la primera petición autenticada que llegue, sea al endpoint que sea, y es el único punto de entrada por el que nace un perfil. Deliberadamente aburrida: busca por subject y, si no está, inserta con los claims del token.",
+      "description": "Da de alta en este servicio a una persona que ya existe en el servidor de identidad. El servidor la ejecuta al validar el token de CADA petición autenticada, antes de atenderla: busca el perfil por su subject y, si no existe, lo crea con los datos que traiga el token; si ya existe, lo único que toca es el correo, y solo cuando el del token ha cambiado. Es el único punto por el que nace un perfil: no hay alta manual ni administrativa.",
       "audience": "internal",
       "trigger": {
         "type": "internal"
@@ -410,14 +410,14 @@ const KEEL = {
             "type": "SubjectIdentifier",
             "required": true,
             "list": false,
-            "description": "El subject del token; lo estampa el servidor desde el claim, nunca viaja en el cuerpo."
+            "description": "El subject del token; lo estampa el servidor al validarlo, y nunca viaja en el cuerpo de la petición."
           },
           {
             "name": "email",
             "type": "EmailAddress",
             "required": false,
             "list": false,
-            "description": "Claim de email del token, si el token lo trae."
+            "description": "El correo que trae el token, si lo trae: hay clientes que no piden ese dato y proveedores que no lo emiten, y el perfil nace igual sin él."
           },
           {
             "name": "givenName",
@@ -445,7 +445,7 @@ const KEEL = {
             "type": "boolean",
             "required": true,
             "list": false,
-            "description": "Si el token representa a una persona o a una máquina; lo resuelve la frontera de identidad a partir del tipo de credencial."
+            "description": "Si el token representa a una persona o a una máquina. Lo decide el servidor por el tipo de credencial con que se emitió el token, nunca un dato del cuerpo."
           }
         ]
       },
@@ -496,7 +496,7 @@ const KEEL = {
     {
       "name": "getMyProfile",
       "kind": "query",
-      "description": "Devuelve el perfil de quien presenta el token, con todas sus direcciones.",
+      "description": "Devuelve el perfil de quien presenta el token, con todas sus direcciones. Atención al implementarla: es una query que puede ESCRIBIR — si es la primera petición autenticada de esa persona, el aprovisionamiento le crea el perfil antes de responder. No puede ejecutarse en una transacción de solo lectura ni enrutarse a una réplica de lectura.",
       "audience": "users",
       "trigger": {
         "type": "http",
@@ -628,7 +628,7 @@ const KEEL = {
     {
       "name": "addMyAddress",
       "kind": "command",
-      "description": "Añade una dirección al perfil de quien presenta el token.",
+      "description": "Añade una dirección al perfil de quien presenta el token. Devuelve el PERFIL entero y no la dirección creada: añadir recalcula el estado del perfil, y el front de onboarding necesita las dos cosas —el id de lo que acaba de crear y si ya está completo— en una sola respuesta. Si llega marcada por defecto, desmarca la que lo estuviera para ese mismo tipo.",
       "audience": "users",
       "trigger": {
         "type": "http",
@@ -750,7 +750,7 @@ const KEEL = {
     {
       "name": "updateMyAddress",
       "kind": "command",
-      "description": "Reemplaza el contenido de una dirección del perfil de quien presenta el token.",
+      "description": "Reemplaza el contenido de una dirección del perfil de quien presenta el token. Devuelve el perfil entero, porque el cambio puede recalcular su estado. No toca `isDefault`: cambiar cuál es la de por defecto es `setMyDefaultAddress`, no un efecto colateral de editar una.",
       "audience": "users",
       "trigger": {
         "type": "http",
@@ -858,7 +858,7 @@ const KEEL = {
     {
       "name": "removeMyAddress",
       "kind": "command",
-      "description": "Elimina una dirección del perfil de quien presenta el token.",
+      "description": "Elimina una dirección del perfil de quien presenta el token. Devuelve el PERFIL entero y no un cuerpo vacío: eliminar recalcula su estado, y el cliente no puede predecirlo. Si la eliminada era la de por defecto de su tipo, el perfil se queda SIN NINGUNA para ese tipo — no se promociona ninguna otra, porque elegir cuál es del usuario y no del servidor.",
       "audience": "users",
       "trigger": {
         "type": "http",
@@ -932,7 +932,7 @@ const KEEL = {
     {
       "name": "setMyDefaultAddress",
       "kind": "command",
-      "description": "Marca una dirección como la de por defecto de su type.",
+      "description": "Marca una dirección como la de por defecto de su tipo y desmarca la que lo estuviera, porque hay como mucho una por tipo. Devuelve el perfil entero, con el estado recalculado.",
       "audience": "users",
       "trigger": {
         "type": "http",
@@ -1073,7 +1073,7 @@ const KEEL = {
             "type": "string",
             "required": false,
             "list": false,
-            "description": "Texto libre que se busca en contactEmail y displayName."
+            "description": "Prefijo que se busca en contactEmail y en displayName, con OR entre los dos e ignorando mayúsculas y acentos. Por PREFIJO y no por subcadena: es lo único que un índice ordinario sostiene cuando el padrón crece, y eso es cota y no rendimiento."
           }
         ]
       },
@@ -1679,7 +1679,7 @@ const KEEL = {
     "published": [
       {
         "name": "ProfileProvisioned",
-        "description": "Nació un perfil al adoptar una identidad en la primera petición autenticada de esa persona. Es el primer hecho de todo perfil y el que arranca cualquier réplica.",
+        "description": "Nació un perfil: era la primera petición autenticada de esa persona y el aprovisionamiento se lo creó. Es el primer hecho de todo perfil y el que arranca cualquier réplica. El aprovisionamiento corre en todas las peticiones, pero este evento solo sale cuando crea.",
         "channel": "profileEvents",
         "emittedBy": [
           "provisionProfileFromIdentity"
@@ -2204,21 +2204,21 @@ const KEEL = {
             "name": "contactEmail",
             "type": "EmailAddress",
             "list": false,
-            "description": "Correo de contacto, réplica del claim del token.",
+            "description": "Correo de contacto. Es una réplica de solo lectura del que trae el token: ninguna operación de la API lo cambia, y solo se refresca al aprovisionar.",
             "flags": []
           },
           {
             "name": "givenName",
             "type": "string",
             "list": false,
-            "description": "Nombre de pila.",
+            "description": "Nombre de pila. Se siembra del token al aprovisionar y a partir de ahí es del usuario; opcional, porque el token puede no traerlo.",
             "flags": []
           },
           {
             "name": "familyName",
             "type": "string",
             "list": false,
-            "description": "Apellidos.",
+            "description": "Apellidos. Se siembran del token al aprovisionar y a partir de ahí son del usuario; opcionales, porque el token puede no traerlos.",
             "flags": []
           },
           {
@@ -2232,7 +2232,7 @@ const KEEL = {
             "name": "contactPhone",
             "type": "PhoneNumber",
             "list": false,
-            "description": "Teléfono de contacto del negocio, nunca una credencial.",
+            "description": "Teléfono de contacto, dato de negocio y nunca una credencial: el que actúa como segundo factor o como login por SMS vive en el servidor de identidad, y aunque sea el mismo número son dos registros con dos dueños.",
             "flags": []
           },
           {
@@ -2469,7 +2469,7 @@ const KEEL = {
         "name": "SubjectIdentifier",
         "kind": "escalar",
         "detail": "string · minLength 1 · maxLength 255",
-        "description": "Identificador opaco e inmutable del sujeto tal como lo emite el servidor de identidad. Es la clave de negocio del perfil: no se interpreta, no se parsea y no se deriva de él ningún otro dato. Nunca se usa el email como clave — el email cambia de dueño, el subject no."
+        "description": "Identificador opaco e inmutable del sujeto: el claim `sub` del token, que es como el servidor de identidad nombra a una persona. Es la clave de negocio del perfil y la única costura entre los dos sistemas — todo lo demás que sabe cada uno es suyo y no se duplica. No se interpreta, no se parsea y no se deriva de él ningún otro dato. Nunca se usa el email como clave: el email cambia de dueño, el subject no."
       },
       {
         "name": "EmailAddress",
@@ -2511,13 +2511,13 @@ const KEEL = {
         "name": "ProfileStatus",
         "kind": "enum",
         "detail": "draft · complete · deactivated",
-        "description": "Situación del perfil respecto de su completitud y su vigencia operativa."
+        "description": "Situación del perfil respecto de su completitud y su vigencia operativa. `draft` NO es un error ni una fila a medio escribir: el perfil nace incompleto con lo que el token traiga y se completa por perfilado progresivo, así que un perfil en `draft` es un caso normal que toda operación tiene que saber servir."
       },
       {
         "name": "AddressType",
         "kind": "enum",
         "detail": "shipping · billing",
-        "description": "Para qué sirve la dirección en el negocio."
+        "description": "Para qué sirve la dirección en el negocio. La distinción no es cosmética: solo una dirección `shipping` marcada por defecto cuenta para que el perfil esté completo, y el «como mucho una por defecto» se cuenta POR TIPO — así que una persona puede tener a la vez una de envío y una de facturación marcadas."
       },
       {
         "name": "DeletionReason",

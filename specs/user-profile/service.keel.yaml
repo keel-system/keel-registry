@@ -5,7 +5,7 @@ keel: "2.13"
 
 service:
   name: user-profile
-  version: 0.1.0
+  version: 0.1.1
   # keel validate trata cualquier description que empiece por "TODO" como placeholder pendiente.
   description: "Posee el perfil de negocio de cada persona — contacto y direcciones — adoptando por aprovisionamiento just-in-time la identidad que crea el servidor de identidad, sin ser nunca dueño de sus credenciales."
   domain: identity

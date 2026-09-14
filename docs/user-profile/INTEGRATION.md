@@ -1,6 +1,6 @@
 ---
 service: user-profile
-version: 0.1.0
+version: 0.1.1
 domain: identity
 basePath: /api/v1
 m2mAuth:
@@ -371,7 +371,7 @@ El contrato formal de estos mensajes está en [`asyncapi.yaml`](asyncapi.yaml) (
 
 ### ProfileProvisioned
 
-Nació un perfil al adoptar una identidad en la primera petición autenticada de esa persona. Es el primer hecho de todo perfil y el que arranca cualquier réplica.
+Nació un perfil: era la primera petición autenticada de esa persona y el aprovisionamiento se lo creó. Es el primer hecho de todo perfil y el que arranca cualquier réplica. El aprovisionamiento corre en todas las peticiones, pero este evento solo sale cuando crea; cuando el perfil ya existía y el correo del token cambió, lo que sale es `ProfileContactEmailRefreshed`.
 
 **Emitido por**: `provisionProfileFromIdentity`.
 

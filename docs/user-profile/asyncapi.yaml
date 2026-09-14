@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: user-profile
-  version: 0.1.0
+  version: 0.1.1
   description: 'Posee el perfil de negocio de cada persona — contacto y direcciones — adoptando por aprovisionamiento just-in-time
     la identidad que crea el servidor de identidad, sin ser nunca dueño de sus credenciales.
 
@@ -74,7 +74,7 @@ operations:
     action: send
     channel:
       $ref: '#/channels/profileEvents'
-    summary: Nació un perfil al adoptar una identidad en la primera petición autenticada de esa persona.
+    summary: 'Nació un perfil: era la primera petición autenticada de esa persona y el aprovisionamiento se lo creó.'
     messages:
     - $ref: '#/channels/profileEvents/messages/ProfileProvisioned'
     x-keel-reliability: outbox
@@ -177,10 +177,11 @@ components:
       name: ProfileProvisioned
       title: ProfileProvisioned
       contentType: application/json
-      summary: Nació un perfil al adoptar una identidad en la primera petición autenticada de esa persona.
-      description: 'Es el primer hecho de todo perfil y el que arranca cualquier réplica. El perfil nace con lo que el token
-        traiga: solo el subject es obligatorio, así que contactEmail puede llegar nulo si el cliente no pidió ese scope
-        o el proveedor no lo emite.'
+      summary: 'Nació un perfil: era la primera petición autenticada de esa persona y el aprovisionamiento se lo creó.'
+      description: 'Es el primer hecho de todo perfil y el que arranca cualquier réplica. El aprovisionamiento corre en
+        todas las peticiones autenticadas, pero este evento solo sale cuando crea. El perfil nace con lo que el token traiga:
+        solo el subject es obligatorio, así que contactEmail puede llegar nulo si el cliente no pidió ese scope o el proveedor
+        no lo emite.'
       correlationId:
         $ref: '#/components/correlationIds/keelCorrelationId'
       payload:
@@ -451,13 +452,15 @@ components:
       - draft
       - complete
       - deactivated
-      description: Situación del perfil respecto de su completitud y su vigencia operativa.
+      description: 'Situación del perfil respecto de su completitud y su vigencia operativa. draft NO es un error: el perfil
+        nace incompleto con lo que el token traiga y se completa por perfilado progresivo.'
     AddressType:
       type: string
       enum:
       - shipping
       - billing
-      description: Para qué sirve la dirección en el negocio.
+      description: Para qué sirve la dirección. Solo una dirección shipping marcada por defecto cuenta para que el perfil
+        esté completo, y el «como mucho una por defecto» se cuenta por tipo.
     DeletionReason:
       type: string
       enum:

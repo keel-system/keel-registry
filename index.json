@@ -217,7 +217,7 @@
       "variant": null,
       "service": {
         "name": "user-profile",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "dsl": "2.13",
         "domain": "identity",
         "basedOn": null,

@@ -9,9 +9,11 @@ types:
   SubjectIdentifier:
     base: string
     description: >-
-      Identificador opaco e inmutable del sujeto tal como lo emite el servidor de identidad. Es la
-      clave de negocio del perfil: no se interpreta, no se parsea y no se deriva de él ningún otro
-      dato. Nunca se usa el email como clave — el email cambia de dueño, el subject no.
+      Identificador opaco e inmutable del sujeto: el claim `sub` del token, que es como el servidor
+      de identidad nombra a una persona. Es la clave de negocio del perfil y la única costura entre
+      los dos sistemas — todo lo demás que sabe cada uno es suyo y no se duplica. No se interpreta,
+      no se parsea y no se deriva de él ningún otro dato. Nunca se usa el email como clave: el email
+      cambia de dueño, el subject no.
     constraints: { minLength: 1, maxLength: 255 }
 
   EmailAddress:
@@ -54,11 +56,19 @@ types:
     constraints: { minLength: 1, maxLength: 32 }
 
   ProfileStatus:
-    description: Situación del perfil respecto de su completitud y su vigencia operativa.
+    description: >-
+      Situación del perfil respecto de su completitud y su vigencia operativa. `draft` NO es un
+      error ni una fila a medio escribir: el perfil nace incompleto con lo que el token traiga y se
+      completa por perfilado progresivo, así que un perfil en `draft` es un caso normal que toda
+      operación tiene que saber servir.
     values: [draft, complete, deactivated]
 
   AddressType:
-    description: Para qué sirve la dirección en el negocio.
+    description: >-
+      Para qué sirve la dirección en el negocio. La distinción no es cosmética: solo una dirección
+      `shipping` marcada por defecto cuenta para que el perfil esté completo, y el «como mucho una
+      por defecto» se cuenta POR TIPO — así que una persona puede tener a la vez una de envío y una
+      de facturación marcadas.
     values: [shipping, billing]
 
   DeletionReason:
@@ -149,14 +159,14 @@ entities:
       # dato del servidor de identidad, y existe para poder buscar y pintar listados de back-office
       # sin una llamada al servidor de identidad por fila. Ninguna operación de la API lo cambia: el
       # email de login es del servidor de identidad, y aquí solo se refresca al aprovisionar.
-      contactEmail: { type: EmailAddress, description: "Correo de contacto, réplica del claim del token." }
-      givenName:    { type: string, constraints: { maxLength: 100 }, description: "Nombre de pila." }
-      familyName:   { type: string, constraints: { maxLength: 100 }, description: "Apellidos." }
+      contactEmail: { type: EmailAddress, description: "Correo de contacto. Es una réplica de solo lectura del que trae el token: ninguna operación de la API lo cambia, y solo se refresca al aprovisionar." }
+      givenName:    { type: string, constraints: { maxLength: 100 }, description: "Nombre de pila. Se siembra del token al aprovisionar y a partir de ahí es del usuario; opcional, porque el token puede no traerlo." }
+      familyName:   { type: string, constraints: { maxLength: 100 }, description: "Apellidos. Se siembran del token al aprovisionar y a partir de ahí son del usuario; opcionales, porque el token puede no traerlos." }
       displayName:  { type: string, constraints: { maxLength: 200 }, description: "Nombre con el que dirigirse a la persona; se siembra del token al aprovisionar y el usuario puede cambiarlo." }
       # El teléfono de contacto es dato de negocio y vive aquí. El que actúa como segundo factor o
       # como login por SMS es una credencial y vive en el servidor de identidad: aunque sea el mismo
       # número, son dos registros con dos dueños, y cambiar este no cambia aquel.
-      contactPhone: { type: PhoneNumber, description: "Teléfono de contacto del negocio, nunca una credencial." }
+      contactPhone: { type: PhoneNumber, description: "Teléfono de contacto, dato de negocio y nunca una credencial: el que actúa como segundo factor o como login por SMS vive en el servidor de identidad, y aunque sea el mismo número son dos registros con dos dueños." }
       # No es computed: draft ⇄ complete sí se deriva de los datos, pero deactivated lo provoca un
       # command y no se deriva de ningún campo. Que el cliente no lo envíe lo garantiza que no
       # aparece en el input de ninguna operación, no un atributo del campo.

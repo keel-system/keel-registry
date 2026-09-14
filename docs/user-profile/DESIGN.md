@@ -1,6 +1,6 @@
 # user-profile — Documento de diseño
 
-> specs/user-profile v0.1.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/user-profile v0.1.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -11,7 +11,7 @@ La tesis que hace correcto o incorrecto este diseño es que **hay un solo dueño
 De ahí salen dos propiedades que conviene tener presentes antes de leer nada más:
 
 - **Este servicio nunca llama al servidor de identidad**, ni siquiera para validar el token: comprueba la firma en local contra las claves públicas del emisor. Y el servidor de identidad nunca llama a este servicio en el camino caliente. El emisor concreto es una URL de configuración, no una línea de código, y por eso el mismo diseño vale sin cambios para cualquier proveedor.
-- **El usuario nace en el servidor de identidad y este servicio lo adopta.** No hay alta: hay adopción, en la primera petición autenticada que llegue, sea al endpoint que sea.
+- **El usuario nace en el servidor de identidad y este servicio lo adopta.** No hay alta: hay adopción. El servidor comprueba en **cada** petición autenticada, sea al endpoint que sea, si esa persona ya tiene perfil; la primera vez se lo crea.
 
 **Qué queda fuera, a propósito**: el alta administrativa de la identidad (crear la persona desde aquí — es otra variante de la familia), las preferencias de localización y notificación, los consentimientos RGPD versionados, el avatar y cualquier catálogo territorial. Este último no es una omisión: ver § 3.
 
@@ -71,7 +71,7 @@ Estructurales: como mucho una dirección por defecto **por tipo**; `contactEmail
 
 ## 4. Qué hace
 
-**Transversal.** `provisionProfileFromIdentity` (`internal: true`) es el corazón del patrón y su único punto de entrada: la invoca la frontera de identidad en la primera petición autenticada, busca por subject y, si no está, inserta con los claims del token. Es deliberadamente aburrida. Solo el `subject` es obligatorio: si el token no trae email ni nombres, el perfil nace igual en `draft`. Idempotente por `payload-field` sobre el subject, que es la clave natural del agregado.
+**Transversal.** `provisionProfileFromIdentity` (`internal: true`) es el corazón del patrón y el único punto por el que nace un perfil. El servidor la ejecuta al validar el token de **cada** petición autenticada, antes de atenderla: busca el perfil por subject y, si no existe, lo crea con los datos que traiga el token; si ya existe, lo único que toca es el correo, y solo cuando el del token ha cambiado. Por eso corre siempre y no solo la primera vez: sin ese refresco, `ProfileContactEmailRefreshed` no podría existir. Solo el `subject` es obligatorio: si el token no trae email ni nombres, el perfil nace igual en `draft`. Idempotente por `payload-field` sobre el subject, que es la clave natural del agregado.
 
 **El usuario sobre sí mismo** (`/api/v1/me/...`, siete operaciones): `getMyProfile`, `updateMyContactDetails` (sin el correo — es del servidor de identidad), `addMyAddress` (idempotente por `Idempotency-Key`, 24 h), `updateMyAddress`, `removeMyAddress`, `setMyDefaultAddress` y `deleteMyProfile`. Las cinco mutaciones devuelven `200` con el perfil entero, porque todas recalculan el `status` de una forma que el cliente no puede predecir. **Ninguna ruta lleva el subject**: lo estampa el servidor desde el claim `sub`.
 
@@ -186,7 +186,7 @@ Versionado del spec según `docs/methodology.md`: **patch** para prosa y rationa
 - **Escala asumida: cientos de miles a millones de perfiles.** Es lo que hace defendibles la paginación obligatoria, la búsqueda por prefijo indexado y el techo del lote. El agregado se mantiene pequeño (20 direcciones como máximo) y cabe entero en una respuesta.
 - **Un solo inquilino.** No hay `authentication.scoping` ni ninguna noción de organización: el back-office ve el padrón entero.
 - **El token es un JWT verificable en local** contra las claves públicas del emisor. Si el emisor solo ofrece introspección remota, este diseño deja de cumplir su propia premisa de no llamar nunca al servidor de identidad.
-- **La frontera de identidad resuelve si el token es de persona o de máquina.** El diseño lo declara como entrada (`actorIsPerson`) pero no dice cómo: depende del proveedor.
+- **El servidor resuelve si el token es de persona o de máquina, al validarlo.** El diseño lo declara como entrada (`actorIsPerson`) pero no dice cómo: depende del proveedor.
 - **No cubre**: alta administrativa de identidad, preferencias de localización y notificación, consentimientos RGPD versionados, avatar, catálogo territorial, retención o archivado automático, ni federación de emisores.
 - **Limitación conocida y aceptada**: un borrado hecho directamente en la consola del servidor de identidad no llega aquí. Cerrar ese hueco es reconciliación periódica, que es despliegue y no diseño.
 - **Limitación de verificación**: ningún escenario distingue una caché que funciona de la ausencia de caché, porque `invalidatedBy` cubre las diez vías de mutación y no queda ninguna vía fuera con la que probar la retención. El `ttlSeconds: 60` se verifica contra el artefacto, no por ejecución. Está escrito en `validation-scenarios.md § Lo que no tiene escenario`.

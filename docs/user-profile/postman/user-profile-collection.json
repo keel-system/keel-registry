@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "user-profile",
-    "description": "Colección de negocio derivada de specs/user-profile v0.1.0.\n\nImporta primero `auth-collection.json` y ejecútala: guarda los tokens en globals (`token_user`, `token_profile-support`, `token_profile-admin`, `token_order-service`, `token_notification-service`) que esta colección consume.\n\nUna carpeta por flujo `FL-*` de validation-scenarios.md. Los flujos se ejecutan de arriba abajo: dentro de cada uno las requests encadenan estado y guardan ids en globals.\n\nLAS RUTAS DE /me NO LLEVAN SUBJECT: lo estampa el servidor desde el claim `sub` del token, así que `token_user` determina sobre qué perfil actúan. Los flujos que nombran varios subjects distintos exigen reemitir ese token entre medias; el escenario completo está en validation-scenarios.md.\n\nTres flujos no son reproducibles enteros desde Postman y sus requests lo dicen: los dos del outbox (exigen detener y restablecer el canal de eventos) y las carreras de concurrencia e idempotencia (exigen lanzar dos peticiones a la vez).",
+    "description": "Colección de negocio derivada de specs/user-profile v0.1.1.\n\nImporta primero `auth-collection.json` y ejecútala: guarda los tokens en globals (`token_user`, `token_profile-support`, `token_profile-admin`, `token_order-service`, `token_notification-service`) que esta colección consume.\n\nUna carpeta por flujo `FL-*` de validation-scenarios.md. Los flujos se ejecutan de arriba abajo: dentro de cada uno las requests encadenan estado y guardan ids en globals.\n\nLAS RUTAS DE /me NO LLEVAN SUBJECT: lo estampa el servidor desde el claim `sub` del token, así que `token_user` determina sobre qué perfil actúan. Los flujos que nombran varios subjects distintos exigen reemitir ese token entre medias; el escenario completo está en validation-scenarios.md.\n\nTres flujos no son reproducibles enteros desde Postman y sus requests lo dicen: los dos del outbox (exigen detener y restablecer el canal de eventos) y las carreras de concurrencia e idempotencia (exigen lanzar dos peticiones a la vez).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -3041,7 +3041,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.1.0"
+      "value": "0.1.1"
     }
   ]
 }
