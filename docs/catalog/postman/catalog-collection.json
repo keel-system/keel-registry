@@ -2211,7 +2211,7 @@
                 "value": "Bearer {{token_catalog-admin}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/management/products?sku=ku-0"
+            "url": "{{baseUrl}}/api/v1/management/products?sku=ku-001"
           },
           "event": [
             {
@@ -2220,7 +2220,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('encuentra el producto', () => pm.expect(pm.response.json().totalElements).to.be.above(0));"
+                  "pm.test('un solo producto', () => pm.expect(pm.response.json().totalElements).to.eql(1));"
                 ]
               }
             }

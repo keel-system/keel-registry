@@ -640,8 +640,9 @@ producto en `draft`
 **Given**: existen `b1` (`"Nike"`, slug `nike`), `b2` (`"Adidas"`, slug `adidas`), `c1`
 (`"Calzado"`, slug `calzado`), `c2` (`"Camisetas"`, slug `camisetas`) y 25 productos creados dentro
 del flujo: `p1`…`p20` con marca `b1` y categoría `c1`, y `p21`…`p25` con marca `b2` y categoría
-`c2`. `p1` se llama `"Zapatilla Runner"` (`sku: "SKU-001"`, `price: 89.90`, publicado); el resto
-quedan en `draft` con precios entre `10.00` y `250.00`.
+`c2`. Sus `sku` son correlativos: `SKU-001` para `p1`, `SKU-002` para `p2`, y así hasta `SKU-025`.
+`p1` se llama `"Zapatilla Runner"` (`price: 89.90`, publicado); el resto quedan en `draft` con
+precios entre `10.00` y `250.00`.
 
 **When**: `getProduct` — `GET /api/v1/management/products/{p1}`, token con `product:read`
 
@@ -687,8 +688,10 @@ quedan en `draft` con precios entre `10.00` y `250.00`.
 - `listProducts` devuelve productos en **cualquier** estado, incluidos `discontinued`.
 - `listProducts?name=` con 141 caracteres → `400` (`maxLength: 140`, la cota de `Product.name`).
 - `listProducts?sku=` con 33 caracteres → `400` (`maxLength: 32`, la longitud máxima de un SKU).
-- `listProducts?sku=ku-0` → `200` e `items` incluye `p1`: el filtro solo acota la longitud, no el
-  formato de `SKU`, así que un fragmento en minúsculas que el type rechazaría es un filtro válido.
+- `listProducts?sku=ku-001` → `200` con `totalElements: 1` (`p1`): el filtro solo acota la longitud,
+  no el formato de `SKU`, así que un fragmento en minúsculas que el type rechazaría es un filtro
+  válido. El fragmento identifica a un solo producto, así que la comprobación no depende ni del
+  orden ni de la página.
 
 **Notas de determinación**: para que el orden por `updatedAt` sea distinguible de cualquier otro,
 los productos se crean con una separación observable y el escenario comprueba que `p25` (el último
@@ -730,14 +733,15 @@ y `altText: "Zapatilla vista lateral"`
 **Then**:
 7b. Una responde `201`; la otra responde `201` con ese mismo `id` de imagen **o** `409` con code
     `IDEMPOTENCY_KEY_IN_PROGRESS`. Misma disyunción cerrada que en `createProduct`, y por el mismo
-    mecanismo. `getProduct` devuelve **dos** imágenes en total, no tres.
+    mecanismo. La carrera crea **una sola** imagen nueva — la llamamos `img2` —, que sale con
+    `position: 1` e `isPrimary: false`: ya no es la primera del producto. `getProduct` devuelve
+    **dos** imágenes en total, no tres.
 
-**When**: `addProductImage` dos veces más (imágenes `img2` e `img3`), con claves de idempotencia
-distintas
+**When**: `addProductImage` una vez más (imagen `img3`), con una clave de idempotencia distinta
 
 **Then**:
-8. `img2` sale con `position: 1` e `isPrimary: false`; `img3` con `position: 2` e
-   `isPrimary: false`: cada imagen se añade al final.
+8. `img3` sale con `position: 2` e `isPrimary: false`: cada imagen se añade al final, con la
+   `position` siguiente a la mayor existente.
 9. `getProduct` devuelve `images` con 3 elementos ordenados por `position` ascendente
    (`img1`, `img2`, `img3`) y **exactamente uno** con `isPrimary: true`.
 
