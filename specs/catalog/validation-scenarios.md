@@ -843,7 +843,7 @@ El `IDEMPOTENCY_KEY_IN_PROGRESS` (`409`) queda fuera de este orden por lo mismo 
 - Subir un JPEG de 6 MB → `413`, `code: FILE_TOO_LARGE`.
 - Subir un PDF de 6 MB → `415`, `code: UNSUPPORTED_CONTENT_TYPE`: la guarda 4 precede a la 5.
 - Subir una 11.ª imagen → `422`, `code: TOO_MANY_PRODUCT_IMAGES`.
-- Un PDF sobre un producto inexistente → `404`, `code: PRODUCT_NOT_FOUND`: la guarda 1 precede a la 4.
+- Un PDF sobre un producto inexistente → `415`, `code: UNSUPPORTED_CONTENT_TYPE`: la guarda 1 precede a la 4.
 - `altText` ausente → `400`; `altText` de 161 caracteres → `400`.
 - `removeProductImage` con un `imageId` de **otro** producto → `204`, sin cuerpo y sin evento: no
   está en la galería del producto de la ruta, y la operación no distingue ese caso de una imagen ya
