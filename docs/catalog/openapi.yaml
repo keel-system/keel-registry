@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: catalog
-  version: 0.4.2
+  version: 0.5.0
   description: 'Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías,
     los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores
     por consulta directa y por eventos.
@@ -1973,8 +1973,8 @@ paths:
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto a la venta con ese slug.
       security: []
-  /api/v1/services/products/batch:
-    post:
+  /api/v1/services/products:
+    get:
       operationId: listProductsBatchForServices
       summary: Resuelve varios productos por sus identificadores en una sola llamada, para otro servidor.
       tags:
@@ -1982,7 +1982,7 @@ paths:
       description: '**Precondiciones**
 
 
-        - La lista contiene como máximo 100 identificadores.
+        - La lista contiene como máximo 50 identificadores.
 
 
         **Reglas**
@@ -1994,16 +1994,42 @@ paths:
 
         - Los identificadores repetidos se resuelven una sola vez.
 
-        - Conserva updatedAt para que el consumidor pueda ordenar lo recibido contra su propia copia al reconciliar.'
-      requestBody:
+        - Conserva updatedAt para que el consumidor pueda ordenar lo recibido contra su propia copia al reconciliar.
+
+        - Los identificadores viajan en la query string repitiendo el parámetro, uno por identificador (ids=<uuid>&ids=<uuid>…),
+        nunca separados por comas.
+
+        - La cota es 50 y no 100 porque es una lectura expuesta con GET: 50 identificadores UUID ocupan unos 2 KB de query
+        string, dentro de lo que cualquier proxie o infraestructura intermedia acepta con garantías. Con 100 (unos 4 KB)
+        el exceso se manifestaría como un 414 o una URL truncada por un intermediario —opaco y ajeno al servicio—; con la
+        cota en 50 lo rechaza TOO_MANY_IDS, que es contrato propio. Un consumidor que necesite más identificadores parte
+        la lista en varias llamadas.
+
+        - La respuesta no se cachea, ni en el servicio ni en intermediarios: es la vía con la que un consumidor reconcilia
+        su copia tras perder un evento, y tiene que devolver el estado vigente.'
+      parameters:
+      - name: ids
+        in: query
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ListProductsBatchForServicesRequest'
+        description: Identificadores de los productos a resolver. Un parámetro por identificador (`ids=<uuid>&ids=<uuid>`),
+          nunca separados por comas.
+        style: form
+        explode: true
+        schema:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Operación completada.
+          headers:
+            Cache-Control:
+              description: La respuesta no se cachea (`no-store`).
+              schema:
+                type: string
+                example: no-store
           content:
             application/json:
               schema:
@@ -2027,18 +2053,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '422':
-          description: '`TOO_MANY_IDS` — La petición trae más de 100 identificadores.'
+          description: '`TOO_MANY_IDS` — La petición trae más de 50 identificadores.'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               examples:
                 TOO_MANY_IDS:
-                  summary: La petición trae más de 100 identificadores.
+                  summary: La petición trae más de 50 identificadores.
                   value:
                     status: 422
                     code: TOO_MANY_IDS
-                    message: La petición trae más de 100 identificadores.
+                    message: La petición trae más de 50 identificadores.
       security:
       - serviceAuth:
         - product:read
@@ -2614,16 +2640,5 @@ components:
           maxLength: 1000
       required:
       - name
-    ListProductsBatchForServicesRequest:
-      type: object
-      properties:
-        ids:
-          type: array
-          items:
-            type: string
-            format: uuid
-          description: Identificadores de los productos a resolver.
-      required:
-      - ids
 security:
 - userAuth: []

@@ -1,6 +1,6 @@
 ---
 service: catalog
-version: 0.4.2
+version: 0.5.0
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -13,8 +13,8 @@ endpoints:
     path: /services/products/{productId}
     access: service product:read
   - name: listProductsBatchForServices
-    method: POST
-    path: /services/products/batch
+    method: GET
+    path: /services/products
     access: service product:read
 events:
   envelope: keel
@@ -50,7 +50,7 @@ errors:
 
 `catalog` es la fuente de verdad del catálogo comercial de una tienda: productos, marcas y
 categorías, con su ficha, su precio de venta y su galería de imágenes. A otros servidores les ofrece
-dos cosas: **resolución de fichas de producto** —una por id, o hasta cien de golpe— con un contrato
+dos cosas: **resolución de fichas de producto** —una por id, o hasta cincuenta de golpe— con un contrato
 propio y estable, distinto del que sirve a la tienda; y **nueve eventos de dominio** con los que un
 consumidor puede mantener su propia copia del catálogo sin llamar de vuelta. Los endpoints de esta
 sección devuelven el producto **en cualquier estado**, incluidos los descatalogados, porque un
@@ -157,20 +157,25 @@ no necesites una segunda llamada.
 
 | | |
 |---|---|
-| Endpoint | `POST /api/v1/services/products/batch` |
+| Endpoint | `GET /api/v1/services/products?ids=<uuid>&ids=<uuid>…` |
 | Acceso | `service` — scopes `product:read` |
 | Idempotencia | no aplica (query) |
-| Método | `POST` sobre una lectura, a propósito: cien uuid no caben en una URL |
-| Cota | **100 identificadores** por llamada; trocea si necesitas más |
+| Caché | ninguna, ni en el servicio ni en intermediarios: es la vía de reconciliación y devuelve siempre el estado vigente |
+| Cota | **50 identificadores** por llamada, contados tal como llegan (antes de descartar repetidos); parte la lista si necesitas más |
 
-**Request**
+> **Cambio incompatible en 0.5.0.** Hasta 0.4.x esta operación era `POST /api/v1/services/products/batch`
+> con cuerpo `{ "ids": [...] }` y cota de 100. Esa ruta ya no existe: actualiza tu cliente al `GET`
+> y trocea en lotes de 50.
 
-| Campo | Tipo | Notas |
+**Request** — query string, sin cuerpo.
+
+| Parámetro | Tipo | Notas |
 |---|---|---|
-| `ids` | lista de uuid | requerido y no vacío; máximo 100 |
+| `ids` | uuid, repetible | requerido, al menos uno; máximo 50. **Un parámetro por identificador** (`ids=…&ids=…`), nunca separados por comas: `ids=a,b` es un único valor mal formado y responde `400` |
 
-```json
-{ "ids": ["3d2e1f00-8a44-4c9b-9f01-77b6c2d4e5a9", "a17c5d88-4e91-4b02-9c6f-38d0a1e7b455"] }
+```
+GET /api/v1/services/products?ids=3d2e1f00-8a44-4c9b-9f01-77b6c2d4e5a9&ids=a17c5d88-4e91-4b02-9c6f-38d0a1e7b455
+Authorization: Bearer <access_token>
 ```
 
 **Response** — lista de productos con la forma M2M descrita arriba, **ordenada por `name`
@@ -216,7 +221,7 @@ Tres comportamientos que conviene tener presentes al consumirlo:
 
 | Código | HTTP | Cuándo | Acción recomendada |
 |---|---|---|---|
-| `TOO_MANY_IDS` | 422 | La petición trae más de 100 identificadores. | No reintentar igual; trocea la lista en lotes de 100 y repite. |
+| `TOO_MANY_IDS` | 422 | La petición trae más de 50 identificadores. | No reintentar igual; trocea la lista en lotes de 50 y repite. |
 
 ## Eventos
 

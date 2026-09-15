@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.4.2 -->
+<!-- keel:version 0.5.0 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,7 +188,7 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.4.2",
+    "version": "0.5.0",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.",
     "domain": "commerce",
     "generatedAt": "2026-09-10"
@@ -1897,8 +1897,8 @@ const KEEL = {
       "audience": "services",
       "trigger": {
         "type": "http",
-        "method": "POST",
-        "path": "/api/v1/services/products/batch"
+        "method": "GET",
+        "path": "/api/v1/services/products"
       },
       "input": {
         "kind": "fields",
@@ -1929,19 +1929,22 @@ const KEEL = {
         ]
       },
       "preconditions": [
-        "La lista contiene como máximo 100 identificadores."
+        "La lista contiene como máximo 50 identificadores."
       ],
       "rules": [
         "Devuelve los productos sea cual sea su estado.",
         "Los identificadores que no corresponden a ningún producto se omiten del resultado, sin error.",
         "Los identificadores repetidos se resuelven una sola vez.",
-        "Conserva updatedAt para que el consumidor pueda ordenar lo recibido contra su propia copia al reconciliar."
+        "Conserva updatedAt para que el consumidor pueda ordenar lo recibido contra su propia copia al reconciliar.",
+        "Los identificadores viajan en la query string repitiendo el parámetro, uno por identificador (ids=<uuid>&ids=<uuid>…), nunca separados por comas.",
+        "La cota es 50 y no 100 porque es una lectura expuesta con GET: 50 identificadores UUID ocupan unos 2 KB de query string, dentro de lo que cualquier proxie o infraestructura intermedia acepta con garantías. Con 100 (unos 4 KB) el exceso se manifestaría como un 414 o una URL truncada por un intermediario —opaco y ajeno al servicio—; con la cota en 50 lo rechaza TOO_MANY_IDS, que es contrato propio. Un consumidor que necesite más identificadores parte la lista en varias llamadas.",
+        "La respuesta no se cachea, ni en el servicio ni en intermediarios: es la vía con la que un consumidor reconcilia su copia tras perder un evento, y tiene que devolver el estado vigente."
       ],
       "errors": [
         {
           "code": "TOO_MANY_IDS",
           "http": 422,
-          "when": "La petición trae más de 100 identificadores."
+          "when": "La petición trae más de 50 identificadores."
         }
       ],
       "security": {

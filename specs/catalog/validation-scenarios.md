@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.4.2. Contrato de validación para la fase de generación.
+> specs/catalog v0.5.0. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -1057,11 +1057,8 @@ cliente `order-service` con el scope `product:read`
 **Given**: existen 3 productos `p1`, `p2`, `p3` (`sku` `SKU-001`, `SKU-002`, `SKU-003`; nombres
 `"Alfa"`, `"Beta"`, `"Gamma"`), creados dentro del flujo.
 
-**When**: `listProductsBatchForServices` — `POST /api/v1/services/products/batch`, credencial de
-máquina del cliente `order-service`
-```json
-{ "ids": ["<p3>", "<p1>", "<uuid inexistente>", "<p1>"] }
-```
+**When**: `listProductsBatchForServices` — `GET /api/v1/services/products?ids=<p3>&ids=<p1>&ids=<uuid inexistente>&ids=<p1>`,
+credencial de máquina del cliente `order-service`, sin cuerpo
 
 **Then**:
 1. Status `200`.
@@ -1073,24 +1070,38 @@ máquina del cliente `order-service`
 5. Cada elemento trae la misma proyección M2M de FL-M2M-001 (con `updatedAt`, sin `createdAt`,
    `createdBy`, `updatedBy` ni `lockVersion`), con `brand` y `category` anidados.
 
-**When**: la misma llamada con 101 identificadores
+**When**: `updateProduct` renombra `p3` a `"Delta"` (con su `lockVersion` vigente) y a continuación
+se repite **inmediatamente** la llamada por lotes del primer `When`
 
 **Then**:
-6. Status `422`, `code: TOO_MANY_IDS`.
+6. Status `200` y `p3` llega ya con `name: "Delta"` y un `updatedAt` estrictamente posterior al de la
+   aserción 2: la respuesta **no se cachea**, porque es la vía de reconciliación.
 
-**When**: la misma llamada con 100 identificadores
+**When**: la misma llamada con 51 identificadores distintos (`ids` repetido 51 veces)
 
 **Then**:
-7. Status `200`: 100 es la cota superior incluida.
+7. Status `422`, `code: TOO_MANY_IDS`.
+
+**When**: la misma llamada con 50 identificadores distintos
+
+**Then**:
+8. Status `200`: 50 es la cota superior incluida.
 
 **Casos borde**:
-- `ids: []` → `400` (`required` sobre una lista significa presente y no vacía).
-- `ids` ausente → `400`.
+- Sin ningún parámetro `ids` → `400` (`required` sobre una lista significa presente y no vacía).
+- `ids=` con valor vacío → `400`.
+- Un valor que no es un uuid → `400`. Incluye la forma separada por comas
+  (`?ids=<p1>,<p3>`): no es una codificación admitida, es un único valor mal formado.
+- 51 valores con repetidos que se reducen a 50 distintos → `422` `TOO_MANY_IDS`: la cota cuenta los
+  identificadores **tal como llegan** en la petición, antes de descartar repetidos.
 - Todos los ids inexistentes → `200` con lista vacía, nunca `404`.
+- `POST /api/v1/services/products/batch` (el contrato de 0.4.x) ya no existe: **no** responde `200`.
 - Con credencial de máquina sin `product:read` → `403`; sin credencial → `401`.
 
 **Notas de determinación**: el orden de la respuesta es el declarado (`name` ascendente), **no** el
-de la petición. Es la diferencia más fácil de resolver distinto entre dos generadores.
+de la petición. Es la diferencia más fácil de resolver distinto entre dos generadores. La lista
+viaja **solo** como parámetro repetido (`ids=…&ids=…`): una implementación que acepte también la
+forma con comas se comporta distinto en el caso borde de arriba y no pasa.
 
 ---
 

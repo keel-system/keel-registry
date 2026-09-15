@@ -16,7 +16,9 @@ decisions:
       La salida que el comprobador pide —declararlo en una sola— publicaría el 409 en el
       openapi de un endpoint y lo callaría en el otro, que es peor contrato. Se mantiene
       declarado en ambas y se acepta el aviso. Reportado al repo de la herramienta.
-    since: 0.4.0
+      createBrand y createCategory, que el aviso también lista, deduplican por clave natural
+      (payload-field: name) y responden por su NAME_ALREADY_EXISTS: este 409 no les aplica.
+    since: 0.5.0
   - id: OBL-IDEM-REUSE-CODE
     scope: use-cases
     reason: >
@@ -24,8 +26,9 @@ decisions:
       declaran IDEMPOTENCY_KEY_REUSED (409) desde antes de esta migración, y el comprobador
       no lo ve porque hay dos candidatos con el mismo code. Se mantiene declarado en ambas
       operaciones —es el contrato que reciben los integradores por los dos endpoints— y se
-      acepta el aviso hasta que overrideFor deduplique por code.
-    since: 0.4.0
+      acepta el aviso hasta que overrideFor deduplique por code. Tampoco aplica a createBrand
+      ni a createCategory (clave natural, no clave de cliente).
+    since: 0.5.0
   - id: OBL-CALLER-IDENTITY
     scope: security
     reason: >
@@ -43,4 +46,6 @@ decisions:
       sobre datos de otro. Declarar callerIdentity sería nombrar un campo que no existe.
       Se revisa el día que un cliente máquina reciba scope de escritura, o que aparezca en el
       dominio cualquier campo que diga de quién es una fila.
-    since: 0.4.1
+      Reafirmada en 0.5.0: listProductsBatchForServices pasó de POST a GET con cota de 50 y
+      sigue siendo una lectura con product:read; nada de lo anterior cambia.
+    since: 0.5.0

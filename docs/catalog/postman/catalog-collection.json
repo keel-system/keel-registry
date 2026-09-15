@@ -3116,23 +3116,15 @@
         {
           "name": "FL-M2M-010 · A — Lote de ids (200)",
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{token_order-service}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/services/products/batch",
-            "description": "Un id inexistente y uno repetido: el primero se omite y el segundo se resuelve una vez.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"ids\": [\n    \"{{productId}}\",\n    \"00000000-0000-4000-8000-000000000000\",\n    \"{{productId}}\"\n  ]\n}"
-            }
+            "url": "{{baseUrl}}/api/v1/services/products?ids={{productId}}&ids=00000000-0000-4000-8000-000000000000&ids={{productId}}",
+            "description": "Un id inexistente y uno repetido, como parámetro ids repetido: el primero se omite y el segundo se resuelve una vez."
           },
           "event": [
             {
@@ -3149,24 +3141,66 @@
           ]
         },
         {
-          "name": "FL-M2M-010 · B — Lote vacío (400)",
+          "name": "FL-M2M-010 · B — Sin ids (400)",
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{token_order-service}}"
               }
             ],
-            "url": "{{baseUrl}}/api/v1/services/products/batch",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"ids\": []\n}"
+            "url": "{{baseUrl}}/api/v1/services/products"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
             }
+          ]
+        },
+        {
+          "name": "FL-M2M-010 · C — Lote de 51 ids (422)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/products?ids=00000000-0000-4000-8000-000000000000&ids=00000000-0000-4000-8000-000000000001&ids=00000000-0000-4000-8000-000000000002&ids=00000000-0000-4000-8000-000000000003&ids=00000000-0000-4000-8000-000000000004&ids=00000000-0000-4000-8000-000000000005&ids=00000000-0000-4000-8000-000000000006&ids=00000000-0000-4000-8000-000000000007&ids=00000000-0000-4000-8000-000000000008&ids=00000000-0000-4000-8000-000000000009&ids=00000000-0000-4000-8000-000000000010&ids=00000000-0000-4000-8000-000000000011&ids=00000000-0000-4000-8000-000000000012&ids=00000000-0000-4000-8000-000000000013&ids=00000000-0000-4000-8000-000000000014&ids=00000000-0000-4000-8000-000000000015&ids=00000000-0000-4000-8000-000000000016&ids=00000000-0000-4000-8000-000000000017&ids=00000000-0000-4000-8000-000000000018&ids=00000000-0000-4000-8000-000000000019&ids=00000000-0000-4000-8000-000000000020&ids=00000000-0000-4000-8000-000000000021&ids=00000000-0000-4000-8000-000000000022&ids=00000000-0000-4000-8000-000000000023&ids=00000000-0000-4000-8000-000000000024&ids=00000000-0000-4000-8000-000000000025&ids=00000000-0000-4000-8000-000000000026&ids=00000000-0000-4000-8000-000000000027&ids=00000000-0000-4000-8000-000000000028&ids=00000000-0000-4000-8000-000000000029&ids=00000000-0000-4000-8000-000000000030&ids=00000000-0000-4000-8000-000000000031&ids=00000000-0000-4000-8000-000000000032&ids=00000000-0000-4000-8000-000000000033&ids=00000000-0000-4000-8000-000000000034&ids=00000000-0000-4000-8000-000000000035&ids=00000000-0000-4000-8000-000000000036&ids=00000000-0000-4000-8000-000000000037&ids=00000000-0000-4000-8000-000000000038&ids=00000000-0000-4000-8000-000000000039&ids=00000000-0000-4000-8000-000000000040&ids=00000000-0000-4000-8000-000000000041&ids=00000000-0000-4000-8000-000000000042&ids=00000000-0000-4000-8000-000000000043&ids=00000000-0000-4000-8000-000000000044&ids=00000000-0000-4000-8000-000000000045&ids=00000000-0000-4000-8000-000000000046&ids=00000000-0000-4000-8000-000000000047&ids=00000000-0000-4000-8000-000000000048&ids=00000000-0000-4000-8000-000000000049&ids=00000000-0000-4000-8000-000000000050"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('TOO_MANY_IDS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-M2M-010 · D — Lista separada por comas (400)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_order-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/products?ids={{productId}},00000000-0000-4000-8000-000000000000",
+            "description": "La forma con comas no es una codificación admitida: es un único valor que no es un uuid."
           },
           "event": [
             {
@@ -3273,7 +3307,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.4.2"
+      "value": "0.5.0"
     },
     {
       "key": "brandId",

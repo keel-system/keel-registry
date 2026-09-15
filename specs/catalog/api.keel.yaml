@@ -51,4 +51,4 @@ endpoints:
   # Operaciones propias, no reutilizadas de la superficie de usuarios: su contrato es estable
   # y devuelven el producto en cualquier estado, cosa que la tienda nunca debe ver.
   getProductForServices:        { method: GET, path: "/services/products/{productId}", audience: services }
-  listProductsBatchForServices: { method: POST, path: "/services/products/batch", audience: services }
+  listProductsBatchForServices: { method: GET, path: "/services/products", audience: services }

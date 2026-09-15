@@ -523,18 +523,24 @@ operations:
       embed: [brand, category]
       exclude: [createdAt, createdBy, updatedBy, lockVersion]
     preconditions:
-      - La lista contiene como máximo 100 identificadores.
+      - La lista contiene como máximo 50 identificadores.
     rules:
       - Devuelve los productos sea cual sea su estado.
       - Los identificadores que no corresponden a ningún producto se omiten del resultado, sin error.
       - Los identificadores repetidos se resuelven una sola vez.
       - Conserva updatedAt para que el consumidor pueda ordenar lo recibido contra su propia copia al reconciliar.
       - >-
-        Es una lectura y aun así se expone con POST a propósito: la entrada son hasta 100
-        identificadores UUID, unos 3,7 KB de query string, por encima de lo que muchos proxies e
-        infraestructuras intermedias aceptan con garantías en una URL. Con GET el exceso se
-        manifiesta como un 414 o como una URL truncada por un intermediario —opaco, y ajeno al
-        servicio—; con POST lo rechaza TOO_MANY_IDS, que es contrato propio. No lleva efectos:
-        sigue siendo kind: query y no muta nada.
+        Los identificadores viajan en la query string repitiendo el parámetro, uno por
+        identificador (ids=<uuid>&ids=<uuid>…), nunca separados por comas.
+      - >-
+        La cota es 50 y no 100 porque es una lectura expuesta con GET: 50 identificadores UUID
+        ocupan unos 2 KB de query string, dentro de lo que cualquier proxie o infraestructura
+        intermedia acepta con garantías. Con 100 (unos 4 KB) el exceso se manifestaría como un
+        414 o una URL truncada por un intermediario —opaco y ajeno al servicio—; con la cota en
+        50 lo rechaza TOO_MANY_IDS, que es contrato propio. Un consumidor que necesite más
+        identificadores parte la lista en varias llamadas.
+      - >-
+        La respuesta no se cachea, ni en el servicio ni en intermediarios: es la vía con la que un
+        consumidor reconcilia su copia tras perder un evento, y tiene que devolver el estado vigente.
     errors:
-      - { code: TOO_MANY_IDS, when: La petición trae más de 100 identificadores., http: 422 }
+      - { code: TOO_MANY_IDS, when: La petición trae más de 50 identificadores., http: 422 }
