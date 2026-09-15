@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: catalog
-  version: 0.5.0
+  version: 0.5.1
   description: 'Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías,
     los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores
     por consulta directa y por eventos.
@@ -721,6 +721,8 @@ paths:
 
         - El sku se normaliza a mayúsculas antes de validar su unicidad.
 
+        - Un sku con formato inválido lo rechaza la validación de forma con 400 genérico y sin code de negocio: la cota vive en el type SKU y no se duplica como error declarado.
+
         - El slug se deriva del name y se le añade un sufijo numérico si ya existe otro producto con ese slug.
 
         - La derivación del sufijo es una lectura seguida de una escritura: dos altas simultáneas del mismo name pueden calcular el mismo sufijo y solo una llega a escribir. Esa carrera se resuelve con PRODUCT_SLUG_CONFLICT, no reintentando en silencio.
@@ -728,6 +730,8 @@ paths:
         - El producto nace siempre en estado draft, sea cual sea el resto de la petición.
 
         - El producto nace con slugFrozen en falso, así que su slug sigue el name hasta la primera publicación.
+
+        - La guarda de idempotencia se evalúa antes que cualquier guarda de negocio sobre el contenido: reenviar una clave ya resuelta se reconoce como reenvío, no como un choque de unicidad de sku.
 
 
         **Eventos emitidos**: `ProductCreated` (ver `asyncapi.yaml`).
@@ -1125,6 +1129,10 @@ paths:
         - Si es la primera imagen del producto, queda marcada como isPrimary.
 
         - Devuelve la imagen creada con su id, para que el cliente pueda referenciarla después.
+
+        - La guarda de idempotencia se evalúa antes que cualquier guarda de negocio (producto inexistente, descatalogado o con la galería llena): reenviar una clave ya resuelta se reconoce como reenvío, no como una galería que ya no admite la imagen.
+
+        - Va por detrás de la validación de forma del archivo (tipo de contenido y tamaño), que no es una guarda de negocio: la huella que compara la clave se calcula sobre un archivo ya aceptado.
 
 
         **Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).

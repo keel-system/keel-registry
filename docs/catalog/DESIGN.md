@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.5.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.5.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -90,6 +90,12 @@ De los casos de uso:
   dos altas o ediciones simultáneas del mismo `name` pueden calcular el mismo sufijo y solo una
   llega a escribir. Esa carrera se resuelve con `PRODUCT_SLUG_CONFLICT`, nunca reintentando en
   silencio.
+- En las dos operaciones con `Idempotency-Key` (`createProduct`, `addProductImage`), la guarda de
+  idempotencia se evalúa **antes que cualquier guarda de negocio** sobre el contenido: reenviar una
+  clave ya resuelta se reconoce como el reenvío que es, no como un choque de unicidad ni como una
+  galería que ya no admite la imagen. En `addProductImage` va, eso sí, **detrás** de la validación
+  de forma del archivo (tipo de contenido y tamaño), que es la condición para que exista contenido
+  sobre el que calcular la huella.
 
 ## 4. Qué hace
 
@@ -194,6 +200,7 @@ lo que expone es suyo. Las fronteras son de salida.
 | **Sin caché en la reconciliación** (0.5.0) | `listProductsBatchForServices` no cachea, ni en el servicio ni en intermediarios, y lo dice una `rule` | Al pasar a `GET` la respuesta se volvió cacheable por un intermediario. Es la vía con la que un consumidor repara su copia tras perder un evento `best-effort`: un dato viejo servido desde caché anularía justo esa garantía | Caché corta en el servicio (p. ej. 60 s) invalidada por todas las mutaciones de producto y taxonomía: menos carga, a cambio de reconciliar con hasta un TTL de retraso |
 | **Ruptura en `/api/v1` con despliegue coordinado** (0.5.0) | El cambio del lote M2M rompe dentro de `/api/v1`, sin abrir `/api/v2` ni mantener el endpoint viejo | El diseño es `maturity: draft` y está en 0.x, y los tres consumidores (`order-service`, `inventory-service`, `search-service`) se actualizan a la vez que el catálogo. Además, el DSL no puede exponer dos versiones de la misma operación: `/api/v2` no habría dado convivencia, solo habría roto también a la tienda y al back-office | Subir `basePath` a `/api/v2` |
 | **La identidad del llamante no participa** (0.4.1) | No se declara `authentication.callerIdentity`; la obligación `OBL-CALLER-IDENTITY` se acepta por escrito en `decisions.yaml` | Quién llama no cambia el trabajo. Los tres `serviceClients` tienen `product:read` y nada más, y las dos únicas operaciones `level: service` (`getProductForServices`, `listProductsBatchForServices`) son lecturas: ninguna escritura es alcanzable por un cliente máquina. Y el catálogo no es multi-inquilino —un producto es de la tienda, no del servidor que lo consulta—, así que no existe el campo que atribuye una fila a un sistema y que un cliente autenticado pudiera falsear en el cuerpo. Declararlo sería nombrar un campo que no existe | Declarar `callerIdentity` sobre un campo inventado. Se revisa el día que un cliente máquina reciba scope de escritura, o que aparezca en el dominio un campo que diga de quién es una fila |
+| **La idempotencia precede a las guardas de negocio** (0.5.1) | En las dos operaciones con `keySource: client-key`, `IDEMPOTENCY_KEY_REUSED` se evalúa antes que cualquier guarda sobre el contenido: en `createProduct` pasa a ser la guarda 1, por delante de `SKU_ALREADY_EXISTS`; en `addProductImage` pasa a la 3, por delante de `PRODUCT_NOT_FOUND`, `PRODUCT_DISCONTINUED` y `TOO_MANY_PRODUCT_IMAGES`. La precedencia se ancla como `rule` en `use-cases`, no solo en la prosa de los escenarios | Salió de una contradicción del propio artefacto, detectada al generar `catalog-spring`: el `Then` narrado de `FL-PRD-001` (punto 11) exigía `IDEMPOTENCY_KEY_REUSED` para el reenvío de `key-001` con `name` distinto sobre el `sku` que la petición original ya había creado, mientras el «Orden de evaluación» declarado en el mismo archivo hacía ganar a `SKU_ALREADY_EXISTS`. `keel validate` no puede verlo: las dos fuentes son prosa. Se arbitró a favor de la idempotencia porque responde a una pregunta anterior —«¿ya resolví esta petición exacta?»— y reenviar una clave no es un alta nueva que compite por el `sku`. Anclarla en `use-cases` cierra además el agujero de fondo: la precedencia vivía solo en un derivado y una regeneración futura podía volver a inventarla | Reescribir el escenario para que aislara `IDEMPOTENCY_KEY_REUSED` con un `sku` no colisionante, dejando el orden intacto — descartado porque la lectura «idempotencia primero» generaliza mejor. Poner la idempotencia por delante también de `UNSUPPORTED_CONTENT_TYPE` (415) y `FILE_TOO_LARGE` (413) en `addProductImage`, por simetría total con `createProduct` — descartado por no ser implementable: esas dos son guardas de transporte sobre el multipart y la huella que compara la clave necesita un archivo ya aceptado |
 
 ## 7. Ficha de reutilización: adoptar, derivar o evolucionar
 

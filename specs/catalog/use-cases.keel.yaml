@@ -29,6 +29,7 @@ operations:
       - "La derivación del sufijo es una lectura seguida de una escritura: dos altas simultáneas del mismo name pueden calcular el mismo sufijo y solo una llega a escribir. Esa carrera se resuelve con PRODUCT_SLUG_CONFLICT, no reintentando en silencio."
       - El producto nace siempre en estado draft, sea cual sea el resto de la petición.
       - El producto nace con slugFrozen en falso, así que su slug sigue el name hasta la primera publicación.
+      - "La guarda de idempotencia se evalúa antes que cualquier guarda de negocio sobre el contenido: reenviar una clave ya resuelta se reconoce como reenvío, no como un choque de unicidad de sku."
     errors:
       - { code: SKU_ALREADY_EXISTS, when: Ya existe un producto con ese sku., http: 409 }
       - { code: PRODUCT_SLUG_CONFLICT, when: Otra alta simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre., http: 409 }
@@ -205,6 +206,8 @@ operations:
       - La imagen se añade al final de la galería, con la position siguiente a la mayor existente.
       - Si es la primera imagen del producto, queda marcada como isPrimary.
       - Devuelve la imagen creada con su id, para que el cliente pueda referenciarla después.
+      - "La guarda de idempotencia se evalúa antes que cualquier guarda de negocio (producto inexistente, descatalogado o con la galería llena): reenviar una clave ya resuelta se reconoce como reenvío, no como una galería que ya no admite la imagen."
+      - "Va por detrás de la validación de forma del archivo (tipo de contenido y tamaño), que no es una guarda de negocio: la huella que compara la clave se calcula sobre un archivo ya aceptado."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes., http: 409 }

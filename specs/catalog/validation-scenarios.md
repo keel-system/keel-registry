@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.5.0. Contrato de validación para la fase de generación.
+> specs/catalog v0.5.1. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -391,12 +391,16 @@ ninguna confirmada todavía
 14. `listProducts` devuelve `totalElements: 2`: la carrera no creó un tercer producto.
 
 **Orden de evaluación** (`createProduct`):
-1. Ningún producto tiene ese `sku` (normalizado) → `SKU_ALREADY_EXISTS` (`409`).
-2. La marca existe → `BRAND_NOT_FOUND` (`422`).
-3. La categoría existe → `CATEGORY_NOT_FOUND` (`422`).
-4. La clave de idempotencia no se usó con otro contenido → `IDEMPOTENCY_KEY_REUSED` (`409`).
+1. La clave de idempotencia no se usó con otro contenido → `IDEMPOTENCY_KEY_REUSED` (`409`).
+2. Ningún producto tiene ese `sku` (normalizado) → `SKU_ALREADY_EXISTS` (`409`).
+3. La marca existe → `BRAND_NOT_FOUND` (`422`).
+4. La categoría existe → `CATEGORY_NOT_FOUND` (`422`).
 5. El slug derivado (con su sufijo) sigue libre en el instante de escribir → `PRODUCT_SLUG_CONFLICT`
    (`409`).
+La idempotencia va primero porque responde a una pregunta anterior a cualquier guarda de negocio
+sobre el contenido: «¿ya resolví esta petición exacta?». Reenviar la misma `Idempotency-Key` con el
+`sku` que la propia petición original creó no es un alta nueva que choca por unicidad, es el reenvío
+que es, y así hay que reconocerlo.
 Las guardas 1-4 se evalúan sobre el estado leído; la 5 y el `IDEMPOTENCY_KEY_IN_PROGRESS` (`409`)
 se disparan por una **carrera** y por eso no tienen posición en este orden: dependen de qué otra
 petición esté confirmando en ese instante, no de lo que esta leyó.
@@ -409,10 +413,12 @@ petición esté confirmando en ese instante, no de lo que esta leyó.
 - `name` ausente → `400`.
 - `brandId` de una marca inexistente → `422`, `code: BRAND_NOT_FOUND` (nótese: **422**, no 404,
   porque el recurso de la petición no es la marca).
-- `brandId` inexistente **y** `sku` ya usado → `409`, `code: SKU_ALREADY_EXISTS`: la guarda 1
-  precede a la 2.
-- `brandId` inexistente **y** `categoryId` inexistente → `422`, `code: BRAND_NOT_FOUND`: la guarda 2
+- `brandId` inexistente **y** `sku` ya usado → `409`, `code: SKU_ALREADY_EXISTS`: la guarda 2
   precede a la 3.
+- `brandId` inexistente **y** `categoryId` inexistente → `422`, `code: BRAND_NOT_FOUND`: la guarda 3
+  precede a la 4.
+- `Idempotency-Key: key-001` reutilizada con otro contenido **y** `sku` ya usado → `409`, `code:
+  IDEMPOTENCY_KEY_REUSED`: la guarda 1 precede a la 2. Es el caso exacto del punto 11.
 - Dos altas con el mismo `sku` en paralelo: una responde `201` y la otra `409`
   (`SKU_ALREADY_EXISTS`); `listProducts` devuelve `totalElements: 1`.
 - Dos altas en paralelo con el mismo `name` (y por tanto el mismo slug candidato): una responde
@@ -789,14 +795,28 @@ existió
 28. `getProduct` sigue devolviendo 1 imagen.
 
 **Orden de evaluación** (`addProductImage`):
-1. El producto existe → `PRODUCT_NOT_FOUND` (`404`).
-2. El producto no está descatalogado → `PRODUCT_DISCONTINUED` (`409`).
-3. El producto tiene menos de 10 imágenes → `TOO_MANY_PRODUCT_IMAGES` (`422`).
-4. El content-type está entre los admitidos → `UNSUPPORTED_CONTENT_TYPE` (`415`).
-5. El archivo no supera 5 MB → `FILE_TOO_LARGE` (`413`).
-6. La clave de idempotencia no se usó con otro contenido → `IDEMPOTENCY_KEY_REUSED` (`409`).
+1. El content-type está entre los admitidos → `UNSUPPORTED_CONTENT_TYPE` (`415`).
+2. El archivo no supera 5 MB → `FILE_TOO_LARGE` (`413`).
+3. La clave de idempotencia no se usó con otro contenido → `IDEMPOTENCY_KEY_REUSED` (`409`).
+4. El producto existe → `PRODUCT_NOT_FOUND` (`404`).
+5. El producto no está descatalogado → `PRODUCT_DISCONTINUED` (`409`).
+6. El producto tiene menos de 10 imágenes → `TOO_MANY_PRODUCT_IMAGES` (`422`).
+La idempotencia precede a las guardas de negocio (4-6) por lo mismo que en `createProduct`: un
+reenvío hay que reconocerlo como tal antes de juzgar su contenido. Pero va **detrás** de la
+validación de forma del archivo (1-2), que no es una guarda de negocio sino la condición para que
+haya contenido que comparar: la huella con la que se decide si la clave se reutilizó se calcula
+sobre un archivo ya aceptado.
 El `IDEMPOTENCY_KEY_IN_PROGRESS` (`409`) queda fuera de este orden por lo mismo que en
 `createProduct`: es una carrera, no una guarda sobre el estado leído.
+
+**Casos borde de precedencia** (`addProductImage`):
+- `Idempotency-Key` reutilizada con otro contenido sobre un producto que entretanto llegó a 10
+  imágenes → `409`, `code: IDEMPOTENCY_KEY_REUSED`: la guarda 3 precede a la 6.
+- `Idempotency-Key` reutilizada con otro contenido sobre un `productId` inexistente → `409`, `code:
+  IDEMPOTENCY_KEY_REUSED`: la guarda 3 precede a la 4. La clave ya resuelta se conoce sin mirar el
+  producto.
+- `Idempotency-Key` reutilizada con otro contenido **y** un archivo de 8 MB → `413`, `code:
+  FILE_TOO_LARGE`: la guarda 2 precede a la 3.
 
 **Orden de evaluación** (`setPrimaryProductImage`):
 1. El producto existe → `PRODUCT_NOT_FOUND` (`404`).
