@@ -507,6 +507,7 @@ operations:
       - Solo se devuelven productos en estado active.
       - Los filtros presentes se combinan con conjunción; los ausentes no restringen.
       - Un categorySlug o brandSlug que no corresponde a ninguna categoría o marca devuelve una página vacía, no un error.
+      - "La clave de caché incluye siempre page y size además de los keyFields declarados: keyFields solo puede nombrar campos del input, y la paginación no lo es. Una implementación que construya la clave solo con los keyFields declarados serviría la primera página para cualquier página."
     errors:
       - { code: INVALID_PRICE_RANGE, when: minPrice es mayor que maxPrice., http: 422 }
 
@@ -542,6 +543,7 @@ operations:
       invalidatedBy: [BrandCreated, BrandUpdated, BrandDeleted]
     rules:
       - El filtro ausente no restringe; presente, busca coincidencia parcial sin distinguir mayúsculas ni acentos.
+      - "La clave de caché incluye siempre page y size además de los keyFields declarados: keyFields solo puede nombrar campos del input, y la paginación no lo es. Una implementación que construya la clave solo con los keyFields declarados serviría la primera página para cualquier página."
 
   listCategories:
     description: Lista las categorías del catálogo para poblar el filtro y el menú de la tienda.
@@ -556,6 +558,7 @@ operations:
       invalidatedBy: [CategoryCreated, CategoryUpdated, CategoryDeleted]
     rules:
       - El filtro ausente no restringe; presente, busca coincidencia parcial sin distinguir mayúsculas ni acentos.
+      - "La clave de caché incluye siempre page y size además de los keyFields declarados: keyFields solo puede nombrar campos del input, y la paginación no lo es. Una implementación que construya la clave solo con los keyFields declarados serviría la primera página para cualquier página."
 
   # ---------------------------------------------------------------------------
   # Superficie servidor-a-servidor (M2M)

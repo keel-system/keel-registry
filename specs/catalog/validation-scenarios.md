@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.6.0. Contrato de validación para la fase de generación.
+> specs/catalog v0.6.1. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -18,9 +18,10 @@ Valen para **todo** el servicio y ningún escenario las repite.
   identificadores simbólicos de este documento (`b1`, `c1`, `p1`, `img1`) nombran la entidad, no un
   literal que viaje por el cable.
 - **Números y dinero**: `price` es decimal de **escala 2**, siempre serializado con dos decimales
-  (`12.50`, no `12.5`). No hay cálculo aritmético en el servicio, así que no hay regla de redondeo
-  que fijar: el precio se almacena y se devuelve tal cual llegó, ya normalizado a escala 2. Un
-  `price` con más de dos decimales en la petición es `400`.
+  (`12.50`, no `12.5`). El tipo `Price` de `domain` lo declara: la escala **se valida, no se
+  ajusta**. No hay cálculo aritmético en el servicio, así que no hay regla de redondeo que fijar —
+  el precio se almacena y se devuelve tal cual llegó. Un `price` con más de dos decimales en la
+  petición es `400`; **nunca** se redondea a dos.
 - **Ausencia vs nulo**: un campo opcional sin valor **aparece en la respuesta con valor `null`**;
   no se omite. Vale para `description` de producto, marca y categoría. Las colecciones vacías
   aparecen como `[]`, nunca como `null` ni ausentes.
@@ -1136,10 +1137,10 @@ el fallo de cacheo que sí es observable.
 ### FL-CCH-020: la clave de caché incluye la paginación
 
 `cache.keyFields` de `listPublicProducts` nombra los cinco filtros, pero **no** puede nombrar `page`
-ni `size`, que no son campos del input sino parámetros del sobre de paginación. Una implementación
-que construya la clave solo con los `keyFields` declarados serviría la página 0 para cualquier
-página. Este escenario lo cierra: **la clave de caché incluye siempre `page` y `size` además de los
-`keyFields`.**
+ni `size`, que no son campos del input sino parámetros del sobre de paginación. La operación lo
+declara como `rule` —**la clave de caché incluye siempre `page` y `size` además de los
+`keyFields`**—, y este escenario lo mide: una implementación que construya la clave solo con los
+`keyFields` serviría la página 0 para cualquier página.
 
 **Given**: existen 25 productos publicados, creados dentro del flujo, con nombres distinguibles
 (`"Producto 01"` … `"Producto 25"`).

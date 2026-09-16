@@ -1,6 +1,6 @@
 ---
 service: catalog
-version: 0.6.0
+version: 0.6.1
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -93,7 +93,7 @@ credentials), no con token de usuario. Cómo obtenerlo:
 | `name` | string | requerido; máx. 140 |
 | `slug` | string | requerido; identificador de URL. **Inmutable desde la primera publicación**: una vez que el producto ha estado `active` una vez, su `slug` no cambia nunca más, ni aunque se renombre, se despublique o se descatalogue. Antes de esa primera publicación sí sigue al `name`, así que un producto en `draft` puede cambiarlo **y también liberarlo al borrarse**. Si indexas por `slug`, la clave es estable para todo lo que hayas visto publicado |
 | `description` | text \| null | máx. 4000 |
-| `price` | decimal | requerido; escala 2, divisa única de la tienda |
+| `price` | decimal | requerido; escala 2 **validada, nunca redondeada**, divisa única de la tienda |
 | `status` | enum | requerido; `draft` \| `active` \| `discontinued` |
 | `updatedAt` | timestamp | requerido; ISO-8601 UTC. **Úsalo para ordenar lo recibido contra tu copia** al reconciliar |
 | `brand` | objeto | requerido; `{ id, name, slug, description }` |

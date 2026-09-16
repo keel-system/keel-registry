@@ -14,7 +14,13 @@ types:
 
   Price:
     base: decimal
-    description: Importe de venta al público en la divisa única de la tienda.
+    # scale: 2 es una restricción de VALIDACIÓN, no una regla de redondeo. El servicio no hace
+    # aritmética sobre el precio: lo almacena y lo devuelve tal cual llegó. Un importe con más de
+    # dos decimales se rechaza; nunca se redondea a dos.
+    description: >
+      Importe de venta al público en la divisa única de la tienda. La escala de dos decimales se
+      valida, no se ajusta: un importe con más decimales se rechaza en vez de redondearse, y el
+      servicio nunca aplica ninguna regla de redondeo porque no calcula nada sobre el precio.
     constraints: { min: 0, scale: 2 }
 
   ProductStatus:

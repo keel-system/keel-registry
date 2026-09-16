@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.6.0 -->
+<!-- keel:version 0.6.1 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,7 +188,7 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.6.0",
+    "version": "0.6.1",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.",
     "domain": "commerce",
     "generatedAt": "2026-09-15"
@@ -323,9 +323,17 @@ const KEEL = {
         [
           "getPublicProduct",
           "TTL 300s · clave: slug"
+        ],
+        [
+          "listBrands",
+          "TTL 300s · clave: name"
+        ],
+        [
+          "listCategories",
+          "TTL 300s · clave: name"
         ]
       ],
-      "note": "La clave incluye siempre page y size además de los keyFields declarados."
+      "note": "En las tres lecturas paginadas la clave incluye siempre page y size además de los keyFields declarados."
     },
     {
       "id": "storage",
@@ -1751,7 +1759,8 @@ const KEEL = {
       "rules": [
         "Solo se devuelven productos en estado active.",
         "Los filtros presentes se combinan con conjunción; los ausentes no restringen.",
-        "Un categorySlug o brandSlug que no corresponde a ninguna categoría o marca devuelve una página vacía, no un error."
+        "Un categorySlug o brandSlug que no corresponde a ninguna categoría o marca devuelve una página vacía, no un error.",
+        "La clave de caché incluye siempre page y size además de los keyFields declarados: keyFields solo puede nombrar campos del input, y la paginación no lo es. Una implementación que construya la clave solo con los keyFields declarados serviría la primera página para cualquier página."
       ],
       "errors": [
         {
@@ -1881,7 +1890,8 @@ const KEEL = {
         "level": "public"
       },
       "rules": [
-        "El filtro ausente no restringe; presente, busca coincidencia parcial sin distinguir mayúsculas ni acentos."
+        "El filtro ausente no restringe; presente, busca coincidencia parcial sin distinguir mayúsculas ni acentos.",
+        "La clave de caché incluye siempre page y size además de los keyFields declarados: keyFields solo puede nombrar campos del input, y la paginación no lo es. Una implementación que construya la clave solo con los keyFields declarados serviría la primera página para cualquier página."
       ],
       "cache": {
         "ttlSeconds": 300,
@@ -1929,7 +1939,8 @@ const KEEL = {
         "level": "public"
       },
       "rules": [
-        "El filtro ausente no restringe; presente, busca coincidencia parcial sin distinguir mayúsculas ni acentos."
+        "El filtro ausente no restringe; presente, busca coincidencia parcial sin distinguir mayúsculas ni acentos.",
+        "La clave de caché incluye siempre page y size además de los keyFields declarados: keyFields solo puede nombrar campos del input, y la paginación no lo es. Una implementación que construya la clave solo con los keyFields declarados serviría la primera página para cualquier página."
       ],
       "cache": {
         "ttlSeconds": 300,
@@ -2798,7 +2809,7 @@ const KEEL = {
         "name": "Price",
         "kind": "escalar",
         "detail": "decimal · min 0, scale 2",
-        "description": "Importe de venta al público en la divisa única de la tienda."
+        "description": "Importe de venta al público en la divisa única de la tienda. La escala de dos decimales se valida, no se ajusta: un importe con más decimales se rechaza en vez de redondearse, y el servicio nunca aplica ninguna regla de redondeo porque no calcula nada sobre el precio."
       },
       {
         "name": "ProductStatus",
