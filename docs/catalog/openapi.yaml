@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: catalog
-  version: 0.5.1
+  version: 0.6.0
   description: 'Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías,
     los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores
     por consulta directa y por eventos.
@@ -43,6 +43,13 @@ paths:
       tags:
       - Tienda
       parameters:
+      - name: name
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 80
+        description: Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas ni acentos.
       - name: page
         in: query
         required: false
@@ -81,6 +88,13 @@ paths:
       tags:
       - Tienda
       parameters:
+      - name: name
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 80
+        description: Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas ni acentos.
       - name: page
         in: query
         required: false
@@ -1034,6 +1048,88 @@ paths:
                     status: 422
                     code: PRODUCT_NOT_PUBLISHABLE
                     message: El producto está active y el cambio lo dejaría sin precio válido.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - product:write
+    delete:
+      operationId: deleteProduct
+      summary: Elimina definitivamente un producto que nunca llegó a estar a la venta.
+      tags:
+      - Back-office
+      description: '**Precondiciones**
+
+
+        - El producto, si existe, está en estado draft y nunca ha estado a la venta.
+
+
+        **Reglas**
+
+
+        - El borrado es idempotente: si no existe un producto con ese id la operación no hace nada y responde igual
+        que si lo hubiera borrado.
+
+        - La guarda de negocio NO se salta por la idempotencia: un producto que existe y no es borrable se rechaza,
+        igual que BRAND_IN_USE se sigue evaluando en deleteBrand.
+
+        - Solo se borra lo que NUNCA estuvo a la venta, y estar en draft no basta para saberlo: un producto
+        despublicado vuelve a draft y sí estuvo a la venta. Lo que lo distingue es slugFrozen, que es exactamente
+        esa historia — falso mientras el producto no haya alcanzado active ni una vez. Es borrable el producto en
+        draft con slugFrozen en falso; para todo lo demás la salida es discontinueProduct, no ésta.
+
+        - Se eliminan las imágenes del producto y sus objetos del bucket productImages; no se conservan objetos
+        huérfanos.
+
+        - El sku y el slug quedan liberados: un alta posterior puede volver a usarlos.
+
+        - Borrar y publicar el mismo borrador a la vez es una carrera con las dos salidas ya declaradas, y ninguna
+        necesita error nuevo: si publica primero, el borrado encuentra el producto en active y sale por
+        PRODUCT_NOT_DELETABLE; si borra primero, la publicación no encuentra la fila y sale por su
+        PRODUCT_NOT_FOUND. No se reintenta en silencio.
+
+        - ProductDeleted se publica solo si se eliminó un producto; una repetición que no cambia nada no emite
+        evento.
+
+
+        **Eventos emitidos**: `ProductDeleted` (ver `asyncapi.yaml`).'
+      parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Operación completada; sin cuerpo.
+        '401':
+          description: Sin credencial válida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso o scope exigido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: '`PRODUCT_NOT_DELETABLE` — El producto existe pero ya estuvo a la venta alguna vez: está fuera
+            de draft, o está en draft tras haberse despublicado.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_DELETABLE:
+                  summary: 'El producto existe pero ya estuvo a la venta alguna vez: está fuera de draft, o está
+                    en draft tras haberse despublicado.'
+                  value:
+                    status: 409
+                    code: PRODUCT_NOT_DELETABLE
+                    message: 'El producto existe pero ya estuvo a la venta alguna vez: está fuera de draft, o está
+                      en draft tras haberse despublicado.'
       security:
       - userAuth: []
       x-keel-permissions:

@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.5.1. Contrato de validación para la fase de generación.
+> specs/catalog v0.6.0. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -46,11 +46,13 @@ Valen para **todo** el servicio y ningún escenario las repite.
   deliberado: `422` cuando son una referencia inválida dentro del alta o la edición de un producto
   (el recurso de la petición sí existe), y `404` cuando son el recurso de la propia petición
   (`updateBrand`, `updateCategory`). Cada escenario lo dice.
-- **Los tres `DELETE` del servicio son idempotentes** y por eso ninguno declara un error de «no
-  encontrado»: `deleteBrand`, `deleteCategory` y `removeProductImage` responden `204` sin cuerpo
+- **Los cuatro `DELETE` del servicio son idempotentes** y por eso ninguno declara un error de «no
+  encontrado»: `deleteBrand`, `deleteCategory`, `removeProductImage` y `deleteProduct` responden
+  `204` sin cuerpo
   tanto si eliminaron algo como si el recurso ya no estaba. El evento de borrado se publica **solo**
   cuando hubo eliminación real, así que un `204` no implica evento. Las guardas que sí quedan
-  (`BRAND_IN_USE`, `CATEGORY_IN_USE`, `PRODUCT_DISCONTINUED`, `LAST_IMAGE_OF_ACTIVE_PRODUCT`) se
+  (`BRAND_IN_USE`, `CATEGORY_IN_USE`, `PRODUCT_DISCONTINUED`, `LAST_IMAGE_OF_ACTIVE_PRODUCT`,
+  `PRODUCT_NOT_DELETABLE`) se
   siguen evaluando y siguen fallando; la idempotencia cubre la ausencia del recurso, no las
   invariantes. `removeProductImage` es idempotente respecto a la **imagen**, no al producto de la
   ruta: un `productId` inexistente sigue siendo `404`.
@@ -75,9 +77,14 @@ Valen para **todo** el servicio y ningún escenario las repite.
   segundo evento. En la carrera tampoco hay disyunción: la que pierde recibe ese mismo `code`, nunca
   el `*_SLUG_CONFLICT`, aunque las dos derivasen el mismo slug.
 - **Concurrencia**: `persistence.consistency.optimisticLocking: declared` y solo `Product` declara
-  `lockVersion`. Dos ediciones concurrentes del mismo producto dan conflicto `409`
-  (`PRODUCT_VERSION_CONFLICT`); dos ediciones concurrentes de la misma marca o categoría **no** dan
-  conflicto y gana la última en confirmar, comprobado leyendo el estado final por la API.
+  `lockVersion`. El candado tiene **alcance de ficha, no de raíz**, y es contrato: versiona
+  `name`, `description`, `price`, `brand` y `category` —lo que escribe `updateProduct`, la única
+  operación que pide `lockVersion`—. Dos ediciones concurrentes de la **ficha** del mismo producto
+  dan conflicto `409` (`PRODUCT_VERSION_CONFLICT`); en cambio las transiciones de estado y las
+  cuatro operaciones de galería escriben la misma raíz y **no incrementan** `lockVersion`, así que
+  no invalidan una edición en curso (FL-PRD-011). Dos ediciones concurrentes de la misma marca o
+  categoría **no** dan conflicto y gana la última en confirmar, comprobado leyendo el estado final
+  por la API.
 - **Autorización**: los endpoints de `/management/...` exigen token de usuario con el permiso de la
   operación; los de `/services/...`, credencial de máquina de uno de los tres clientes que
   `security.serviceClients` declara —`order-service`, `inventory-service` o `search-service`—,
@@ -119,24 +126,25 @@ documento lo excluyen igual que a cualquier otro campo no enumerado.
 | `updateCategory` | FL-CTG-001 | usuarios |
 | `deleteCategory` | FL-CTG-010 | usuarios |
 | `createProduct` | FL-PRD-001 | usuarios |
-| `updateProduct` | FL-PRD-010 | usuarios |
+| `updateProduct` | FL-PRD-010, FL-PRD-011 | usuarios |
 | `publishProduct` | FL-PRD-020 | usuarios |
 | `unpublishProduct` | FL-PRD-020 | usuarios |
 | `discontinueProduct` | FL-PRD-020 | usuarios |
 | `reactivateProduct` | FL-PRD-020 | usuarios |
+| `deleteProduct` | FL-PRD-025 | usuarios |
 | `getProduct` | FL-PRD-030 | usuarios |
 | `listProducts` | FL-PRD-030 | usuarios |
-| `addProductImage` | FL-IMG-001 | usuarios |
+| `addProductImage` | FL-IMG-001, FL-PRD-011 | usuarios |
 | `setPrimaryProductImage` | FL-IMG-001 | usuarios |
 | `reorderProductImages` | FL-IMG-001 | usuarios |
 | `removeProductImage` | FL-IMG-001 | usuarios |
 | `getPublicProduct` | FL-PUB-001, FL-CCH-001 | pública (sin credencial) |
 | `listPublicProducts` | FL-PUB-010, FL-CCH-001, FL-CCH-020 | pública (sin credencial) |
-| `listBrands` | FL-PUB-020 | pública (sin credencial) |
-| `listCategories` | FL-PUB-020 | pública (sin credencial) |
+| `listBrands` | FL-PUB-020, FL-CCH-030 | pública (sin credencial) |
+| `listCategories` | FL-PUB-020, FL-CCH-030 | pública (sin credencial) |
 | `getProductForServices` | FL-M2M-001 | **servidores (M2M)** |
 | `listProductsBatchForServices` | FL-M2M-010 | **servidores (M2M)** |
-| *(todas las protegidas)* | FL-SEC-001 | usuarios + **servidores** |
+| *(todas las protegidas)* | FL-SEC-001, FL-SEC-010 | usuarios + **servidores** |
 
 ---
 
@@ -500,6 +508,53 @@ creados dentro de este flujo. Se conoce su `lockVersion` actual, leído con `get
 
 ---
 
+### FL-PRD-011: el alcance del candado — qué versiona `lockVersion` y qué no
+
+`optimisticLocking: declared` cubre la raíz `Product`, pero solo `updateProduct` pide `lockVersion`.
+Este flujo fija **qué escrituras lo mueven**, que es lo único que la política por sí sola no dice:
+lo mueve la ficha comercial, no la galería ni el estado. Sin este escenario, un generador que
+incremente `lockVersion` en cada escritura de la raíz y otro que solo lo haga en la ficha pasarían
+los dos la suite, y el primero devolvería `409` a un operador cuya edición nadie ha pisado.
+
+**Given**: existen `b1`, `c1` y el producto `p1` (`draft`, una imagen, `price: 89.90`), creados
+dentro de este flujo. Se lee `p1` con `getProduct` y se anota su `lockVersion` como **`v0`**.
+
+**When**: `addProductImage` sobre `p1` — una segunda imagen
+
+**Then**:
+1. Status `201`.
+2. `getProduct(p1)` devuelve `lockVersion` **igual a `v0`**: la galería no versiona la ficha.
+
+**When**: `updateProduct` sobre `p1` con `lockVersion: v0` —la versión leída **antes** de la
+imagen— y `name: "Zapatilla Runner Pro"`
+
+**Then**:
+3. Status `200`, **no** `409`: la subida ajena no invalidó la edición en curso. Es la aserción
+   central del flujo.
+4. Ahora sí, `lockVersion` es **distinto** de `v0`. Se anota el nuevo valor como **`v1`**.
+
+**When**: `setPrimaryProductImage` sobre la segunda imagen, y después `reorderProductImages`
+invirtiendo las dos
+
+**Then**:
+5. Ambas responden `200` y tras las dos `lockVersion` sigue siendo **`v1`**.
+
+**When**: `publishProduct` sobre `p1`, y a continuación `unpublishProduct`
+
+**Then**:
+6. Ambas responden `200`, el `status` recorre `active` y vuelve a `draft`, y `lockVersion` sigue
+   siendo **`v1`**: el estado comercial tampoco versiona la ficha.
+7. `updateProduct` con `lockVersion: v1` responde `200`: las cuatro escrituras anteriores no
+   caducaron la versión que el operador tenía en la mano.
+
+**Casos borde**:
+- La guarda sigue viva donde debe: dos `updateProduct` con la misma `lockVersion` siguen dando
+  `409`, `code: PRODUCT_VERSION_CONFLICT` (FL-PRD-010). Este flujo acota el candado, no lo retira.
+- `removeProductImage` y `discontinueProduct` tampoco lo mueven: las **ocho** escrituras de la raíz
+  que no son `updateProduct` dejan `lockVersion` intacto.
+
+---
+
 ## Productos: ciclo de vida
 
 ### FL-PRD-020: publicar, despublicar, descatalogar y reactivar
@@ -630,6 +685,67 @@ producto en `draft`
   `name` no es único y el slug de `p1` no se recalcula, así que no hay candidato que pueda colisionar.
 - Los tres estados del ciclo de vida (`draft`, `active`, `discontinued`) quedan alcanzados por este
   flujo, y las cuatro transiciones declaradas quedan ejecutadas.
+
+---
+
+### FL-PRD-025: borrado de un borrador que nunca estuvo a la venta
+
+**Given**: existen `b1`, `c1` y cuatro productos creados dentro de este flujo:
+- `p1` — `draft`, `sku: "SKU-DEL-001"`, con **dos** imágenes, nunca publicado.
+- `p2` — `active` (publicado, con una imagen), `sku: "SKU-DEL-002"`.
+- `p3` — `discontinued` (publicado y después descatalogado), `sku: "SKU-DEL-003"`.
+- `p4` — `draft` **tras haber sido publicado y despublicado**, `sku: "SKU-DEL-004"`.
+
+**When**: `deleteProduct` — `DELETE /api/v1/management/products/{p1}`, token con `product:write`
+
+**Then**:
+1. Status `204`, sin cuerpo.
+2. Se publica **exactamente un** `ProductDeleted` en el canal `productEvents`, con `data`:
+   `productId` = `p1`, `sku: "SKU-DEL-001"`, el `slug` que tenía `p1` y `deletedAt` (timestamp).
+   Ningún campo más. No se publica ningún `ProductStatusChanged`: esto no es una transición.
+3. `getProduct(p1)` → `404`, `code: PRODUCT_NOT_FOUND`.
+4. `listProducts` sin filtro ya no lo incluye y su `totalElements` bajó en 1.
+5. Las referencias de archivo de sus **dos** imágenes ya no resuelven: una lectura directa de cada
+   una no devuelve el binario. No quedan objetos huérfanos en el bucket.
+6. `listProductsBatchForServices` con `ids=p1` responde `200` con lista **vacía**, sin error: es la
+   vía por la que un consumidor que perdiera el evento descubre igualmente la baja.
+
+**When**: se repite exactamente la misma llamada sobre `p1`
+
+**Then**:
+7. Status `204`, sin cuerpo: el borrado es idempotente.
+8. **No** se publica un segundo `ProductDeleted`.
+
+**When**: `deleteProduct` sobre `p2` (`active`)
+
+**Then**:
+9. Status `409`, `code: PRODUCT_NOT_DELETABLE`.
+10. `getProduct(p2)` sigue devolviendo el producto intacto y la referencia de su imagen sigue
+    resolviendo: un borrado rechazado no toca el bucket.
+
+**When**: `deleteProduct` sobre `p3` (`discontinued`) y sobre `p4` (`draft`, ya despublicado)
+
+**Then**:
+11. Ambas → `409`, `code: PRODUCT_NOT_DELETABLE`.
+12. `p4` es la aserción que separa este contrato del ingenuo: **está en `draft` y aun así no se
+    borra**, porque sí estuvo a la venta. Lo que decide no es el `status` sino `slugFrozen`, y por
+    eso `p3` y `p4` fallan igual pese a estar en estados distintos.
+
+**When**: `createProduct` con `sku: "SKU-DEL-001"` —el del producto borrado— y el mismo `name` que
+tenía `p1`
+
+**Then**:
+13. Status `201`: el `sku` quedó **liberado**, no hay `SKU_ALREADY_EXISTS`.
+14. El producto nuevo recibe el `slug` sin sufijo numérico, porque el que lo ocupaba ya no existe.
+    Es la aserción que demuestra que el borrado libera las dos claves únicas y no solo la fila.
+
+**Casos borde**:
+- `deleteProduct` sobre un `productId` que nunca existió → `204`, sin cuerpo y sin evento.
+- Sin `product:write` → `403`, aunque el producto no exista: la autorización precede a la
+  idempotencia.
+- Borrar `p1` y publicarlo a la vez es la carrera declarada: una de las dos gana y la otra sale por
+  `PRODUCT_NOT_DELETABLE` (`409`) o por `PRODUCT_NOT_FOUND` (`404`) según quién llegue primero.
+  Nunca las dos con éxito, y nunca un `204` que deje el producto `active`.
 
 ---
 
@@ -967,7 +1083,17 @@ del flujo: 25 **publicados** (20 de `b1`/`c1`, 5 de `b2`/`c2`, con precios entre
 4. Status `200` con `totalElements: 2`, ordenado por `name` ascendente: `Calzado`, `Camisetas`.
 5. Misma proyección de cuatro campos.
 
-**Casos borde**: sin ninguna marca, `listBrands` devuelve `items: []` y `totalElements: 0`.
+**When**: `listBrands` con el filtro — `GET /api/v1/brands?name=ni`, sin credencial
+
+**Then**:
+6. Status `200` con `totalElements: 1`: solo `Nike`. La coincidencia es **parcial**.
+7. `?name=NÍ` devuelve el mismo resultado: el filtro no distingue mayúsculas ni acentos.
+8. `?name=zzz` devuelve `items: []` y `totalElements: 0`, no un `404`.
+9. `listCategories?name=cal` → solo `Calzado`, con las mismas tres propiedades.
+
+**Casos borde**:
+- Sin ninguna marca, `listBrands` devuelve `items: []` y `totalElements: 0`.
+- El filtro ausente no restringe: `GET /api/v1/brands` y `GET /api/v1/brands?name=` devuelven las 3.
 
 ---
 
@@ -1026,6 +1152,40 @@ página. Este escenario lo cierra: **la clave de caché incluye siempre `page` y
    coincide con los de la página 0.
 3. `GET /api/v1/products?page=0&size=5` devuelve `size: 5` y 5 elementos, no los 20 de la lectura
    anterior.
+
+---
+
+### FL-CCH-030: caché de la taxonomía pública
+
+`listBrands` y `listCategories` declaran `cache: { ttlSeconds: 300, keyFields: [name] }` invalidada
+por los tres eventos de su entidad. Es el mismo contrato que FL-CCH-001 y FL-CCH-020, aplicado a la
+taxonomía: **la clave incluye `page` y `size` además del `keyFields`.**
+
+**Given**: existen las marcas `"Nike"` y `"Puma"` y la categoría `"Calzado"`, creadas dentro del
+flujo. Todas las lecturas de este flujo van **sin credencial** y **dentro** de los 300 s del TTL.
+
+**Then**, un ciclo leer → mutar → releer por cada vía:
+
+1. **`BrandCreated`**: `listBrands` → `totalElements: 2`. `createBrand("Adidas")` → la siguiente
+   lectura devuelve `totalElements: 3` con `Adidas` el primero por orden de `name`.
+2. **`BrandUpdated`**: `listBrands` → `Nike` presente. `updateBrand` con `name: "Nike Sportswear"`
+   → la siguiente lectura devuelve `"Nike Sportswear"` y su `slug` recalculado, sin esperar al TTL.
+3. **`BrandDeleted`**: `deleteBrand("Puma")` —que ningún producto referencia— → la siguiente lectura
+   ya no lo incluye y `totalElements` bajó en 1.
+4. **`CategoryCreated`, `CategoryUpdated`, `CategoryDeleted`**: los tres ciclos equivalentes sobre
+   `listCategories`.
+
+**When**: con 25 marcas creadas en el flujo, `GET /api/v1/brands?page=0&size=20` y a continuación
+`GET /api/v1/brands?page=1&size=20`
+
+**Then**:
+5. La primera responde `page: 0` con 20 elementos; la segunda, `page: 1` con 5, y **ninguno**
+   coincide con los de la página 0.
+6. `GET /api/v1/brands?name=nik&page=0&size=20` y `GET /api/v1/brands?page=0&size=20` devuelven
+   resultados **distintos**: el filtro forma parte de la clave, no se sirve uno por el otro.
+
+**Notas de determinación**: igual que en FL-CCH-001, los ciclos de invalidación los pasa también una
+implementación que no cachee nada; lo que sí distingue una caché mal clavada es la aserción 5-6.
 
 ---
 
@@ -1138,11 +1298,11 @@ flujo con un token que sí tiene los permisos.
 
 **Then**, para **cada** operación protegida:
 
-1. **Sin credencial** → `401`, en las 20 operaciones de `/management/...` y en las 2 de
+1. **Sin credencial** → `401`, en las 21 operaciones de `/management/...` y en las 2 de
    `/services/...`.
 2. **Con token de usuario válido pero sin el permiso exigido** → `403`:
    - sin `product:read`: `getProduct`, `listProducts`;
-   - sin `product:write`: `createProduct`, `updateProduct`, `addProductImage`,
+   - sin `product:write`: `createProduct`, `updateProduct`, `deleteProduct`, `addProductImage`,
      `removeProductImage`, `setPrimaryProductImage`, `reorderProductImages`;
    - sin `product:publish`: `publishProduct`, `unpublishProduct`, `discontinueProduct`,
      `reactivateProduct`;
@@ -1159,3 +1319,33 @@ flujo con un token que sí tiene los permisos.
 **Notas de determinación**: el fallo de audiencia de un token de máquina y el fallo de scope los
 resuelve el generador; el escenario fija que la llamada **no ejecuta la operación** y que el estado
 no cambia, comprobado leyendo por la API con una credencial válida después.
+
+### FL-SEC-010: `catalog-editor` redacta pero no publica
+
+La frontera entre los dos roles es `product:publish`, y es lo único que los separa. Este flujo la
+comprueba por sus dos lados con un token de `catalog-editor`.
+
+**Given**: existen `b1`, `c1`, el producto `p1` (`draft`, con una imagen y `price: 89.90`) y `p2`
+(`active`), creados dentro del flujo con un token de `catalog-admin`.
+
+**Then**, todo con un token cuyo único rol es `catalog-editor`:
+
+1. **Puede redactar**: `createProduct`, `updateProduct`, `getProduct` y `listProducts` responden con
+   su status de éxito.
+2. **Puede gestionar la galería**: `addProductImage`, `setPrimaryProductImage`,
+   `reorderProductImages` y `removeProductImage` responden con su status de éxito.
+3. **Puede gestionar la taxonomía**: `createBrand`, `updateBrand`, `deleteBrand`, `createCategory`,
+   `updateCategory` y `deleteCategory` responden con su status de éxito.
+4. **Puede borrar un borrador suyo**: `deleteProduct` sobre `p1` → `204`. Es deliberado que
+   `deleteProduct` viva bajo `product:write`: alcanza solo a lo que nunca estuvo a la venta.
+5. **No puede publicar**: `publishProduct`, `unpublishProduct`, `discontinueProduct` y
+   `reactivateProduct` → `403`, las cuatro.
+6. El `403` de la aserción 5 ocurre **antes** que cualquier guarda de negocio: `publishProduct`
+   sobre un producto sin imágenes responde `403`, no `422`; y sobre un id inexistente, `403`, no
+   `404`.
+7. Tras las cuatro llamadas rechazadas, el `status` de `p1` y de `p2` es el mismo que antes,
+   comprobado con `getProduct` usando un token de `catalog-admin`.
+
+**Notas de determinación**: el escenario fija los permisos, no el mecanismo por el que el token los
+lleva (rol en un claim, scope, grupo): eso lo resuelve el generador con el proveedor de identidad.
+

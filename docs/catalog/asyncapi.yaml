@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: catalog
-  version: 0.5.1
+  version: 0.6.0
   description: 'Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías,
     los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores
     por consulta directa y por eventos.
@@ -31,6 +31,8 @@ channels:
         $ref: '#/components/messages/ProductUpdated'
       ProductStatusChanged:
         $ref: '#/components/messages/ProductStatusChanged'
+      ProductDeleted:
+        $ref: '#/components/messages/ProductDeleted'
   taxonomyEvents:
     address: taxonomyEvents
     title: taxonomyEvents
@@ -86,6 +88,15 @@ operations:
     - unpublishProduct
     - discontinueProduct
     - reactivateProduct
+  publishProductDeleted:
+    action: send
+    channel:
+      $ref: '#/channels/productEvents'
+    summary: Se eliminó un producto que nunca llegó a estar a la venta. Quien mantenga una copia debe purgarla; el sku y el slug quedan libres para un alta posterior.
+    messages:
+    - $ref: '#/channels/productEvents/messages/ProductDeleted'
+    x-keel-emitted-by:
+    - deleteProduct
   publishBrandCreated:
     action: send
     channel:
@@ -197,6 +208,23 @@ components:
             $ref: '#/components/schemas/KeelEventMetadata'
           data:
             $ref: '#/components/schemas/ProductStatusChangedPayload'
+    ProductDeleted:
+      name: ProductDeleted
+      title: ProductDeleted
+      contentType: application/json
+      summary: Se eliminó un producto que nunca llegó a estar a la venta. Quien mantenga una copia debe purgarla; el sku y el slug quedan libres para un alta posterior.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/ProductDeletedPayload'
     BrandCreated:
       name: BrandCreated
       title: BrandCreated
@@ -419,6 +447,25 @@ components:
         newStatus:
           $ref: '#/components/schemas/ProductStatus'
         updatedAt:
+          type: string
+          format: date-time
+    ProductDeletedPayload:
+      type: object
+      description: Se eliminó un producto que nunca llegó a estar a la venta. Quien mantenga una copia debe purgarla; el sku y el slug quedan libres para un alta posterior.
+      required:
+      - productId
+      - sku
+      - slug
+      - deletedAt
+      properties:
+        productId:
+          type: string
+          format: uuid
+        sku:
+          $ref: '#/components/schemas/SKU'
+        slug:
+          $ref: '#/components/schemas/Slug'
+        deletedAt:
           type: string
           format: date-time
     BrandCreatedPayload:

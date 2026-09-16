@@ -43,4 +43,12 @@ consistency:
   # lockVersion solo está declarado en Product, la única raíz con edición concurrente real: una
   # escritura sobre una versión vieja falla con 409. Marcas y categorías las edita un admin de
   # tanto en tanto y no lo declaran: ahí gana la última escritura, dicho a sabiendas.
+  #
+  # ALCANCE del candado, que la política por sí sola no fija: versiona la FICHA COMERCIAL de
+  # Product —name, description, price, brand, category—, que es lo que escribe updateProduct, la
+  # única operación que pide lockVersion. Las transiciones de estado y las operaciones sobre la
+  # galería escriben la misma raíz y NO lo incrementan, a propósito: redactar una descripción y
+  # subir una foto son trabajos que no se pisan, y hacerlos chocar daría un 409 que no protege de
+  # nada. Cada una de esas ocho operaciones lo dice en su regla; aquí está el porqué. Sin esto,
+  # dos generadores elegirían distinto y los dos pasarían los escenarios.
   optimisticLocking: declared

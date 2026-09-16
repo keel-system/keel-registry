@@ -12,6 +12,10 @@ publishing:
   # best-effort: elección del diseñador. Si el broker está caído en el instante en que confirma la
   # transacción, ese evento se pierde sin traza. La vía de reconciliación es el endpoint M2M por
   # lotes (listProductsBatchForServices), con el que un consumidor puede reconstruir su copia.
+  # Vale también para ProductDeleted, que es el caso que más incomoda: perder una baja dejaría un
+  # producto fantasma en la copia del consumidor. No lo deja, porque el mismo endpoint de lotes
+  # OMITE del resultado los identificadores que ya no existen — reconciliar no solo refresca lo
+  # que cambió, también delata lo que desapareció. La vía de recuperación ya estaba declarada.
   reliability: best-effort
 
   events:
@@ -62,6 +66,17 @@ publishing:
         previousStatus: { type: ProductStatus, required: true }
         newStatus:      { type: ProductStatus, required: true }
         updatedAt:      { type: timestamp, required: true }
+
+    ProductDeleted:
+      description: >-
+        Se eliminó un producto que nunca llegó a estar a la venta. Quien mantenga una copia debe
+        purgarla; el sku y el slug quedan libres para un alta posterior.
+      channel: productEvents
+      payload:
+        productId: { type: uuid, required: true }
+        sku:       { type: SKU, required: true }
+        slug:      { type: Slug, required: true }
+        deletedAt: { type: timestamp, required: true }
 
     BrandCreated:
       description: Se dio de alta una marca en el catálogo.

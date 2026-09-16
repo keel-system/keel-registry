@@ -10,8 +10,11 @@ authentication:
     validateAudience: true
     audience: catalog
 
+# Dos perfiles de back-office, y la frontera entre ellos es product:publish: quién redacta no es
+# necesariamente quién decide qué sale a la venta.
 roles:
-  catalog-admin: { description: Gestiona el catálogo completo desde el back-office. }
+  catalog-admin:  { description: Gestiona el catálogo completo desde el back-office. }
+  catalog-editor: { description: "Redacta fichas y gestiona la galería y la taxonomía, sin decidir qué sale a la venta." }
 
 permissions:
   product:read:    { description: Consultar productos en cualquier estado. }
@@ -20,7 +23,8 @@ permissions:
   taxonomy:write:  { description: "Crear, modificar y eliminar marcas y categorías." }
 
 roleGrants:
-  catalog-admin: [product:read, product:write, product:publish, taxonomy:write]
+  catalog-admin:  [product:read, product:write, product:publish, taxonomy:write]
+  catalog-editor: [product:read, product:write, taxonomy:write]
 
 cors:
   description: La tienda y el back-office son aplicaciones de navegador que llaman directamente a esta API.
@@ -61,6 +65,9 @@ access:
     unpublishProduct:   { level: required, permissions: [product:publish] }
     discontinueProduct: { level: required, permissions: [product:publish] }
     reactivateProduct:  { level: required, permissions: [product:publish] }
+    # product:write y no product:publish: borrar solo alcanza a lo que nunca estuvo a la venta, así
+    # que quien creó el borrador por error puede retirarlo sin tocar el estado comercial de nada.
+    deleteProduct:      { level: required, permissions: [product:write] }
 
     # --- Back-office: imágenes ------------------------------------------------
     addProductImage:        { level: required, permissions: [product:write] }

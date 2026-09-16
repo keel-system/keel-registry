@@ -18,7 +18,10 @@ decisions:
       declarado en ambas y se acepta el aviso. Reportado al repo de la herramienta.
       createBrand y createCategory, que el aviso también lista, deduplican por clave natural
       (payload-field: name) y responden por su NAME_ALREADY_EXISTS: este 409 no les aplica.
-    since: 0.5.0
+      Reafirmada sin cambios en 0.6.0: el aviso sigue listando exactamente las mismas cuatro
+      operaciones, porque deleteProduct —lo único que 0.6.0 añade— no declara idempotency: su
+      guarda es la ausencia de la fila, que no caduca ni necesita registro de claves.
+    since: 0.6.0
   - id: OBL-IDEM-REUSE-CODE
     scope: use-cases
     reason: >
@@ -28,7 +31,8 @@ decisions:
       operaciones —es el contrato que reciben los integradores por los dos endpoints— y se
       acepta el aviso hasta que overrideFor deduplique por code. Tampoco aplica a createBrand
       ni a createCategory (clave natural, no clave de cliente).
-    since: 0.5.0
+      Reafirmada sin cambios en 0.6.0, por lo mismo que OBL-IDEM-RACE-CODE.
+    since: 0.6.0
   - id: OBL-CALLER-IDENTITY
     scope: security
     reason: >
@@ -48,4 +52,10 @@ decisions:
       dominio cualquier campo que diga de quién es una fila.
       Reafirmada en 0.5.0: listProductsBatchForServices pasó de POST a GET con cota de 50 y
       sigue siendo una lectura con product:read; nada de lo anterior cambia.
-    since: 0.5.0
+      Reafirmada en 0.6.0, que es la versión que más obliga a mirarla porque añade una escritura y
+      un rol: deleteProduct es back-office con permiso product:write —lo ejerce una persona, no una
+      máquina— y catalog-editor es otro perfil de persona. Los tres serviceClients siguen con
+      product:read y nada más, así que ninguna escritura del catálogo es alcanzable por un cliente
+      máquina, que era la mitad del disparador. La otra mitad tampoco se mueve: 0.6.0 no añade
+      ningún campo que diga de quién es una fila, y el catálogo sigue sin ser multi-inquilino.
+    since: 0.6.0

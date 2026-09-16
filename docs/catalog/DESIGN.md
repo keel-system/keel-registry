@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.5.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.6.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -53,6 +53,12 @@ draft ──publish──► active ──discontinue──► discontinued
 Las cuatro transiciones son las únicas válidas y cada una tiene su operación con nombre propio.
 No hay estados terminales: un producto descatalogado se recupera.
 
+`draft` tiene además una **salida que no es una transición**: `deleteProduct` retira la fila de un
+producto que **nunca ha estado a la venta**, y por eso no aparece en el diagrama. Quién es borrable
+no lo dice `status` —un producto despublicado también está en `draft`— sino `slugFrozen`, que es
+precisamente la historia de «alcanzó `active` alguna vez». El mismo campo que congela el slug
+decide el borrado, y por la misma razón: las dos preguntas son la misma.
+
 ## 3. Invariantes y reglas clave
 
 Del dominio:
@@ -66,6 +72,9 @@ Del dominio:
   el `slug` **no vuelve a cambiar**. El congelado depende de la **historia** del producto, no de su
   estado actual: dos productos en `draft` se comportan distinto según hayan pasado o no por `active`.
 - Un producto `discontinued` no admite cambios en su ficha ni en su galería.
+- Un producto solo puede **eliminarse** mientras está en `draft` **y** con `slugFrozen` en falso: en
+  cuanto alcanza `active` por primera vez su ficha se conserva siempre, aunque después se despublique
+  y vuelva a `draft`.
 - Un producto con imágenes tiene **exactamente una** `isPrimary`, y no hay dos imágenes con la
   misma `position`.
 - Una marca o una categoría no se pueden eliminar mientras algún producto las referencie.
@@ -78,7 +87,7 @@ De los casos de uso:
   nulo. No hay semántica de fusión.
 - La referencia producto→marca y producto→categoría es una **restricción de integridad**, no una
   comprobación previa: es lo que cierra la carrera entre crear un producto y borrar su marca.
-- Los tres borrados son **idempotentes**: repetirlos sobre un recurso que ya no existe responde
+- Los cuatro borrados son **idempotentes**: repetirlos sobre un recurso que ya no existe responde
   `204` y no cambia nada. Un `204` no implica, por tanto, que se haya publicado evento de borrado.
 - Los filtros de texto (`name`, `sku`) buscan coincidencia parcial sin distinguir mayúsculas ni
   acentos. Llevan cota de longitud —140 y 32, las del campo que filtran— pero **no** el formato de
@@ -90,6 +99,11 @@ De los casos de uso:
   dos altas o ediciones simultáneas del mismo `name` pueden calcular el mismo sufijo y solo una
   llega a escribir. Esa carrera se resuelve con `PRODUCT_SLUG_CONFLICT`, nunca reintentando en
   silencio.
+- El **candado optimista tiene alcance de ficha, no de raíz**. `lockVersion` versiona `name`,
+  `description`, `price`, `brand` y `category` —lo que escribe `updateProduct`, la única operación
+  que lo pide—; las cuatro transiciones y las cuatro operaciones de galería escriben la misma raíz y
+  **no lo incrementan**. Editar una descripción y subir una foto son trabajos que no se pisan, y
+  hacerlos chocar daría un `409` que no protege de nada.
 - En las dos operaciones con `Idempotency-Key` (`createProduct`, `addProductImage`), la guarda de
   idempotencia se evalúa **antes que cualquier guarda de negocio** sobre el contenido: reenviar una
   clave ya resuelta se reconoce como el reenvío que es, no como un choque de unicidad ni como una
@@ -102,7 +116,10 @@ De los casos de uso:
 **Gestión de productos** (back-office, token de usuario). `createProduct` da de alta en `draft` y es
 **idempotente por clave de cliente** (ventana 24 h). `updateProduct` cambia la ficha y exige la
 `lockVersion` leída. Cuatro operaciones con nombre de intención cubren el ciclo de vida:
-`publishProduct`, `unpublishProduct`, `discontinueProduct`, `reactivateProduct`. Las cuatro
+`publishProduct`, `unpublishProduct`, `discontinueProduct`, `reactivateProduct`. `deleteProduct`
+retira definitivamente un borrador que nunca llegó a publicarse —libera su `sku` y su `slug` y borra
+sus imágenes y sus objetos del bucket—; sobre cualquier producto que sí estuvo a la venta responde
+`PRODUCT_NOT_DELETABLE` (409). Las cuatro transiciones
 **declaran su transición** (`draft→active`, `active→draft`, `active→discontinued`,
 `discontinued→active`), y esa transición es su guarda de repetición: un reenvío del llamante
 encuentra el producto ya fuera del estado de partida y no vuelve a publicar `ProductStatusChanged`. `getProduct` y
@@ -125,7 +142,9 @@ idempotente: sobre una marca o categoría que ya no existe responde `204` sin pu
 **Tienda** (público, sin credencial). `listPublicProducts` con los cuatro filtros pedidos —categoría,
 marca, nombre y rango de precio— paginado y ordenado por nombre, y `getPublicProduct` por slug. Las
 dos **cachean 300 s**, invalidadas por los cinco eventos que pueden cambiar su respuesta.
-`listBrands` y `listCategories` pueblan los menús de filtrado.
+`listBrands` y `listCategories` pueblan los menús de filtrado: **cachean 300 s** invalidadas por
+los tres eventos de su entidad y admiten un filtro `name` de coincidencia parcial, insensible a
+mayúsculas y acentos, igual que el de los productos.
 
 ### Superficie servidor-a-servidor
 
@@ -140,9 +159,9 @@ Las dos exigen credencial de máquina con el scope `product:read` y validan la a
 Su proyección conserva `updatedAt` —necesario para reconciliar— y excluye el resto de la auditoría.
 Ninguna de las dos cachea: son la vía de reconciliación y devuelven siempre el estado vigente.
 
-**Eventos publicados**: `ProductCreated`, `ProductUpdated` y `ProductStatusChanged` en el canal
-`productEvents`; `BrandCreated` / `BrandUpdated` / `BrandDeleted` y `CategoryCreated` /
-`CategoryUpdated` / `CategoryDeleted` en `taxonomyEvents`.
+**Eventos publicados**: `ProductCreated`, `ProductUpdated`, `ProductStatusChanged` y
+`ProductDeleted` en el canal `productEvents`; `BrandCreated` / `BrandUpdated` / `BrandDeleted` y
+`CategoryCreated` / `CategoryUpdated` / `CategoryDeleted` en `taxonomyEvents`.
 
 ## 5. Fronteras e integraciones
 
@@ -160,8 +179,10 @@ lo que expone es suyo. Las fronteras son de salida.
 - **Almacenamiento.** Un bucket, `productImages`: `public`, JPEG/PNG/WebP, 5 MB. El archivo se borra
   junto con la imagen.
 - **Seguridad.** OIDC para usuarios, `client-credentials` con validación de audiencia para máquinas.
-  Un rol (`catalog-admin`) y cuatro permisos (`product:read`, `product:write`, `product:publish`,
-  `taxonomy:write`). Tres `serviceClients` —`order-service`, `inventory-service`, `search-service`—
+  Dos roles y cuatro permisos (`product:read`, `product:write`, `product:publish`,
+  `taxonomy:write`): `catalog-admin` los tiene los cuatro; `catalog-editor` todos menos
+  `product:publish`, así que redacta fichas, gestiona la galería y la taxonomía y puede retirar un
+  borrador suyo, pero no decide qué sale a la venta. Tres `serviceClients` —`order-service`, `inventory-service`, `search-service`—
   con `product:read` y nada más. CORS declarado: la tienda y el back-office son SPA.
 
 ## 6. Decisiones de diseño (qué / por qué)
@@ -172,8 +193,10 @@ lo que expone es suyo. Las fronteras son de salida.
 | **Frontera de agregado** | `Product` + `ProductImage` juntos; `Brand` y `Category` aparte | No se acepta que una escritura a medias deje imágenes huérfanas o dos imágenes principales. Marca y categoría cambian a otro ritmo y con otro actor | Entidades independientes |
 | **Frontera transaccional** | `per-aggregate` | Ninguna operación escribe dos agregados a la vez, así que la transacción por agregado basta y contiende menos | `per-operation` |
 | **Concurrencia** | Bloqueo optimista solo en `Product`, con `409` | Un operador no debe ver desaparecer su cambio de precio sin aviso. La taxonomía la edita un admin de tanto en tanto: ahí gana la última escritura, dicho a sabiendas | Último gana en todo |
+| **Alcance del candado** (0.6.0) | `lockVersion` versiona la **ficha comercial**, no la raíz entera: `updateProduct` lo pide y lo incrementa; las cuatro transiciones y las cuatro operaciones de galería escriben el mismo `Product` y **no lo mueven**. Queda escrito como `rule` en las ocho operaciones y como comentario en `persistence` | `optimisticLocking: declared` dice que hay candado, no **qué** versiona, y solo `updateProduct` pedía `lockVersion`: las otras siete escrituras no declaraban si lo incrementaban. Dos generadores habrían elegido distinto y los **dos** habrían pasado la suite, que es justo lo que el contrato de equivalencia existe para impedir. Se acotó a la ficha porque redactar una descripción y subir una foto no se pisan: hacerlos chocar daría un `409` que no protege de nada. FL-PRD-011 lo fija | Que toda escritura de la raíz incremente `lockVersion` (protección máxima, a cambio de `409` espurios al operador que tarda en redactar mientras otro sube una imagen); extender `lockVersion` al input de las siete operaciones (protección total, pero **major**: cambia el cuerpo de siete endpoints y añade un `409` a cada uno) |
 | **Idempotencia** | `client-key` en `createProduct` y `addProductImage`, 24 h | El reintento tras un timeout no debe producir un alta duplicada ni una foto repetida, ni un `409` confuso | `payload-hash` (dos altas legítimas idénticas colisionarían) y sin idempotencia |
 | **`DELETE` idempotente** | Los tres borrados (`deleteBrand`, `deleteCategory`, `removeProductImage`) responden `204` también cuando el recurso ya no está, y por eso no declaran un error de «no encontrado». El evento de borrado sale solo si hubo eliminación real | Un reintento de red tras un `204` perdido no debe ensuciar el cliente con un `404` que describe un éxito. La idempotencia cubre la ausencia del recurso, nunca las invariantes: `BRAND_IN_USE`, `CATEGORY_IN_USE`, `PRODUCT_DISCONTINUED` y `LAST_IMAGE_OF_ACTIVE_PRODUCT` se siguen evaluando | `404` al repetir (`BRAND_NOT_FOUND`, `CATEGORY_NOT_FOUND`, `PRODUCT_IMAGE_NOT_FOUND` en esas operaciones): delata el borrado doble como bug del cliente, a cambio de que un reintento legítimo sea indistinguible de un error. También se descartó extender la idempotencia al `productId` de `removeProductImage`, que dejaría pasar un typo en la ruta como éxito |
+| **Caché de la taxonomía, y el filtro que la hizo declarable** (0.6.0) | `listBrands` y `listCategories` cachean 300 s invalidadas por los tres eventos de su entidad, y ganan un filtro `name` de coincidencia parcial | Son las dos lecturas públicas que pueblan el menú de **toda** la tienda y eran las únicas sin caché, mientras la ficha y el listado de producto —mucho menos golpeados por página— cacheaban 300 s. La caché da además trabajo a `BrandCreated`/`BrandDeleted` y `CategoryCreated`/`CategoryDeleted`, que hasta ahora no invalidaban nada. El filtro **no es decorativo**: `cache.keyFields` exige `minItems: 1` y solo admite campos del input, y las dos operaciones tenían `input: "void"`, así que la caché no era declarable sin él. Se eligió `name` porque es útil por sí mismo y simétrico con `listProducts` y `listPublicProducts` — la caché es consecuencia, no la justificación | Dejarlas sin caché y registrar en `decisions.yaml` que el DSL no sabe expresar una clave que sea solo la paginación; inventar un campo de input sin uso real solo para satisfacer el schema (ajustar el diseño a la herramienta, que es justo lo que la metodología prohíbe) |
 | **Caché** | 300 s en las dos lecturas públicas, con cinco vías de invalidación | La tienda es la carga dominante. Como la respuesta embebe marca y categoría, la elección **obligó** a publicar `BrandUpdated` y `CategoryUpdated`: sin ellos, renombrar una marca tardaría 5 min en verse y nada lo delataría | Cachear solo la ficha; no cachear |
 | **Superficie M2M** | Operaciones propias con `audience: services` | Los dos contratos ya divergen: el M2M devuelve productos en cualquier estado, cosa que la tienda nunca debe ver. Compartir endpoint sería compartir output, errores y scopes | `audience: both` |
 | **Auditoría** | `declared` en `Product`; **ninguna** en `Brand` y `Category` | Los cuatro campos son contrato porque el back-office muestra quién tocó cada ficha. Se quitaron de la taxonomía porque el DSL **no permite recortar un objeto `embed`**: con ellos, la marca anidada en cada ficha pública habría filtrado el nombre del operador que la creó | Mantener la auditoría en la taxonomía y aceptar la fuga; quitar el `embed` de las superficies públicas |
@@ -181,11 +204,12 @@ lo que expone es suyo. Las fronteras son de salida.
 | **Slug congelado al publicar** | Se recalcula solo mientras el pestillo `slugFrozen` está abierto, es decir, hasta la **primera** vez que el producto alcanza `active` | Una corrección ortográfica del título no debe romper los enlaces compartidos ni el posicionamiento de una ficha ya publicada | Recalcular siempre; mantener un historial de slugs con redirección |
 | **El congelado es histórico, no de estado** | `slugFrozen` es un campo persistido (`generated`, `sensitive`) que solo transiciona de falso a verdadero, en vez de derivar el congelado de `status` | Despublicar devuelve el producto a `draft`, y con la regla leída del estado actual el slug se reabriría: renombrar entonces cambiaría una URL que la tienda y los buscadores ya habían indexado. El congelado responde a «¿se publicó **alguna vez**?», que no es derivable de ningún campo actual — de ahí que sea `generated` y no `computed`, marcador este último que prometería una derivación que no existe e invitaría al generador a recalcularlo en cada escritura | Marcarlo `computed` y confiar la monotonicidad a la prosa de la regla; derivar el congelado de `status` sin campo propio (la que produce el bug de la URL reabierta) |
 | **Producto descatalogado inmutable** | `PRODUCT_DISCONTINUED` (409) en las cinco operaciones de edición | La ficha que un pedido histórico referencia no debe cambiar de precio ni de fotos después de vendido. Para tocarla hay que reactivar el producto | Editable como cualquiera |
-| **Sin borrado de productos** | Solo `discontinueProduct` | Un borrado real dejaría referencias rotas en todo consumidor con copia, sin vía de reparación | Borrado real; borrado solo en `draft` |
+| **Borrado solo de lo que nunca estuvo a la venta** (0.6.0, revisada) | `deleteProduct` retira la fila de un producto en `draft` con `slugFrozen` en falso, y emite `ProductDeleted`. Todo lo demás sigue sin borrarse: la salida es `discontinueProduct` | Hasta 0.5.1 un producto no se borraba nunca, y el argumento —referencias rotas en los consumidores— solo vale para lo que **llegó a publicarse**: nadie referencia un borrador que jamás salió del back-office. El coste de no tener salida sí era real: el `sku` es inmutable, así que un alta con el código equivocado retenía para siempre ese `sku` y su `slug`, y la única escapatoria era subirle una foto ficticia, publicarlo —haciéndolo visible en la tienda— y descatalogarlo. `ProductDeleted` cierra además la asimetría del contrato de eventos: había `BrandDeleted` y `CategoryDeleted`, y un consumidor no tenía forma de purgar un producto | Borrado real en cualquier estado (rompe a todo consumidor con copia); arista `draft → discontinued` para archivar sin publicar (no libera el `sku` ni el `slug`, que era el problema); dejarlo como estaba y aceptarlo por escrito en `decisions.yaml` |
+| **Lo que decide el borrado es la historia, no el estado** (0.6.0) | La guarda es `status = draft` **y** `slugFrozen = false`, no solo el `status` | Un producto publicado y después despublicado vuelve a `draft`: con la guarda leída solo del estado, sería borrable pese a haber estado a la venta y a tener consumidores con copia. `slugFrozen` ya era exactamente esa historia —«¿alcanzó `active` alguna vez?»—, así que el diseño no necesitaba un campo nuevo, solo usar el que tenía. Es el mismo campo que congela el slug y por la misma razón. FL-PRD-025 lo prueba con un producto `p4` en `draft` que **no** se borra | Guarda solo por `status` (deja borrar un producto despublicado); un campo `wasPublished` propio (duplica lo que `slugFrozen` ya sabe) |
 | **Borrado de taxonomía bloqueado** | `BRAND_IN_USE` / `CATEGORY_IN_USE` (409) | Ningún producto queda huérfano y ningún consumidor ve una referencia rota. La garantía es de integridad referencial, no un `SELECT` previo, para cerrar la carrera | Cascada (una acción de mantenimiento sacaría cientos de productos de la tienda); baja lógica |
 | **Rechazo de colisión de slug en taxonomía** | `BRAND_SLUG_CONFLICT` / `CATEGORY_SLUG_CONFLICT` (409) | La taxonomía es corta y la maneja un humano: mejor que corrija el nombre a tener `/marcas/nike-2` en el menú de la tienda. En productos, en cambio, el volumen obliga al sufijo automático | Sufijo numérico también en taxonomía |
 | **Carrera del sufijo de slug en `Product`** | `PRODUCT_SLUG_CONFLICT` (409) al perdedor de la carrera, sin reintento en servidor | Reintentar en servidor añade un bucle con su propio límite y ventana de bloqueo, y esconde al cliente que perdió una carrera de nombres; el 409 es más simple de implementar y deja la decisión de reintentar (con qué backoff) en manos del cliente, igual que ya ocurre con `SKU_ALREADY_EXISTS` | Reintento automático en servidor con el siguiente sufijo libre |
-| **Un solo rol** | `catalog-admin` | Decisión del diseñador contra la recomendación del agente (admin + editor). Queda anotado que cualquier operador puede borrar taxonomía compartida | `catalog-admin` + `catalog-editor` sin permiso sobre marcas y categorías |
+| **Dos roles, separados por `product:publish`** (0.6.0, revisada) | `catalog-admin` con los cuatro permisos y `catalog-editor` con todos menos `product:publish` | Hasta 0.5.1 había un solo rol con los cuatro permisos: la granularidad estaba modelada pero no existía como perfil, y `product:publish` separado de `product:write` no distinguía a nadie de nadie. La separación que un catálogo real necesita —quien redacta la ficha no es necesariamente quien decide que salga a la venta— ya estaba insinuada en los permisos y ahora tiene dueño. `deleteProduct` queda bajo `product:write` a propósito: alcanza solo a lo que nunca se publicó, así que el editor puede retirar su propio borrador sin tocar el estado comercial de nada | Un solo rol y documentar la granularidad como preparación de futuro (era el estado de 0.5.1, y hacía indistinguibles dos permisos); dar `taxonomy:write` solo al admin (la taxonomía la mantiene quien redacta) |
 | **Reemplazo total en las ediciones** | Omitir un campo lo pone a nulo | Sin ambigüedad y coherente con el `PUT` elegido; el formulario del back-office manda siempre la ficha entera | Fusión (`PATCH`): exige distinguir "ausente" de "nulo", que el DSL no expresa hoy |
 | **Al menos una imagen para publicar** | `PRODUCT_NOT_PUBLISHABLE` (422) | La tienda nunca pinta un hueco, y no tiene que decidir por su cuenta qué mostrar cuando falta la foto | Imagen opcional |
 | **Cota del lote M2M** (bajada en 0.5.0) | 50 ids, como `precondition` y no como `constraints` | Acota el coste de una petición y, desde que la operación es `GET`, mantiene la query string en ~2 KB, dentro de lo que cualquier intermediario acepta. Va en prosa para que el exceso falle con el código estable `TOO_MANY_IDS` en vez de con un error genérico de forma. El consumidor que necesite más parte la lista | 100 (la cota hasta 0.4.x: con GET son ~4 KB y el exceso saldría como 414 opaco); 500; declararlo en `constraints` |
@@ -206,17 +230,24 @@ lo que expone es suyo. Las fronteras son de salida.
 
 ### Contrato estable vs adaptable
 
-**Estable** —cambiarlo rompe a alguien y exige versión mayor—: los 25 códigos de error en
-`SCREAMING_SNAKE_CASE` con su status HTTP; los nueve nombres de evento y la forma de su payload; los
+**Estable** —cambiarlo rompe a alguien y exige versión mayor—: los 26 códigos de error en
+`SCREAMING_SNAKE_CASE` con su status HTTP; los diez nombres de evento y la forma de su payload; los
 dos endpoints `audience: services` y sus scopes; los cuatro endpoints públicos y la forma de sus
 filtros; el prefijo `/api/v1` (la ruptura de 0.5.0 se publicó dentro de `/api/v1` con despliegue
 coordinado de los tres consumidores: ver § 6); los nombres de rol y permiso; el nombre lógico de los canales y del
-bucket; y la **semántica idempotente de los tres `DELETE`** —un cliente que trate el `204` repetido
+bucket; y la **semántica idempotente de los cuatro `DELETE`** —un cliente que trate el `204` repetido
 como éxito se rompe si algún derivado vuelve a introducir el `404`.
 
 `slugFrozen` **no es contrato**: es `sensitive`, no sale en ninguna respuesta ni payload, y un
-derivado puede sustituirlo por otro mecanismo. Lo que sí es contrato es su efecto observable —que el
-`slug` de un producto publicado no cambia nunca más—, fijado en FL-PRD-020.
+derivado puede sustituirlo por otro mecanismo. Lo que sí es contrato son sus **dos** efectos
+observables: que el `slug` de un producto publicado no cambia nunca más (FL-PRD-020) y que un
+producto que estuvo a la venta no se borra ni después de despublicarse (FL-PRD-025). Un derivado que
+lo sustituya tiene que sostener los dos.
+
+Tampoco es contrato **qué escrituras mueven `lockVersion`** en el sentido de que un integrador lo
+lea, pero sí lo es su efecto: una edición de ficha no caduca porque alguien suba una imagen o
+publique el producto (FL-PRD-011). Un derivado que quiera el candado sobre la raíz entera está
+cambiando comportamiento observable, no un detalle interno.
 
 **Adaptable** sin romper a nadie: las `rules` de los casos de uso (las `preconditions` también,
 **salvo las que un `transitions` declarado ya convirtió en contrato**: el estado de partida de las
@@ -231,7 +262,12 @@ opcionales o eventos nuevos; **major** para cualquier cambio en lo estable de ar
 ### Puntos de extensión típicos
 
 - **`lifecycle` de `Product`**: hay sitio evidente para un estado de revisión editorial
-  (`draft → pending_review → active`) sin tocar los estados existentes.
+  (`draft → pending_review → active`) sin tocar los estados existentes. Si se añade, hay que decidir
+  si `deleteProduct` alcanza también al nuevo estado — la guarda mira `slugFrozen`, así que por
+  defecto lo alcanzaría.
+- **Roles**: `catalog-admin` y `catalog-editor` se separan por `product:publish`. Un derivado que
+  necesite un tercer perfil (un revisor que publica pero no redacta) lo añade en `roleGrants` sin
+  tocar los permisos, que ya están al grano correcto.
 - **`ProductStatus`** es un enum nominal ampliable; los códigos de error no.
 - **Capas ausentes** que un derivado puede añadir sin rediseñar: `dependencies` y `http-clients` (si
   el precio o el stock pasan a venir de fuera), y una operación con `schedule` si el negocio quiere

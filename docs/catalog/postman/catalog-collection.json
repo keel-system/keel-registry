@@ -1413,6 +1413,195 @@
       ]
     },
     {
+      "name": "FL-PRD-011 · El alcance del candado: qué versiona lockVersion",
+      "item": [
+        {
+          "name": "FL-PRD-011 · A · Lectura inicial: se anota v0 (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('v0', pm.response.json().lockVersion);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-011 · B · addProductImage: segunda imagen (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-011 · C · lockVersion NO cambió tras la imagen (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('la galeria no versiona la ficha', () =>",
+                  "  pm.expect(pm.response.json().lockVersion).to.eql(Number(pm.collectionVariables.get('v0'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-011 · D · updateProduct con la v0 previa a la imagen → 200, no 409",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Zapatilla Runner Pro\",\n  \"description\": null,\n  \"price\": 89.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"lockVersion\": \"{{v0}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('la subida ajena no invalido la edicion', () =>",
+                  "  pm.expect(pm.response.json().lockVersion).to.not.eql(Number(pm.collectionVariables.get('v0'))));",
+                  "pm.collectionVariables.set('v1', pm.response.json().lockVersion);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-011 · E · publishProduct (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/publish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-011 · F · unpublishProduct (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/unpublish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-011 · G · lockVersion sigue en v1 tras las transiciones (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('el estado comercial no versiona la ficha', () =>",
+                  "  pm.expect(pm.response.json().lockVersion).to.eql(Number(pm.collectionVariables.get('v1'))));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "FL-PRD-020 — Publicar, despublicar, descatalogar y reactivar",
       "description": "Given: un producto en draft sin imágenes. La request C exige adjuntar un archivo a mano.",
       "item": [
@@ -1914,6 +2103,201 @@
                 "exec": [
                   "pm.test('status 200', () => pm.response.to.have.status(200));",
                   "pm.test('active', () => pm.expect(pm.response.json().status).to.eql('active'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRD-025 · Borrado de un borrador que nunca estuvo a la venta",
+      "item": [
+        {
+          "name": "FL-PRD-025 · A · Alta del borrador p1 (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-DEL-001\",\n  \"name\": \"Borrador Borrable\",\n  \"description\": null,\n  \"price\": 49.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('deletableId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-025 · B · deleteProduct sobre p1 (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{deletableId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));",
+                  "pm.test('sin cuerpo', () => pm.expect(pm.response.text()).to.be.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-025 · C · getProduct de p1 tras el borrado (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{deletableId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-025 · D · Repetición del borrado: idempotente (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{deletableId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-025 · E · Borrado de un id que nunca existió (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/00000000-0000-4000-8000-000000000000"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-025 · F · deleteProduct sobre un producto active (409)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_NOT_DELETABLE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-025 · G · El sku quedó liberado: se reutiliza (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-DEL-001\",\n  \"name\": \"Borrador Borrable\",\n  \"description\": null,\n  \"price\": 49.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('slug sin sufijo numerico', () =>",
+                  "  pm.expect(pm.response.json().slug).to.eql('borrador-borrable'));"
                 ]
               }
             }
@@ -3058,6 +3442,145 @@
       ]
     },
     {
+      "name": "FL-CCH-030 · Caché de la taxonomía pública",
+      "item": [
+        {
+          "name": "FL-CCH-030 · A · listBrands sin credencial (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/brands?page=0&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('brandTotal', pm.response.json().totalElements);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-030 · B · createBrand: invalida por BrandCreated (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Adidas\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-030 · C · listBrands refleja el alta sin esperar al TTL (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/brands?page=0&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('la cache se invalido', () =>",
+                  "  pm.expect(pm.response.json().totalElements).to.eql(Number(pm.collectionVariables.get('brandTotal')) + 1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-030 · D · Filtro name: forma parte de la clave (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/brands?name=adi&page=0&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('coincidencia parcial', () =>",
+                  "  pm.expect(pm.response.json().totalElements).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-030 · E · Filtro insensible a mayúsculas y acentos (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/brands?name=ADI&page=0&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('mismo resultado que en minusculas', () =>",
+                  "  pm.expect(pm.response.json().totalElements).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-030 · F · listCategories con filtro (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/categories?name=cal&page=0&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "FL-M2M-001 / FL-M2M-010 — Superficie servidor a servidor",
       "description": "Credencial de máquina del cliente order-service (token_order-service).",
       "item": [
@@ -3298,6 +3821,244 @@
           ]
         }
       ]
+    },
+    {
+      "name": "FL-SEC-010 · catalog-editor redacta pero no publica",
+      "item": [
+        {
+          "name": "FL-SEC-010 · A · editor: createProduct (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-EDT-001\",\n  \"name\": \"Ficha del editor\",\n  \"description\": null,\n  \"price\": 19.9,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('editorProductId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · B · editor: listProducts (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · C · editor: createBrand (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Marca del editor\",\n  \"description\": null\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · D · editor: publishProduct → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{editorProductId}}/publish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · E · editor: unpublishProduct → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{editorProductId}}/unpublish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · F · editor: discontinueProduct → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{editorProductId}}/discontinue"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · G · editor: reactivateProduct → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{editorProductId}}/reactivate"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · H · 403 antes que la guarda de negocio: id inexistente (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/00000000-0000-4000-8000-000000000000/publish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-010 · I · editor: deleteProduct de su borrador (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{editorProductId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -3307,7 +4068,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.5.1"
+      "value": "0.6.0"
     },
     {
       "key": "brandId",
@@ -3347,6 +4108,26 @@
     },
     {
       "key": "page0",
+      "value": ""
+    },
+    {
+      "key": "v0",
+      "value": ""
+    },
+    {
+      "key": "v1",
+      "value": ""
+    },
+    {
+      "key": "deletableId",
+      "value": ""
+    },
+    {
+      "key": "brandTotal",
+      "value": ""
+    },
+    {
+      "key": "editorProductId",
       "value": ""
     }
   ]

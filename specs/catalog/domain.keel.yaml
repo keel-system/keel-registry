@@ -68,7 +68,7 @@ entities:
     relations:
       brand:    { entity: Brand, cardinality: many-to-one, required: true, description: Marca bajo la que se vende el producto. }
       category: { entity: Category, cardinality: many-to-one, required: true, description: Categoría comercial a la que pertenece. }
-      images:   { entity: ProductImage, cardinality: one-to-many, description: "Imágenes del producto, dentro de su propio agregado." }
+      images:   { entity: ProductImage, cardinality: one-to-many, description: "Imágenes del producto, dentro de su propio agregado; como máximo 10." }
     lifecycle:
       field: status
       transitions:
@@ -83,6 +83,8 @@ entities:
       - "slugFrozen nunca pasa de verdadero a falso: una vez que el producto alcanza active por primera vez, queda echado aunque después se despublique o se descatalogue."
       - Mientras slugFrozen es falso el slug se recalcula al cambiar el name; en cuanto es verdadero, el slug no vuelve a cambiar.
       - Un producto en estado discontinued no admite cambios en su ficha ni en su galería de imágenes.
+      - Un producto tiene como máximo 10 imágenes en su galería.
+      - "Un producto solo puede eliminarse mientras está en draft y con slugFrozen en falso: en cuanto alcanza active por primera vez su ficha se conserva siempre, aunque después se despublique y vuelva a draft."
 
   ProductImage:
     description: Imagen de la ficha de un producto, con su orden de presentación.

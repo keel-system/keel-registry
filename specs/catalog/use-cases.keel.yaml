@@ -60,6 +60,11 @@ operations:
       - El slug se recalcula cuando cambia el name solo si slugFrozen es falso; en cuanto es verdadero, queda congelado.
       - "El recálculo deriva el sufijo igual que el alta, así que hereda su misma ventana de carrera: se resuelve con PRODUCT_SLUG_CONFLICT."
       - Si el producto está en estado active y el nuevo price no es mayor que cero, la operación se rechaza.
+      - >-
+        lockVersion versiona la FICHA COMERCIAL —name, description, price, brand y category—, que es
+        lo único que esta operación escribe. Las transiciones de estado y las operaciones sobre la
+        galería no lo incrementan: editar la descripción y subir una imagen son escrituras que no se
+        pisan y no deben darse conflicto entre sí. El candado acota la ficha, no la raíz entera.
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: PRODUCT_SLUG_CONFLICT, when: Otra escritura simultánea se quedó con el slug que esta petición había calculado; reintentar la llamada deriva un sufijo libre., http: 409 }
@@ -88,6 +93,7 @@ operations:
       - El producto tiene al menos una imagen y un price mayor que cero.
     rules:
       - La primera publicación fija slugFrozen a verdadero; a partir de ahí el slug es inmutable aunque cambie el name.
+      - "No incrementa lockVersion: el candado versiona la ficha comercial, no el estado comercial."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: INVALID_STATE_TRANSITION, when: El producto no está en un estado desde el que se pueda publicar., http: 409 }
@@ -111,6 +117,7 @@ operations:
       - El producto existe y está en estado active.
     rules:
       - "Volver a draft no reabre el slug: slugFrozen se conserva en verdadero."
+      - "No incrementa lockVersion: el candado versiona la ficha comercial, no el estado comercial."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: INVALID_STATE_TRANSITION, when: El producto no está active y no se puede despublicar., http: 409 }
@@ -131,6 +138,8 @@ operations:
       - { entity: Product, from: [active], to: discontinued }
     preconditions:
       - El producto existe y está en estado active.
+    rules:
+      - "No incrementa lockVersion: el candado versiona la ficha comercial, no el estado comercial."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: INVALID_STATE_TRANSITION, when: El producto no está active y no se puede descatalogar., http: 409 }
@@ -152,11 +161,45 @@ operations:
     preconditions:
       - El producto existe y está en estado discontinued.
       - El producto tiene al menos una imagen y un price mayor que cero.
+    rules:
+      - "No incrementa lockVersion: el candado versiona la ficha comercial, no el estado comercial."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: INVALID_STATE_TRANSITION, when: El producto no está discontinued y no se puede reactivar., http: 409 }
       - { code: PRODUCT_NOT_PUBLISHABLE, when: El producto no tiene imágenes o su price no es mayor que cero., http: 422 }
     emits: [ProductStatusChanged]
+
+  deleteProduct:
+    description: Elimina definitivamente un producto que nunca llegó a estar a la venta.
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+    # Un DELETE no devuelve cuerpo. No declara `transitions`: no recorre una arista del lifecycle,
+    # retira la fila. La guarda irrepetible es la existencia misma del producto.
+    output: "void"
+    preconditions:
+      - El producto, si existe, está en estado draft y nunca ha estado a la venta.
+    rules:
+      - "El borrado es idempotente: si no existe un producto con ese id la operación no hace nada y responde igual que si lo hubiera borrado."
+      - "La guarda de negocio NO se salta por la idempotencia: un producto que existe y no es borrable se rechaza, igual que BRAND_IN_USE se sigue evaluando en deleteBrand."
+      - >-
+        Solo se borra lo que NUNCA estuvo a la venta, y estar en draft no basta para saberlo: un
+        producto despublicado vuelve a draft y sí estuvo a la venta. Lo que lo distingue es
+        slugFrozen, que es exactamente esa historia — falso mientras el producto no haya alcanzado
+        active ni una vez. Es borrable el producto en draft con slugFrozen en falso; para todo lo
+        demás la salida es discontinueProduct, no ésta.
+      - Se eliminan las imágenes del producto y sus objetos del bucket productImages; no se conservan objetos huérfanos.
+      - "El sku y el slug quedan liberados: un alta posterior puede volver a usarlos."
+      - >-
+        Borrar y publicar el mismo borrador a la vez es una carrera con las dos salidas ya
+        declaradas, y ninguna necesita error nuevo: si publica primero, el borrado encuentra el
+        producto en active y sale por PRODUCT_NOT_DELETABLE; si borra primero, la publicación no
+        encuentra la fila y sale por su PRODUCT_NOT_FOUND. No se reintenta en silencio.
+      - ProductDeleted se publica solo si se eliminó un producto; una repetición que no cambia nada no emite evento.
+    errors:
+      - { code: PRODUCT_NOT_DELETABLE, when: "El producto existe pero ya estuvo a la venta alguna vez: está fuera de draft, o está en draft tras haberse despublicado.", http: 409 }
+    emits: [ProductDeleted]
 
   getProduct:
     description: Recupera la ficha completa de un producto por su id para el back-office, sea cual sea su estado.
@@ -180,7 +223,7 @@ operations:
         status:     { type: ProductStatus, description: "Filtra por estado; sin él se devuelven todos." }
         brandId:    { type: uuid }
         categoryId: { type: uuid }
-    output: { entity: Product, paginated: true, sort: [updatedAt:desc], embed: [brand, category] }
+    output: { entity: Product, paginated: true, sort: [updatedAt:desc, id:asc], embed: [brand, category] }
     rules:
       - Los filtros presentes se combinan con conjunción; los ausentes no restringen.
       - Los filtros de texto (name, sku) buscan coincidencia parcial sin distinguir mayúsculas ni acentos.
@@ -208,6 +251,8 @@ operations:
       - Devuelve la imagen creada con su id, para que el cliente pueda referenciarla después.
       - "La guarda de idempotencia se evalúa antes que cualquier guarda de negocio (producto inexistente, descatalogado o con la galería llena): reenviar una clave ya resuelta se reconoce como reenvío, no como una galería que ya no admite la imagen."
       - "Va por detrás de la validación de forma del archivo (tipo de contenido y tamaño), que no es una guarda de negocio: la huella que compara la clave se calcula sobre un archivo ya aceptado."
+      - "Si la escritura falla después de haber subido el archivo, el objeto no se conserva en el bucket: no quedan huérfanos de una subida que no llegó a cuajar."
+      - "No incrementa lockVersion: el candado versiona la ficha comercial, no la galería."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes., http: 409 }
@@ -236,6 +281,7 @@ operations:
       - Si se elimina la imagen isPrimary y quedan otras, la de menor position pasa a ser la principal.
       - El archivo se elimina del bucket junto con la imagen; no se conservan objetos huérfanos.
       - ProductUpdated se publica solo si se eliminó una imagen; una repetición que no cambia nada no emite evento.
+      - "No incrementa lockVersion: el candado versiona la ficha comercial, no la galería."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes., http: 409 }
@@ -255,6 +301,7 @@ operations:
     rules:
       - La imagen que era principal deja de serlo en la misma transacción.
       - Designar como principal la que ya lo es no cambia nada y se considera éxito.
+      - "No incrementa lockVersion: el candado versiona la ficha comercial, no la galería."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes., http: 409 }
@@ -275,6 +322,7 @@ operations:
     rules:
       - La position de cada imagen pasa a ser su índice en la lista recibida, empezando en cero.
       - El reordenamiento no cambia cuál es la imagen isPrimary.
+      - "No incrementa lockVersion: el candado versiona la ficha comercial, no la galería."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese id., http: 404 }
       - { code: PRODUCT_DISCONTINUED, when: El producto está descatalogado y su galería no admite cambios; hay que reactivarlo antes., http: 409 }
@@ -448,13 +496,13 @@ operations:
     output:
       entity: Product
       paginated: true
-      sort: [name:asc]
+      sort: [name:asc, id:asc]
       embed: [brand, category]
       exclude: [createdAt, updatedAt, createdBy, updatedBy, lockVersion]
     cache:
       ttlSeconds: 300
       keyFields: [categorySlug, brandSlug, name, minPrice, maxPrice]
-      invalidatedBy: [ProductCreated, ProductUpdated, ProductStatusChanged, BrandUpdated, CategoryUpdated]
+      invalidatedBy: [ProductCreated, ProductUpdated, ProductStatusChanged, ProductDeleted, BrandUpdated, CategoryUpdated]
     rules:
       - Solo se devuelven productos en estado active.
       - Los filtros presentes se combinan con conjunción; los ausentes no restringen.
@@ -475,7 +523,7 @@ operations:
     cache:
       ttlSeconds: 300
       keyFields: [slug]
-      invalidatedBy: [ProductCreated, ProductUpdated, ProductStatusChanged, BrandUpdated, CategoryUpdated]
+      invalidatedBy: [ProductCreated, ProductUpdated, ProductStatusChanged, ProductDeleted, BrandUpdated, CategoryUpdated]
     rules:
       - Un producto que no está en estado active se trata como inexistente para esta operación.
     errors:
@@ -484,14 +532,30 @@ operations:
   listBrands:
     description: Lista las marcas del catálogo para poblar el filtro de la tienda.
     kind: query
-    input: "void"
+    input:
+      fields:
+        name: { type: string, constraints: { maxLength: 80 }, description: "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas ni acentos." }
     output: { entity: Brand, paginated: true, sort: [name:asc] }
+    cache:
+      ttlSeconds: 300
+      keyFields: [name]
+      invalidatedBy: [BrandCreated, BrandUpdated, BrandDeleted]
+    rules:
+      - El filtro ausente no restringe; presente, busca coincidencia parcial sin distinguir mayúsculas ni acentos.
 
   listCategories:
     description: Lista las categorías del catálogo para poblar el filtro y el menú de la tienda.
     kind: query
-    input: "void"
+    input:
+      fields:
+        name: { type: string, constraints: { maxLength: 80 }, description: "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas ni acentos." }
     output: { entity: Category, paginated: true, sort: [name:asc] }
+    cache:
+      ttlSeconds: 300
+      keyFields: [name]
+      invalidatedBy: [CategoryCreated, CategoryUpdated, CategoryDeleted]
+    rules:
+      - El filtro ausente no restringe; presente, busca coincidencia parcial sin distinguir mayúsculas ni acentos.
 
   # ---------------------------------------------------------------------------
   # Superficie servidor-a-servidor (M2M)
@@ -522,7 +586,7 @@ operations:
     output:
       entity: Product
       list: true
-      sort: [name:asc]
+      sort: [name:asc, id:asc]
       embed: [brand, category]
       exclude: [createdAt, createdBy, updatedBy, lockVersion]
     preconditions:

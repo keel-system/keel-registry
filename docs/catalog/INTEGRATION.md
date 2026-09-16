@@ -1,6 +1,6 @@
 ---
 service: catalog
-version: 0.5.1
+version: 0.6.0
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -24,6 +24,8 @@ events:
     - name: ProductUpdated
       channel: productEvents
     - name: ProductStatusChanged
+      channel: productEvents
+    - name: ProductDeleted
       channel: productEvents
     - name: BrandCreated
       channel: taxonomyEvents
@@ -51,7 +53,7 @@ errors:
 `catalog` es la fuente de verdad del catálogo comercial de una tienda: productos, marcas y
 categorías, con su ficha, su precio de venta y su galería de imágenes. A otros servidores les ofrece
 dos cosas: **resolución de fichas de producto** —una por id, o hasta cincuenta de golpe— con un contrato
-propio y estable, distinto del que sirve a la tienda; y **nueve eventos de dominio** con los que un
+propio y estable, distinto del que sirve a la tienda; y **diez eventos de dominio** con los que un
 consumidor puede mantener su propia copia del catálogo sin llamar de vuelta. Los endpoints de esta
 sección devuelven el producto **en cualquier estado**, incluidos los descatalogados, porque un
 consumidor puede referenciar un producto que ya no se vende.
@@ -335,8 +337,39 @@ es si el producto sigue disponible: no tienes que procesar cada cambio de descri
 ```
 
 Transiciones posibles: `draft → active`, `active → draft`, `active → discontinued`,
-`discontinued → active`. Un producto **nunca se borra**: `discontinued` es la baja comercial y su
-ficha sigue siendo consultable por M2M.
+`discontinued → active`. Un producto que llegó a estar a la venta **nunca se borra**: `discontinued`
+es la baja comercial y su ficha sigue siendo consultable por M2M. Lo único que desaparece de verdad
+es un borrador que jamás se publicó, y eso no llega por este evento sino por `ProductDeleted`: si
+sigues `ProductStatusChanged` para saber si un producto está disponible, no te lo pierdes, porque un
+producto borrado nunca te llegó a `active`.
+
+### ProductDeleted
+
+Se eliminó un producto **que nunca llegó a estar a la venta**. No es una transición: la ficha deja de
+existir, y su `sku` y su `slug` quedan libres para un alta posterior.
+
+- **Canal**: `productEvents`
+- **Emitido por**: `deleteProduct`
+- **Solo alcanza a borradores nunca publicados.** Un producto que alguna vez estuvo `active` no se
+  borra jamás, ni después de descatalogarse ni después de despublicarse. Si mantienes una copia, el
+  único `ProductDeleted` que vas a recibir es el de un producto que —si seguiste
+  `ProductStatusChanged`— nunca consideraste disponible.
+- **Qué hacer al recibirlo**: purga tu copia por `productId`. Es idempotente: recibirlo dos veces
+  para el mismo id no debe fallar.
+
+```json
+{
+  "productId": "9b4c7d10-5e22-4a88-b3f6-1c0d9e8f7a62",
+  "sku": "SKU-042",
+  "slug": "borrador-descartado",
+  "deletedAt": "2026-08-03T16:41:02.318Z"
+}
+```
+
+Si lo pierdes —la publicación es `best-effort`—, la vía de reparación es la misma de siempre y
+además te lo delata sola: `listProductsBatchForServices` **omite del resultado** los identificadores
+que ya no existen, así que reconciliar no solo refresca lo que cambió, también te dice qué
+desapareció.
 
 ### BrandCreated
 

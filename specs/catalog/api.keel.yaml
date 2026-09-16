@@ -32,6 +32,9 @@ endpoints:
   unpublishProduct:   { method: POST, path: "/management/products/{productId}/unpublish" }
   discontinueProduct: { method: POST, path: "/management/products/{productId}/discontinue" }
   reactivateProduct:  { method: POST, path: "/management/products/{productId}/reactivate" }
+  # 204 + output "void": el cliente no tiene que predecir nada del recurso vecino, a diferencia de
+  # removeProductImage, que sí recompacta posiciones y reasigna la principal.
+  deleteProduct:      { method: DELETE, path: "/management/products/{productId}", successStatus: 204 }
 
   # --- Back-office: imágenes del producto ------------------------------------
   addProductImage:        { method: POST, path: "/management/products/{productId}/images", successStatus: 201 }

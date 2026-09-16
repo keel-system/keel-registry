@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.5.1 -->
+<!-- keel:version 0.6.0 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,10 +188,10 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.5.1",
+    "version": "0.6.0",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías, los publica a los consumidores con búsqueda y filtros, y difunde sus altas y cambios al resto de servidores por consulta directa y por eventos.",
     "domain": "commerce",
-    "generatedAt": "2026-09-10"
+    "generatedAt": "2026-09-15"
   },
   "links": [
     {
@@ -314,7 +314,7 @@ const KEEL = {
       "label": "Caché de respuestas",
       "active": true,
       "state": "sí",
-      "headline": "Las dos lecturas públicas se cachean 300 s, invalidadas por las cinco vías que pueden cambiar su respuesta.",
+      "headline": "Caché de 300 s en las cuatro lecturas públicas: la ficha y el listado de producto, y los dos listados de taxonomía.",
       "facts": [
         [
           "listPublicProducts",
@@ -354,7 +354,7 @@ const KEEL = {
       "label": "Seguridad",
       "active": true,
       "state": "sí",
-      "headline": "OIDC para usuarios y credencial de máquina con audiencia validada para los tres servidores consumidores.",
+      "headline": "OIDC para usuarios —dos roles separados por product:publish— y credencial de máquina con audiencia validada para los tres servidores consumidores.",
       "facts": [
         [
           "Protocolo",
@@ -366,7 +366,7 @@ const KEEL = {
         ],
         [
           "Roles",
-          "1"
+          "2 (catalog-admin, catalog-editor)"
         ],
         [
           "Permisos",
@@ -857,6 +857,57 @@ const KEEL = {
       },
       "emits": [
         "ProductStatusChanged"
+      ]
+    },
+    {
+      "name": "deleteProduct",
+      "kind": "command",
+      "description": "Elimina definitivamente un producto que nunca llegó a estar a la venta.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "DELETE",
+        "path": "/api/v1/management/products/{productId}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "productId",
+            "type": "uuid",
+            "required": true
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "preconditions": [
+        "El producto, si existe, está en estado draft y nunca ha estado a la venta."
+      ],
+      "rules": [
+        "El borrado es idempotente: si no existe un producto con ese id la operación no hace nada y responde igual que si lo hubiera borrado.",
+        "La guarda de negocio NO se salta por la idempotencia: un producto que existe y no es borrable se rechaza, igual que BRAND_IN_USE se sigue evaluando en deleteBrand.",
+        "Solo se borra lo que NUNCA estuvo a la venta, y estar en draft no basta para saberlo: un producto despublicado vuelve a draft y sí estuvo a la venta. Lo que lo distingue es slugFrozen, que es exactamente esa historia — falso mientras el producto no haya alcanzado active ni una vez.",
+        "Se eliminan las imágenes del producto y sus objetos del bucket productImages; no se conservan objetos huérfanos.",
+        "El sku y el slug quedan liberados: un alta posterior puede volver a usarlos.",
+        "ProductDeleted se publica solo si se eliminó un producto; una repetición que no cambia nada no emite evento."
+      ],
+      "errors": [
+        {
+          "code": "PRODUCT_NOT_DELETABLE",
+          "http": 409,
+          "when": "El producto existe pero ya estuvo a la venta alguna vez: está fuera de draft, o está en draft tras haberse despublicado."
+        }
+      ],
+      "security": {
+        "level": "required",
+        "permissions": [
+          "product:write"
+        ]
+      },
+      "emits": [
+        "ProductDeleted"
       ]
     },
     {
@@ -1722,6 +1773,7 @@ const KEEL = {
           "ProductCreated",
           "ProductUpdated",
           "ProductStatusChanged",
+          "ProductDeleted",
           "BrandUpdated",
           "CategoryUpdated"
         ]
@@ -1786,6 +1838,7 @@ const KEEL = {
           "ProductCreated",
           "ProductUpdated",
           "ProductStatusChanged",
+          "ProductDeleted",
           "BrandUpdated",
           "CategoryUpdated"
         ]
@@ -1805,7 +1858,18 @@ const KEEL = {
         "path": "/api/v1/brands"
       },
       "input": {
-        "kind": "void"
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas ni acentos.",
+            "constraints": {
+              "maxLength": 80
+            }
+          }
+        ]
       },
       "output": {
         "kind": "entity",
@@ -1815,6 +1879,20 @@ const KEEL = {
       },
       "security": {
         "level": "public"
+      },
+      "rules": [
+        "El filtro ausente no restringe; presente, busca coincidencia parcial sin distinguir mayúsculas ni acentos."
+      ],
+      "cache": {
+        "ttlSeconds": 300,
+        "keyFields": [
+          "name"
+        ],
+        "invalidatedBy": [
+          "BrandCreated",
+          "BrandUpdated",
+          "BrandDeleted"
+        ]
       }
     },
     {
@@ -1828,7 +1906,18 @@ const KEEL = {
         "path": "/api/v1/categories"
       },
       "input": {
-        "kind": "void"
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Filtra por coincidencia parcial del nombre, sin distinguir mayúsculas ni acentos.",
+            "constraints": {
+              "maxLength": 80
+            }
+          }
+        ]
       },
       "output": {
         "kind": "entity",
@@ -1838,6 +1927,20 @@ const KEEL = {
       },
       "security": {
         "level": "public"
+      },
+      "rules": [
+        "El filtro ausente no restringe; presente, busca coincidencia parcial sin distinguir mayúsculas ni acentos."
+      ],
+      "cache": {
+        "ttlSeconds": 300,
+        "keyFields": [
+          "name"
+        ],
+        "invalidatedBy": [
+          "CategoryCreated",
+          "CategoryUpdated",
+          "CategoryDeleted"
+        ]
       }
     },
     {
@@ -2159,6 +2262,36 @@ const KEEL = {
           },
           {
             "name": "updatedAt",
+            "type": "timestamp",
+            "required": true
+          }
+        ]
+      },
+      {
+        "name": "ProductDeleted",
+        "description": "Se eliminó un producto que nunca llegó a estar a la venta. Quien mantenga una copia debe purgarla; el sku y el slug quedan libres para un alta posterior.",
+        "channel": "productEvents",
+        "emittedBy": [
+          "deleteProduct"
+        ],
+        "payload": [
+          {
+            "name": "productId",
+            "type": "uuid",
+            "required": true
+          },
+          {
+            "name": "sku",
+            "type": "SKU",
+            "required": true
+          },
+          {
+            "name": "slug",
+            "type": "Slug",
+            "required": true
+          },
+          {
+            "name": "deletedAt",
             "type": "timestamp",
             "required": true
           }
