@@ -39,6 +39,39 @@
       ]
     },
     {
+      "name": "Token — catalog-editor (usuario)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Token de usuario del rol catalog-editor, que concede product:read, product:write y taxonomy:write pero NO product:publish. Es el que ejercita FL-SEC-010, el flujo que comprueba la frontera entre los dos roles por sus dos lados: con él se redactan fichas, se gestiona la galería y la taxonomía y se borra un borrador propio, y se reciben 403 en publishProduct, unpublishProduct, discontinueProduct y reactivateProduct. Necesita un usuario de prueba cuyo UNICO rol sea catalog-editor: si el usuario también tiene catalog-admin, las cuatro aserciones de 403 pasan a 200 y el flujo deja de probar nada.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "password" },
+            { "key": "client_id", "value": "{{clientId}}" },
+            { "key": "client_secret", "value": "{{clientSecret}}" },
+            { "key": "username", "value": "{{username_catalog-editor}}" },
+            { "key": "password", "value": "{{password_catalog-editor}}" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_catalog-editor', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "Token — order-service (máquina)",
       "request": {
         "method": "POST",
@@ -144,6 +177,8 @@
     { "key": "clientSecret", "value": "" },
     { "key": "username_catalog-admin", "value": "" },
     { "key": "password_catalog-admin", "value": "" },
+    { "key": "username_catalog-editor", "value": "", "description": "Usuario de prueba cuyo unico rol sea catalog-editor; si arrastra tambien catalog-admin, FL-SEC-010 deja de distinguir los dos perfiles." },
+    { "key": "password_catalog-editor", "value": "" },
     { "key": "m2mAudience", "value": "catalog", "description": "Audiencia que el servicio valida en el token de máquina." },
     { "key": "clientId_order-service", "value": "" },
     { "key": "clientSecret_order-service", "value": "" },
