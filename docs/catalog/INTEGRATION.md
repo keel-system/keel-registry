@@ -89,9 +89,9 @@ credentials), no con token de usuario. Cómo obtenerlo:
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | uuid | requerido |
-| `sku` | string | requerido; código comercial, siempre en mayúsculas |
+| `sku` | string | requerido; código comercial, siempre en mayúsculas. **Se libera si el producto se borra** (solo borradores nunca publicados) y otro producto distinto puede tomarlo después: no es una clave perpetua. Ver el aviso bajo esta tabla |
 | `name` | string | requerido; máx. 140 |
-| `slug` | string | requerido; identificador de URL. **Inmutable desde la primera publicación**: una vez que el producto ha estado `active` una vez, su `slug` no cambia nunca más, ni aunque se renombre, se despublique o se descatalogue. Antes de esa primera publicación sí sigue al `name`, así que un producto en `draft` puede cambiarlo. Si indexas por `slug`, la clave es estable para todo lo que hayas visto publicado |
+| `slug` | string | requerido; identificador de URL. **Inmutable desde la primera publicación**: una vez que el producto ha estado `active` una vez, su `slug` no cambia nunca más, ni aunque se renombre, se despublique o se descatalogue. Antes de esa primera publicación sí sigue al `name`, así que un producto en `draft` puede cambiarlo **y también liberarlo al borrarse**. Si indexas por `slug`, la clave es estable para todo lo que hayas visto publicado |
 | `description` | text \| null | máx. 4000 |
 | `price` | decimal | requerido; escala 2, divisa única de la tienda |
 | `status` | enum | requerido; `draft` \| `active` \| `discontinued` |
@@ -103,6 +103,13 @@ credentials), no con token de usuario. Cómo obtenerlo:
 No viajan `createdAt`, `createdBy`, `updatedBy` ni `lockVersion`: son auditoría interna del
 back-office. `brand` y `category` viajan **resueltos como objeto**, no como identificador, para que
 no necesites una segunda llamada.
+
+> **`id` es la única clave perpetua; `sku` y `slug` no lo son.** Un producto que **nunca llegó a
+> estar `active`** puede borrarse, y al borrarse **libera su `sku` y su `slug`**, que otro producto
+> —con otro `id`— puede tomar más adelante. Si cacheas o indexas por `sku` o por `slug`, hazlo solo
+> con productos que hayas visto `active` alguna vez: esos no se borran jamás y sus dos claves son
+> estables para siempre. Para lo que veas en `draft`, la clave segura es el `id`. Un `ProductDeleted`
+> te avisa de cada liberación.
 
 ### getProductForServices
 
@@ -153,7 +160,7 @@ no necesites una segunda llamada.
 
 | Código | HTTP | Cuándo | Acción recomendada |
 |---|---|---|---|
-| `PRODUCT_NOT_FOUND` | 404 | No existe un producto con ese id. | No reintentar; el recurso no existe. Si tu copia lo referenciaba, purgarla. |
+| `PRODUCT_NOT_FOUND` | 404 | No existe un producto con ese id: nunca existió, o era un borrador nunca publicado y se borró. | No reintentar; el recurso no existe. Si tu copia lo referenciaba, purgarla. |
 
 ### listProductsBatchForServices
 
@@ -186,7 +193,9 @@ ascendente** (con el `id` como desempate), **no** en el orden de la petición.
 Tres comportamientos que conviene tener presentes al consumirlo:
 
 - Los identificadores que **no existen se omiten** del resultado, sin error. Compara lo pedido con
-  lo recibido si necesitas detectar bajas.
+  lo recibido si necesitas detectar bajas: **ésta es la vía que te delata un `ProductDeleted`
+  perdido**, porque la publicación es `best-effort`. Un id que pediste y no vuelve es un producto
+  que ya no existe.
 - Los identificadores **repetidos** se resuelven una sola vez.
 - Devuelve productos en **cualquier estado**, `discontinued` incluido.
 
@@ -272,7 +281,8 @@ payload del evento es el contenido de `data`; `metadata` es la misma para todos.
 
 Dos canales lógicos (el topic o cola real es decisión de despliegue, no se documenta aquí):
 
-- **`productEvents`** — altas, cambios de ficha y cambios de estado comercial de los productos.
+- **`productEvents`** — altas, cambios de ficha, cambios de estado comercial y **bajas** de los
+  productos.
 - **`taxonomyEvents`** — altas, cambios y bajas de marcas y categorías.
 
 ### ProductCreated
