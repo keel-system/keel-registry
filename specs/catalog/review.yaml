@@ -1,7 +1,7 @@
 # Veredicto de la revisión semántica de catalog, por id. No forma parte del DSL: dice qué se miró
 # al revisar el diseño y con qué resultado.
 
-reviewedAt: 0.1.0
+reviewedAt: 0.1.1
 
 findings:
 
@@ -16,7 +16,8 @@ findings:
       porque su guarda real ya estaba donde sí se comprueba: precondición + BRAND_IN_USE /
       CATEGORY_IN_USE en deleteBrand y deleteCategory, y la rule de updateProduct que deja el
       sku fuera de la entrada. Las que quedan son decidibles sobre los campos declarados:
-      price > 0 en active, unicidad de name ignorando mayúsculas y acentos, y las tres de la
+      price > 0 en active, unicidad de name ignorando mayúsculas y acentos (desde 0.1.1 declarada
+      en el campo con compare: ignore-case-accents, no como invariante en prosa), y las tres de la
       galería (una sola primary, exactamente una si está active y tiene imágenes, sin dos
       imágenes en la misma position), todas dentro del agregado Product.
 
@@ -84,6 +85,10 @@ findings:
       la foto sin que nada invalide, y el consumidor vería la vieja hasta 60s. No hay operación que
       sobrescriba una imagen (addProductImage siempre crea una nueva), así que solo ocurriría
       tocando el bucket por fuera del servicio.
+      ProductCreated no está en invalidatedBy a propósito (keel validate lo avisa): un producto
+      recién creado está en draft, y las dos lecturas cacheadas responden a un draft como si no
+      existiera, así que su alta no cambia ninguna entrada que una caché pudiera tener. Lo que lo
+      vuelve visible es publishProduct, que emite ProductStatusChanged y ese sí invalida.
 
   - id: REV-USECASES-GUARD-ORDER
     scope: use-cases
@@ -144,7 +149,16 @@ findings:
       (que es como llegan los filtros públicos brandSlug/categorySlug) y [name] para su orden.
       Galería: [productId, position], que es como se lee siempre. El filtro por name es coincidencia
       parcial ignorando mayúsculas y acentos, y eso no lo resuelve un índice de campo: es una
-      decisión de cómo se implementa la búsqueda, no un índice que falte en el diseño.
+      decisión de cómo se implementa la búsqueda, no un índice que falte en el diseño. Desde 0.1.1
+      eso está declarado en el propio filtro (match: contains, compare: ignore-case-accents) y ya no
+      en una rule en prosa.
+      El índice único parcial de la imagen primary no nombra un error propio (keel validate lo
+      avisa), y es deliberado (v0.1.1): ninguna petición legítima puede chocar con él, porque
+      setPrimaryProductImage y addProductImage desmarcan la primary anterior en la misma
+      transacción. Solo choca la carrera de dos escrituras concurrentes sobre la galería, que es
+      una modificación concurrente del agregado Product. Por eso responde 409
+      CONCURRENT_MODIFICATION (OBL-CONCURRENCY-CODE), dicho en la rule de las dos operaciones.
+      Aquí «reintenta» es justo la respuesta correcta.
 
   - id: REV-STORAGE-PUBLIC-SENSITIVE
     scope: storage.buckets.productImages

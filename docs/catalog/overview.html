@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.0 -->
+<!-- keel:version 0.1.1 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,10 +188,10 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías. Los publica a los consumidores con búsqueda y filtros, los gestiona el personal de la tienda con rastro de autoría, y difunde sus altas y sus cambios al resto de servidores por consulta directa y por eventos.",
     "domain": "commerce",
-    "generatedAt": "2026-09-20"
+    "generatedAt": "2026-09-21"
   },
   "links": [
     {
@@ -1034,7 +1034,8 @@ const KEEL = {
           {
             "name": "name",
             "type": "string",
-            "required": false
+            "required": false,
+            "description": "Coincidencia parcial (contiene), sin distinguir mayúsculas ni acentos."
           },
           {
             "name": "sku",
@@ -1059,7 +1060,6 @@ const KEEL = {
       "rules": [
         "Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan.",
         "Sin filtro de status se devuelven los productos en los tres estados.",
-        "El filtro name casa por coincidencia parcial, ignorando mayúsculas y acentos.",
         "Un valor de filtro que no corresponde a ninguna marca o categoría no es un error: la página sale vacía."
       ],
       "security": {
@@ -1117,6 +1117,7 @@ const KEEL = {
       "rules": [
         "La imagen recibe la position siguiente a la mayor de la galería.",
         "Si llega con primary verdadero, la imagen que lo era deja de serlo.",
+        "Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.",
         "Si es la primera imagen del producto, se marca primary aunque no se pida."
       ],
       "errors": [
@@ -1278,6 +1279,7 @@ const KEEL = {
       ],
       "rules": [
         "La imagen que era primary deja de serlo en la misma transacción.",
+        "Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.",
         "Marcar como primary la que ya lo es no cambia nada y no es un error."
       ],
       "errors": [
@@ -1414,7 +1416,7 @@ const KEEL = {
         {
           "code": "BRAND_SLUG_ALREADY_EXISTS",
           "http": 409,
-          "when": "El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: Acmé y Acme dan el mismo."
+          "when": "El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: «Acme!» y «Acme» dan el mismo."
         },
         {
           "code": "IDEMPOTENCY_KEY_REQUIRED",
@@ -1795,7 +1797,8 @@ const KEEL = {
           {
             "name": "name",
             "type": "string",
-            "required": false
+            "required": false,
+            "description": "Coincidencia parcial (contiene), sin distinguir mayúsculas ni acentos."
           },
           {
             "name": "minPrice",
@@ -1836,7 +1839,6 @@ const KEEL = {
       "rules": [
         "Solo se devuelven productos active; los borradores y los descontinuados nunca salen aquí.",
         "Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan.",
-        "El filtro name casa por coincidencia parcial sobre el nombre, ignorando mayúsculas y acentos.",
         "Los extremos del rango de precio son inclusivos.",
         "Un categorySlug o brandSlug que no existe no es un error: la página sale vacía."
       ],
@@ -2535,7 +2537,8 @@ const KEEL = {
             "flags": [
               "requerido",
               "único"
-            ]
+            ],
+            "description": "Único sin distinguir mayúsculas ni acentos."
           },
           {
             "name": "slug",
@@ -2553,10 +2556,7 @@ const KEEL = {
             "flags": []
           }
         ],
-        "persisted": true,
-        "invariants": [
-          "Dos marcas no pueden tener el mismo name ignorando mayúsculas y acentos."
-        ]
+        "persisted": true
       },
       {
         "name": "Category",
@@ -2576,7 +2576,8 @@ const KEEL = {
             "flags": [
               "requerido",
               "único"
-            ]
+            ],
+            "description": "Único sin distinguir mayúsculas ni acentos."
           },
           {
             "name": "slug",
@@ -2594,10 +2595,7 @@ const KEEL = {
             "flags": []
           }
         ],
-        "persisted": true,
-        "invariants": [
-          "Dos categorías no pueden tener el mismo name ignorando mayúsculas y acentos."
-        ]
+        "persisted": true
       },
       {
         "name": "Product",
@@ -2836,7 +2834,7 @@ const KEEL = {
       {
         "name": "Price",
         "kind": "escalar",
-        "detail": "decimal · min 0 · scale 2",
+        "detail": "decimal · min 0 · scale 2 · scalePolicy reject",
         "description": "Importe de venta al público en la divisa única de la tienda, que es una constante del despliegue y no un dato del producto. La escala de dos decimales se valida, no se ajusta: un importe con más decimales se rechaza en vez de redondearse, porque el servicio no hace aritmética sobre el precio — lo guarda y lo devuelve tal cual llegó."
       },
       {

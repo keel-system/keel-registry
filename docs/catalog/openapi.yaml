@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: catalog
-  version: 0.1.0
+  version: 0.1.1
   description: |-
     Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías. Los publica a los consumidores con búsqueda y filtros, los gestiona el personal de la tienda con rastro de autoría, y difunde sus altas y sus cambios al resto de servidores por consulta directa y por eventos.
 
@@ -42,7 +42,6 @@ paths:
         **Reglas**
         - Solo se devuelven productos active; los borradores y los descontinuados nunca salen aquí.
         - Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan.
-        - El filtro name casa por coincidencia parcial sobre el nombre, ignorando mayúsculas y acentos.
         - Los extremos del rango de precio son inclusivos.
         - Un categorySlug o brandSlug que no existe no es un error: la página sale vacía.
       tags:
@@ -63,7 +62,7 @@ paths:
       - name: name
         in: query
         required: false
-        description: ''
+        description: Coincidencia parcial (contiene), sin distinguir mayúsculas ni acentos.
         schema:
           type: string
           maxLength: 140
@@ -272,7 +271,6 @@ paths:
         **Reglas**
         - Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan.
         - Sin filtro de status se devuelven los productos en los tres estados.
-        - El filtro name casa por coincidencia parcial, ignorando mayúsculas y acentos.
         - Un valor de filtro que no corresponde a ninguna marca o categoría no es un error: la página sale vacía.
       tags:
       - Gestión de productos
@@ -300,7 +298,7 @@ paths:
       - name: name
         in: query
         required: false
-        description: ''
+        description: Coincidencia parcial (contiene), sin distinguir mayúsculas ni acentos.
         schema:
           type: string
           maxLength: 140
@@ -1112,6 +1110,7 @@ paths:
         **Reglas**
         - La imagen recibe la position siguiente a la mayor de la galería.
         - Si llega con primary verdadero, la imagen que lo era deja de serlo.
+        - Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.
         - Si es la primera imagen del producto, se marca primary aunque no se pida.
 
         **Publica** `ProductUpdated`.
@@ -1347,6 +1346,7 @@ paths:
 
         **Reglas**
         - La imagen que era primary deja de serlo en la misma transacción.
+        - Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.
         - Marcar como primary la que ya lo es no cambia nada y no es un error.
 
         **Publica** `ProductUpdated`.
@@ -1615,7 +1615,7 @@ paths:
             Códigos posibles con este status:
 
             - `BRAND_NAME_ALREADY_EXISTS` — Ya existe una marca con ese nombre.
-            - `BRAND_SLUG_ALREADY_EXISTS` — El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: Acmé y Acme dan el mismo.
+            - `BRAND_SLUG_ALREADY_EXISTS` — El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: «Acme!» y «Acme» dan el mismo.
             - `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma clave de idempotencia se está ejecutando en este momento.
             - `IDEMPOTENCY_KEY_REUSED` — La misma clave de idempotencia llega con un contenido distinto al de la primera petición.
           content:
@@ -2253,6 +2253,7 @@ components:
         name:
           type: string
           maxLength: 80
+          description: Único sin distinguir mayúsculas ni acentos.
         slug:
           $ref: '#/components/schemas/Slug'
         description:
@@ -2274,6 +2275,7 @@ components:
         name:
           type: string
           maxLength: 80
+          description: Único sin distinguir mayúsculas ni acentos.
         slug:
           $ref: '#/components/schemas/Slug'
         description:

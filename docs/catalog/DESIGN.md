@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.1.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.1.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -24,7 +24,8 @@ relevancia. Es la verdad de **qué se vende y a qué precio**, no de cuánto hay
 - `Slug` — identificador legible para las URLs públicas, derivado del nombre.
 - `Price` — importe de venta en la divisa única de la tienda. La escala de dos decimales se
   **valida, no se ajusta**: un importe con más decimales se rechaza en vez de redondearse, porque el
-  servicio no hace aritmética sobre el precio; lo guarda y lo devuelve tal cual llegó.
+  servicio no hace aritmética sobre el precio; lo guarda y lo devuelve tal cual llegó
+  (`scalePolicy: reject`: `19.999` es un `400`, también en los filtros de rango de precio).
 - `ProductStatus` — `draft`, `active`, `discontinued`.
 
 **Entidades.**
@@ -58,8 +59,9 @@ No hay estado terminal: un artículo descontinuado se puede volver a poner a la 
 - Un producto `active` siempre tiene un `price` mayor que cero.
 - Como máximo **una** imagen de un producto es `primary`; si está `active` y tiene imágenes, tiene
   exactamente una. Dos imágenes del mismo producto nunca comparten `position`.
-- Dos marcas (o dos categorías) no pueden tener el mismo `name` **ignorando mayúsculas y acentos**;
-  tampoco el mismo `slug`, que es un fallo distinto y tiene su propio código.
+- Dos marcas (o dos categorías) no pueden tener el mismo `name` **ignorando mayúsculas y acentos**
+  (`compare: ignore-case-accents` en el campo: `ACME`, `acme` y `Acmé` son el mismo nombre);
+  tampoco el mismo `slug`, que es un fallo distinto y tiene su propio código (`Acme!` frente a `Acme`).
 - El `sku` es inmutable: no forma parte de la entrada de `updateProduct`.
 - El `slug` de un producto sigue a su nombre **hasta la primera publicación**; ahí se congela
   (`slugFrozen`) y no vuelve a moverse, ni siquiera al despublicar.
@@ -74,7 +76,8 @@ No hay estado terminal: un artículo descontinuado se puede volver a poner a la 
 **Gestión de productos (back-office).** `createProduct` (nace en `draft`), `updateProduct`,
 `publishProduct`, `unpublishProduct`, `discontinueProduct`, `reactivateProduct`, `deleteProduct`
 (solo un borrador que nunca se publicó), `getProduct` y `listProducts` (paginado, filtros por estado,
-marca, categoría, nombre y sku, combinados con AND). Las cuatro transiciones de estado son
+marca, categoría, nombre y sku, combinados con AND; el de nombre es coincidencia parcial ignorando
+mayúsculas y acentos). Las cuatro transiciones de estado son
 operaciones con nombre de intención, no un `updateStatus` genérico: cada una tiene sus propias
 guardas y su propio error.
 
@@ -86,7 +89,8 @@ guardas y su propio error.
 reservadas a `catalog-admin`.
 
 **Tienda pública (anónima).** `listPublicProducts` (paginado, orden por nombre, filtros por categoría,
-marca, nombre y rango de precio inclusivo), `getPublicProduct` (por slug, con caché de 60 s),
+marca, nombre —coincidencia parcial, sin distinguir mayúsculas ni acentos— y rango de precio
+inclusivo), `getPublicProduct` (por slug, con caché de 60 s),
 `listBrands` y `listCategories` para la navegación.
 
 **Idempotencia y caché.** Las cuatro operaciones que pueden duplicar un efecto **fuera** del proceso
@@ -134,7 +138,8 @@ misma transacción), y bloqueo optimista **solo en `Product`**. Los índices sal
 declaradas: `[status, name]`, `[status, brandId]`, `[status, categoryId]`, `[status, price]`, el slug
 único, `[updatedAt]` para la tabla del back-office y `[productId, position]` para la galería, más una
 **unicidad condicionada** (`productId` donde `primary` es verdadero) que es lo único que cierra la
-ventana de dos peticiones marcando principales distintas. El rastro de auditoría es `declared` solo
+ventana de dos peticiones marcando principales distintas; la que pierde esa carrera responde
+`409 CONCURRENT_MODIFICATION`, porque la galería es parte del agregado `Product`. El rastro de auditoría es `declared` solo
 en `Product`. Nada se archiva ni se purga: un descontinuado se guarda para siempre porque los pedidos
 históricos lo referencian, y su `sku` sigue ocupado para siempre porque identifica a **ese** artículo.
 
@@ -174,7 +179,8 @@ de back-office llaman desde el navegador; los orígenes concretos son despliegue
 | **Identidad del llamante fuera del trabajo** | Sin `callerIdentity` | Los dos endpoints M2M son lecturas del catálogo entero: la credencial decide **si** puedes leer, no **qué** lees. No hay inquilino ni recurso en cuyo nombre se actúe. Registrado en `decisions.yaml`, y caduca si algún día el catálogo sirve vistas distintas por consumidor. |
 | **Acceso por permiso, con el rol como puerta donde importa** | Permisos en las 12 operaciones de producto; `level: admin` + `roles: [catalog-admin]` en las 7 irreversibles o estructurales | Repetir los roles en las 25 reglas duplicaría lo que `roleGrants` ya dice en dos líneas. `catalog-editor` se define por lo que **no** alcanza; `keel validate` avisa de que ninguna regla lo exige por nombre, y se acepta con ese porqué. |
 | **Versionado del contrato** | Convivencia de `/api/v1` y `/api/v2` | Permite evolucionar sin coordinar el despliegue de los tres consumidores a la vez. Descartado: solo aditivo (un error de contrato se arrastra para siempre) y romper coordinando (cada cambio es una ventana de mantenimiento). |
-| **Ausencia** | Un campo sin valor **no viaja** | Convención única del servicio, fijada en los escenarios: es lo que hace que dos stacks produzcan el mismo JSON. Descartado: `null` explícito. |
+| **Ausencia** | Un campo sin valor **no viaja** | Convención única del servicio, en respuestas y en payloads de evento: es lo que hace que dos stacks produzcan el mismo JSON. Descartado: `null` explícito. Desde v0.1.1 está declarada en el manifiesto (`conventions.nulls: omit`) y ya no solo en la prosa de los escenarios. |
+| **Carrera de la imagen principal** | El choque del índice único parcial responde `409 CONCURRENT_MODIFICATION`, sin código propio | Ninguna petición legítima puede chocar: las dos operaciones que marcan una principal desmarcan la anterior en la misma transacción. Solo choca la carrera de dos escrituras concurrentes sobre la galería, que es una modificación concurrente del agregado, así que «reintenta» es la respuesta correcta. Descartado: un `PRIMARY_IMAGE_CONFLICT` propio (minor), que nombraría un caso que el cliente no puede provocar a propósito. Decidido en v0.1.1. |
 
 ## 7. Ficha de reutilización: adoptar, derivar o evolucionar
 

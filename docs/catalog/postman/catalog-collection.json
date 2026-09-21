@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "catalog — API (v0.1.0)",
-    "description": "Colección derivada de specs/catalog v0.1.0: una carpeta por flujo de validation-scenarios.md y una carpeta con los endpoints no cubiertos por los flujos. Importa antes auth-collection.json y ejecuta sus requests de token: esta colección usa las globals token_<rol> y token_<cliente>.",
+    "name": "catalog — API (v0.1.1)",
+    "description": "Colección derivada de specs/catalog v0.1.1: una carpeta por flujo de validation-scenarios.md y una carpeta con los endpoints no cubiertos por los flujos. Importa antes auth-collection.json y ejecuta sus requests de token: esta colección usa las globals token_<rol> y token_<cliente>.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -3077,7 +3077,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.1.0"
+      "value": "0.1.1"
     },
     {
       "key": "productId",

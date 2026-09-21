@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.1.0. Contrato de validación para la fase de generación.
+> specs/catalog v0.1.1. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -14,15 +14,19 @@ del escenario, `updatedAt >= createdAt`), jamás por valor literal.
 **Identificadores.** Todo `id` es un uuid: se verifica por forma y por **reutilización simbólica**
 — el id devuelto en un escenario es el que usan los siguientes de su mismo flujo. Nunca por valor.
 
-**Números.** `price` es decimal de escala **2**, y la escala se **valida, no se ajusta**: `19.99` y
-`19.9` y `19` se aceptan; `19.999` se rechaza con `400`. El servicio no hace aritmética sobre el
-precio, así que no hay redondeo que fijar.
+**Números.** `price` es decimal de escala **2**, y la escala se **valida, no se ajusta**
+(`Price.constraints.scalePolicy: reject` en `domain`): `19.99` y `19.9` y `19` se aceptan; `19.999`
+se rechaza con `400`. Vale para toda entrada de tipo `Price`, filtros `minPrice`/`maxPrice` incluidos.
+El servicio no hace aritmética sobre el precio, así que no hay redondeo que fijar.
 
-**Ausencia.** Un campo sin valor **no aparece** en la respuesta; nunca viaja como `null`. Vale para
-`description`, `altText` y el `image` de una galería vacía. Un `Then` que enumera el cuerpo da por
+**Ausencia.** Un campo sin valor **no aparece**; nunca viaja como `null` (`conventions.nulls: omit`
+en el manifiesto). Vale para las respuestas y para los payloads de evento: `description`, `altText`,
+el `image` de una galería vacía y el `primaryImageUrl` de un producto sin imágenes. Un `Then` que enumera el cuerpo da por
 ausentes los campos que no nombra.
 
-**Mayúsculas y acentos.** La unicidad de `name` y el filtro `name` ignoran mayúsculas y acentos:
+**Mayúsculas y acentos.** La unicidad de `name` (`compare: ignore-case-accents` en `Brand.name` y
+`Category.name`) y el filtro `name` (`match: contains`, `compare: ignore-case-accents` en
+`listProducts` y `listPublicProducts`) ignoran mayúsculas y acentos:
 `ACME`, `acme` y `Acmé` son el mismo nombre para la unicidad, y los tres casan el mismo filtro. El
 `sku` se normaliza a mayúsculas antes de comprobar su unicidad: `sku-001` y `SKU-001` colisionan.
 
@@ -187,8 +191,10 @@ marca `b1`). Credencial con rol `catalog-editor`.
 6. `updatedBy` es la identidad del `When` y `updatedAt` es posterior al `createdAt`.
 7. `getProduct` sobre `p1` devuelve el mismo cuerpo.
 8. Se publica **exactamente un** `ProductUpdated` en `productEvents` con `productId: p1`,
-   `name: "Teclado K1 Pro"`, `price: 89.90`, `status: "draft"`, `brandId: "b2"`,
-   `brandName: "Globex"`, y **sin** `description`.
+   `sku: "SKU-010"`, `name: "Teclado K1 Pro"`, `slug: "teclado-k1-pro"`, `price: 89.90`,
+   `status: "draft"`, `brandId: "b2"`, `brandName: "Globex"`, `categoryId: "c1"` y
+   `categoryName: "Laptops"`; **sin** `description` (se vació) y **sin** `primaryImageUrl` (`p1` no
+   tiene imágenes).
 
 **Orden de evaluación**:
 1. El producto existe → `PRODUCT_NOT_FOUND` (`404`).
@@ -1031,7 +1037,7 @@ con rol `catalog-admin`.
 **When**: cada operación protegida se llama **sin credencial**
 
 **Then**:
-1. Las 21 operaciones de `/api/v1/management/**` responden `401`.
+1. Las 19 operaciones de `/api/v1/management/**` responden `401`.
 2. Las 2 operaciones de `/api/v1/services/**` responden `401`.
 3. Ninguna produce efecto: `listProducts` (con credencial) devuelve el mismo `totalElements` que
    antes del `When`, y en `productEvents` no ha aparecido ningún mensaje.

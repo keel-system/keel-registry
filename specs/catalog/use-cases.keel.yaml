@@ -182,13 +182,12 @@ operations:
         status:     { type: ProductStatus }
         brandId:    { type: uuid }
         categoryId: { type: uuid }
-        name:       { type: string, constraints: { maxLength: 140 } }
+        name:       { type: string, match: contains, compare: ignore-case-accents, constraints: { maxLength: 140 } }
         sku:        { type: SKU }
     output: { entity: Product, paginated: true, sort: [updatedAt:desc], embed: [brand, category] }
     rules:
       - "Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan."
       - Sin filtro de status se devuelven los productos en los tres estados.
-      - El filtro name casa por coincidencia parcial, ignorando mayúsculas y acentos.
       - "Un valor de filtro que no corresponde a ninguna marca o categoría no es un error: la página sale vacía."
 
   # ── Galería de imágenes (back-office) ────────────────────────────────────────
@@ -210,6 +209,7 @@ operations:
     rules:
       - La imagen recibe la position siguiente a la mayor de la galería.
       - Si llega con primary verdadero, la imagen que lo era deja de serlo.
+      - "Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product."
       - Si es la primera imagen del producto, se marca primary aunque no se pida.
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese productId., http: 404 }
@@ -257,6 +257,7 @@ operations:
       - La imagen existe y pertenece a ese producto.
     rules:
       - La imagen que era primary deja de serlo en la misma transacción.
+      - "Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product."
       - Marcar como primary la que ya lo es no cambia nada y no es un error.
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese productId., http: 404 }
@@ -299,7 +300,7 @@ operations:
       - El slug se deriva del name; si ya existe, la escritura se rechaza.
     errors:
       - { code: BRAND_NAME_ALREADY_EXISTS, when: Ya existe una marca con ese nombre., http: 409 }
-      - { code: BRAND_SLUG_ALREADY_EXISTS, when: "El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: Acmé y Acme dan el mismo.", http: 409 }
+      - { code: BRAND_SLUG_ALREADY_EXISTS, when: "El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: «Acme!» y «Acme» dan el mismo.", http: 409 }
       - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición llega sin la cabecera Idempotency-Key, que esta operación exige.", http: 400 }
       - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: Otra petición con la misma clave de idempotencia se está ejecutando en este momento., http: 409 }
       - { code: IDEMPOTENCY_KEY_REUSED, when: La misma clave de idempotencia llega con un contenido distinto al de la primera petición., http: 409 }
@@ -399,7 +400,7 @@ operations:
       fields:
         categorySlug: { type: Slug }
         brandSlug:    { type: Slug }
-        name:         { type: string, constraints: { maxLength: 140 } }
+        name:         { type: string, match: contains, compare: ignore-case-accents, constraints: { maxLength: 140 } }
         minPrice:     { type: Price }
         maxPrice:     { type: Price }
     output:
@@ -413,7 +414,6 @@ operations:
     rules:
       - Solo se devuelven productos active; los borradores y los descontinuados nunca salen aquí.
       - "Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan."
-      - El filtro name casa por coincidencia parcial sobre el nombre, ignorando mayúsculas y acentos.
       - Los extremos del rango de precio son inclusivos.
       - "Un categorySlug o brandSlug que no existe no es un error: la página sale vacía."
     errors:

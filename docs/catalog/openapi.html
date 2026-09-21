@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.0 -->
+<!-- keel:version 0.1.1 -->
 <!--
   Visor de contratos Keel — plantilla de forma fija, común a OpenAPI y AsyncAPI.
   NO edites el markup, el CSS ni el JS al generar. Copia este archivo tal cual y sustituye
@@ -107,7 +107,7 @@ var KEEL_SPEC = {
   "openapi": "3.1.0",
   "info": {
     "title": "catalog",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías. Los publica a los consumidores con búsqueda y filtros, los gestiona el personal de la tienda con rastro de autoría, y difunde sus altas y sus cambios al resto de servidores por consulta directa y por eventos.\n\nContrato HTTP derivado del diseño Keel (`specs/catalog`). Tres superficies con contratos distintos: la tienda pública (anónima), la gestión del back-office (autenticada, con rastro de autoría) y la superficie servidor-a-servidor (credencial de máquina).\n\nConvenciones del servicio: un campo sin valor **no viaja** en la respuesta; los instantes son UTC ISO-8601; `price` es decimal de escala 2 que se valida, no se redondea. El `code` de cada error y su status son contrato estable; el texto de `message`, no.",
     "license": {
       "name": "Apache-2.0",
@@ -147,7 +147,7 @@ var KEEL_SPEC = {
       "get": {
         "operationId": "listPublicProducts",
         "summary": "Lista los productos a la venta, con filtros de categoría, marca, nombre y rango de precio.",
-        "description": "Lista los productos a la venta, con filtros de categoría, marca, nombre y rango de precio.\n\nAcceso público: no exige credencial.\n\n**Precondiciones**\n- Si llegan los dos extremos del rango, minPrice no es mayor que maxPrice.\n\n**Reglas**\n- Solo se devuelven productos active; los borradores y los descontinuados nunca salen aquí.\n- Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan.\n- El filtro name casa por coincidencia parcial sobre el nombre, ignorando mayúsculas y acentos.\n- Los extremos del rango de precio son inclusivos.\n- Un categorySlug o brandSlug que no existe no es un error: la página sale vacía.",
+        "description": "Lista los productos a la venta, con filtros de categoría, marca, nombre y rango de precio.\n\nAcceso público: no exige credencial.\n\n**Precondiciones**\n- Si llegan los dos extremos del rango, minPrice no es mayor que maxPrice.\n\n**Reglas**\n- Solo se devuelven productos active; los borradores y los descontinuados nunca salen aquí.\n- Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan.\n- Los extremos del rango de precio son inclusivos.\n- Un categorySlug o brandSlug que no existe no es un error: la página sale vacía.",
         "tags": [
           "Tienda pública"
         ],
@@ -174,7 +174,7 @@ var KEEL_SPEC = {
             "name": "name",
             "in": "query",
             "required": false,
-            "description": "",
+            "description": "Coincidencia parcial (contiene), sin distinguir mayúsculas ni acentos.",
             "schema": {
               "type": "string",
               "maxLength": 140
@@ -431,7 +431,7 @@ var KEEL_SPEC = {
       "get": {
         "operationId": "listProducts",
         "summary": "Lista los productos para el back-office, en cualquier estado, con filtros de gestión.",
-        "description": "Lista los productos para el back-office, en cualquier estado, con filtros de gestión.\n\nExige token de usuario con permisos `product:read`.\n\n**Reglas**\n- Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan.\n- Sin filtro de status se devuelven los productos en los tres estados.\n- El filtro name casa por coincidencia parcial, ignorando mayúsculas y acentos.\n- Un valor de filtro que no corresponde a ninguna marca o categoría no es un error: la página sale vacía.",
+        "description": "Lista los productos para el back-office, en cualquier estado, con filtros de gestión.\n\nExige token de usuario con permisos `product:read`.\n\n**Reglas**\n- Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan.\n- Sin filtro de status se devuelven los productos en los tres estados.\n- Un valor de filtro que no corresponde a ninguna marca o categoría no es un error: la página sale vacía.",
         "tags": [
           "Gestión de productos"
         ],
@@ -469,7 +469,7 @@ var KEEL_SPEC = {
             "name": "name",
             "in": "query",
             "required": false,
-            "description": "",
+            "description": "Coincidencia parcial (contiene), sin distinguir mayúsculas ni acentos.",
             "schema": {
               "type": "string",
               "maxLength": 140
@@ -1370,7 +1370,7 @@ var KEEL_SPEC = {
       "post": {
         "operationId": "addProductImage",
         "summary": "Sube una imagen a la galería de un producto y la coloca al final del orden.",
-        "description": "Sube una imagen a la galería de un producto y la coloca al final del orden.\n\nExige token de usuario con permisos `product:write`.\n\n**Idempotente**: exige la cabecera `Idempotency-Key`. El reintento con la misma clave reproduce la respuesta original; TTL 86400s.\n\n**Precondiciones**\n- El producto existe y no está discontinued.\n- El producto no ha alcanzado el máximo de diez imágenes.\n\n**Reglas**\n- La imagen recibe la position siguiente a la mayor de la galería.\n- Si llega con primary verdadero, la imagen que lo era deja de serlo.\n- Si es la primera imagen del producto, se marca primary aunque no se pida.\n\n**Publica** `ProductUpdated`.",
+        "description": "Sube una imagen a la galería de un producto y la coloca al final del orden.\n\nExige token de usuario con permisos `product:write`.\n\n**Idempotente**: exige la cabecera `Idempotency-Key`. El reintento con la misma clave reproduce la respuesta original; TTL 86400s.\n\n**Precondiciones**\n- El producto existe y no está discontinued.\n- El producto no ha alcanzado el máximo de diez imágenes.\n\n**Reglas**\n- La imagen recibe la position siguiente a la mayor de la galería.\n- Si llega con primary verdadero, la imagen que lo era deja de serlo.\n- Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.\n- Si es la primera imagen del producto, se marca primary aunque no se pida.\n\n**Publica** `ProductUpdated`.",
         "tags": [
           "Gestión de productos"
         ],
@@ -1628,7 +1628,7 @@ var KEEL_SPEC = {
       "put": {
         "operationId": "setPrimaryProductImage",
         "summary": "Elige qué imagen representa al producto en los listados.",
-        "description": "Elige qué imagen representa al producto en los listados.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto no está discontinued.\n- La imagen existe y pertenece a ese producto.\n\n**Reglas**\n- La imagen que era primary deja de serlo en la misma transacción.\n- Marcar como primary la que ya lo es no cambia nada y no es un error.\n\n**Publica** `ProductUpdated`.",
+        "description": "Elige qué imagen representa al producto en los listados.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto no está discontinued.\n- La imagen existe y pertenece a ese producto.\n\n**Reglas**\n- La imagen que era primary deja de serlo en la misma transacción.\n- Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.\n- Marcar como primary la que ya lo es no cambia nada y no es un error.\n\n**Publica** `ProductUpdated`.",
         "tags": [
           "Gestión de productos"
         ],
@@ -1931,7 +1931,7 @@ var KEEL_SPEC = {
             }
           },
           "409": {
-            "description": "Códigos posibles con este status:\n\n- `BRAND_NAME_ALREADY_EXISTS` — Ya existe una marca con ese nombre.\n- `BRAND_SLUG_ALREADY_EXISTS` — El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: Acmé y Acme dan el mismo.\n- `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma clave de idempotencia se está ejecutando en este momento.\n- `IDEMPOTENCY_KEY_REUSED` — La misma clave de idempotencia llega con un contenido distinto al de la primera petición.",
+            "description": "Códigos posibles con este status:\n\n- `BRAND_NAME_ALREADY_EXISTS` — Ya existe una marca con ese nombre.\n- `BRAND_SLUG_ALREADY_EXISTS` — El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: «Acme!» y «Acme» dan el mismo.\n- `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma clave de idempotencia se está ejecutando en este momento.\n- `IDEMPOTENCY_KEY_REUSED` — La misma clave de idempotencia llega con un contenido distinto al de la primera petición.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2661,7 +2661,8 @@ var KEEL_SPEC = {
           },
           "name": {
             "type": "string",
-            "maxLength": 80
+            "maxLength": 80,
+            "description": "Único sin distinguir mayúsculas ni acentos."
           },
           "slug": {
             "$ref": "#/components/schemas/Slug"
@@ -2688,7 +2689,8 @@ var KEEL_SPEC = {
           },
           "name": {
             "type": "string",
-            "maxLength": 80
+            "maxLength": 80,
+            "description": "Único sin distinguir mayúsculas ni acentos."
           },
           "slug": {
             "$ref": "#/components/schemas/Slug"

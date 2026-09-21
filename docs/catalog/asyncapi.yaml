@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: catalog
-  version: 0.1.0
+  version: 0.1.1
   description: |-
     Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías. Los publica a los consumidores con búsqueda y filtros, los gestiona el personal de la tienda con rastro de autoría, y difunde sus altas y sus cambios al resto de servidores por consulta directa y por eventos.
 

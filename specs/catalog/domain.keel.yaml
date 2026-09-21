@@ -21,7 +21,7 @@ types:
       despliegue y no un dato del producto. La escala de dos decimales se valida, no se ajusta:
       un importe con más decimales se rechaza en vez de redondearse, porque el servicio no hace
       aritmética sobre el precio — lo guarda y lo devuelve tal cual llegó.
-    constraints: { min: 0, scale: 2 }
+    constraints: { min: 0, scale: 2, scalePolicy: reject }
 
   ProductStatus:
     description: Situación comercial del producto, que decide si la tienda pública lo muestra.
@@ -32,21 +32,17 @@ entities:
     description: Marca o fabricante bajo el que se vende un producto.
     fields:
       id:          { type: uuid, id: true, generated: true }
-      name:        { type: string, required: true, unique: true, constraints: { maxLength: 80 } }
+      name:        { type: string, required: true, unique: true, compare: ignore-case-accents, constraints: { maxLength: 80 } }
       slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case; si el slug resultante ya existe, la escritura se rechaza." }
       description: { type: text, constraints: { maxLength: 1000 }, description: Reseña de la marca para la ficha pública. }
-    invariants:
-      - Dos marcas no pueden tener el mismo name ignorando mayúsculas y acentos.
 
   Category:
     description: Agrupación comercial por la que el consumidor navega el catálogo. Las categorías son planas, sin jerarquía.
     fields:
       id:          { type: uuid, id: true, generated: true }
-      name:        { type: string, required: true, unique: true, constraints: { maxLength: 80 } }
+      name:        { type: string, required: true, unique: true, compare: ignore-case-accents, constraints: { maxLength: 80 } }
       slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case; si el slug resultante ya existe, la escritura se rechaza." }
       description: { type: text, constraints: { maxLength: 1000 }, description: Texto de cabecera de la categoría en la tienda. }
-    invariants:
-      - Dos categorías no pueden tener el mismo name ignorando mayúsculas y acentos.
 
   Product:
     description: Artículo vendible del catálogo, con su ficha comercial, su precio de venta y su galería de imágenes.
