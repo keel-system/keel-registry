@@ -3,6 +3,7 @@ name: keel-docs
 description: Genera la documentación derivada de un servicio (openapi.yaml, asyncapi.yaml, colecciones Postman y el panel visual overview.html) a partir de sus artefactos Keel validados. Usar cuando un cliente consuma la API, cuando haga falta el contrato formal de eventos, o cuando el diseñador quiera revisar el servicio de un vistazo. Para el contrato servidor-a-servidor en prosa, ver /keel-integrate.
 ---
 
+
 # /keel-docs — documentación derivada del diseño
 
 Produce los **contratos formales** del servicio (HTTP y asíncrono), las colecciones para probarlos y
@@ -161,3 +162,12 @@ campos, misma seguridad. No pueden contradecir el `INTEGRATION.md` que genera `/
 payloads de `asyncapi.yaml` coinciden 1:1 con la §Eventos de `INTEGRATION.md`. Ante regeneración,
 sobrescribe todo por completo (no edites incrementalmente) — con la única excepción de
 `postman/auth-collection.json`, que no se pisa si existe.
+
+**Y se comprueba, no se afirma.** Al terminar, ejecuta `keel validate specs/<servicio>`: con
+`docs/<servicio>/` presente contrasta el CONTENIDO de lo que acabas de escribir contra el diseño
+(`CHK-DOCS-OPENAPI-DRIFT`, `CHK-DOCS-ASYNCAPI-DRIFT`, `CHK-DOCS-POSTMAN-DRIFT`): rutas y métodos,
+status de éxito y de error, canales, campos y obligatoriedad de cada payload, una carpeta por
+flujo `FL-*`, y que cada request afirme un status que SU endpoint puede dar. No des la
+documentación por terminada con uno de esos avisos abierto. El fallo más frecuente, medido sobre
+el catalog del registry (18 requests): copiar a cada request del flujo el status del PRIMER paso
+—un GET de la ficha esperando el `201` del alta—. Cada request lleva el status de su paso.

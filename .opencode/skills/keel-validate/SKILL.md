@@ -3,6 +3,7 @@ name: keel-validate
 description: Valida un servicio Keel multi-artefacto (schemas por capa + referencias cruzadas vía CLI) y ejecuta la revisión semántica de calidad del diseño. Usar antes de generar código o docs.
 ---
 
+
 # /keel-validate — validación estructural, cruzada y semántica
 
 Valida el servicio indicado (directorio `specs/<servicio>/`) en cuatro niveles. No modifiques los artefactos sin confirmar cada corrección con el usuario, salvo errores triviales de formato.
@@ -24,6 +25,8 @@ Fallback si el comando `keel` no está disponible: valida cada `<capa>.keel.yaml
 ## Nivel 3 — Semántica (lo que ni el schema ni las cross-refs pueden expresar)
 
 Lee los artefactos y verifica esta checklist. Reporta cada hallazgo con severidad **error** (bloquea generación) o **aviso** (mejorable):
+
+> **Lo que esta checklist NO hace es ejecutar los flujos.** Si `keel validate` avisa con `CHK-SCEN-FLOW-REVIEW-STALE` (falta el careo, se hizo sobre otros escenarios o tiene hallazgos sin decidir), lanza el subagente `keel-flow-review` (`.opencode/agent/keel-flow-review.md`) sobre `specs/<servicio>/` antes de dar el diseño por validado, y repasa sus hallazgos con el usuario. Lo que el careo busca —un `Then` que no se deduce del YAML cuando se lleva el estado paso a paso— no lo ve una lectura estática, y es lo que en las corridas encontraba el agente de pruebas ya en la generación.
 
 **Consistencia del modelo (error):**
 
