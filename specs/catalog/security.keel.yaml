@@ -1,0 +1,82 @@
+# Capa security — autenticación y autorización, por operación.
+# Agnóstica del proveedor: se declara el protocolo, nunca el producto.
+
+authentication:
+  protocol: oidc
+  tokenLocation: header
+  serviceAuth:
+    protocol: client-credentials
+    validateAudience: true
+    audience: catalog
+
+roles:
+  catalog-manager: { description: "Gestión diaria del catálogo: alta y edición de productos, imágenes, publicación, marcas y categorías." }
+  catalog-admin:   { description: "Todo lo del manager más las acciones irreversibles: retirar un producto y borrar marcas o categorías." }
+
+permissions:
+  product:read:    { description: "Consultar productos en la gestión, en cualquier estado." }
+  product:write:   { description: "Crear y modificar productos y sus imágenes." }
+  product:publish: { description: "Publicar y despublicar productos." }
+  product:retire:  { description: "Retirar definitivamente un producto del catálogo." }
+  taxonomy:read:   { description: "Consultar marcas y categorías en la gestión." }
+  taxonomy:write:  { description: "Crear, modificar, activar y desactivar marcas y categorías." }
+  taxonomy:delete: { description: "Borrar marcas y categorías sin productos." }
+
+roleGrants:
+  catalog-manager: [product:read, product:write, product:publish, taxonomy:read, taxonomy:write]
+  catalog-admin:   [product:read, product:write, product:publish, product:retire, taxonomy:read, taxonomy:write, taxonomy:delete]
+
+serviceClients:
+  orders: { description: "Resuelve productos por id y por lote al confirmar y facturar pedidos; consume los eventos del catálogo.", scopes: [product:read] }
+  cart:   { description: "Resuelve la cesta entera en una llamada por lote y refresca precios y disponibilidad comercial.", scopes: [product:read] }
+
+access:
+  # Nada queda abierto por omisión: lo no declarado exige token y el permiso de lectura más restrictivo.
+  default: { level: required, permissions: [product:read] }
+  rules:
+    # Escaparate público — sin token.
+    listPublicProducts:   { level: public }
+    getPublicProduct:     { level: public }
+    listPublicCategories: { level: public }
+    listPublicBrands:     { level: public }
+
+    # Contrato servidor-a-servidor — credencial de máquina con mínimo privilegio.
+    getProductForServices:        { level: service, scopes: [product:read] }
+    listProductsBatchForServices: { level: service, scopes: [product:read] }
+
+    # Productos — gestión.
+    createProduct:      { level: required, roles: [catalog-manager, catalog-admin], permissions: [product:write] }
+    updateProduct:      { level: required, roles: [catalog-manager, catalog-admin], permissions: [product:write] }
+    addProductImage:    { level: required, roles: [catalog-manager, catalog-admin], permissions: [product:write] }
+    updateProductImage: { level: required, roles: [catalog-manager, catalog-admin], permissions: [product:write] }
+    removeProductImage: { level: required, roles: [catalog-manager, catalog-admin], permissions: [product:write] }
+    publishProduct:     { level: required, roles: [catalog-manager, catalog-admin], permissions: [product:publish] }
+    unpublishProduct:   { level: required, roles: [catalog-manager, catalog-admin], permissions: [product:publish] }
+    retireProduct:      { level: admin, roles: [catalog-admin], permissions: [product:retire] }
+    getProduct:         { level: required, roles: [catalog-manager, catalog-admin], permissions: [product:read] }
+    listProducts:       { level: required, roles: [catalog-manager, catalog-admin], permissions: [product:read] }
+
+    # Marcas.
+    createBrand:     { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:write] }
+    updateBrand:     { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:write] }
+    activateBrand:   { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:write] }
+    deactivateBrand: { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:write] }
+    deleteBrand:     { level: admin, roles: [catalog-admin], permissions: [taxonomy:delete] }
+    getBrand:        { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:read] }
+    listBrands:      { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:read] }
+
+    # Categorías.
+    createCategory:     { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:write] }
+    updateCategory:     { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:write] }
+    activateCategory:   { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:write] }
+    deactivateCategory: { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:write] }
+    deleteCategory:     { level: admin, roles: [catalog-admin], permissions: [taxonomy:delete] }
+    getCategory:        { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:read] }
+    listCategories:     { level: required, roles: [catalog-manager, catalog-admin], permissions: [taxonomy:read] }
+
+cors:
+  description: "Consumido desde el navegador por la tienda pública y por la SPA de back-office."
+  allowCredentials: false
+  allowedHeaders: [Authorization, Content-Type, Idempotency-Key]
+  exposedHeaders: [X-Correlation-Id]
+  maxAgeSeconds: 3600

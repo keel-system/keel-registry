@@ -1,0 +1,2866 @@
+openapi: 3.1.0
+info:
+  title: catalog
+  version: 0.1.0
+  description: |-
+    Gestiona el catálogo comercial —productos con sus imágenes, marcas y categorías—, lo expone filtrable al público de la tienda, lo sirve a otros servidores por contrato y publica sus altas y cambios como eventos.
+
+    Contrato HTTP derivado del diseño Keel. Tres superficies separadas por prefijo de ruta:
+
+    - `/public/...` — escaparate: sin autenticación, solo productos `active`.
+    - `/internal/...` — otros servidores: credencial de máquina (client credentials) con el scope `product:read`; devuelve productos en cualquier estado.
+    - el resto — gestión de la tienda: token de usuario con el permiso de la operación (`x-keel-access`).
+
+    Toda mutación con efecto hacia fuera exige la cabecera `Idempotency-Key`. Un campo sin valor viaja como `null`, nunca omitido. Los importes viajan como número con escala 2 y un importe con más decimales se rechaza. El host, el proveedor de identidad y el motor de persistencia se deciden al generar, no aquí.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+servers:
+- url: '{baseUrl}'
+  description: El host y el puerto son parámetro de despliegue, nunca dato de diseño.
+  variables:
+    baseUrl:
+      default: http://localhost:8080
+tags:
+- name: gestión — productos
+  description: Alta, edición, imágenes y ciclo de vida de los productos. Token de usuario.
+- name: gestión — marcas
+  description: Mantenimiento de marcas. Token de usuario.
+- name: gestión — categorías
+  description: Mantenimiento de categorías. Token de usuario.
+- name: escaparate público
+  description: Lo que ve el consumidor de la tienda. Sin autenticación; solo productos active.
+- name: servidores (M2M)
+  description: Contrato para otros servidores. Credencial de máquina con scope product:read.
+paths:
+  /api/v1/products:
+    post:
+      operationId: createProduct
+      summary: Da de alta un producto en estado draft, sin imágenes todavía.
+      description: |-
+        Da de alta un producto en estado draft, sin imágenes todavía.
+
+        **Reglas**:
+
+        - El sku se admite en mayúsculas o minúsculas y se normaliza a mayúsculas antes de comprobar su unicidad; se guarda y se devuelve siempre en mayúsculas.
+        - El producto nace siempre en estado draft, con independencia de lo que pida el cliente.
+        - Si la marca o la categoría se borran a la vez que se da el alta, gana una de las dos operaciones y la otra falla con su error declarado; nunca queda un producto apuntando a una marca o categoría inexistente.
+
+        **Publica**: `ProductCreated` (outbox).
+      tags:
+      - gestión — productos
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sku:
+                  type: string
+                  pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$
+                name:
+                  type: string
+                  maxLength: 160
+                description:
+                  type: string
+                  maxLength: 4000
+                price:
+                  $ref: '#/components/schemas/Money'
+                brandId:
+                  type: string
+                  format: uuid
+                categoryId:
+                  type: string
+                  format: uuid
+              required:
+              - sku
+              - name
+              - price
+              - brandId
+              - categoryId
+      responses:
+        '201':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          headers:
+            Location:
+              description: URI del recurso creado.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `PRODUCT_SKU_ALREADY_EXISTS` — Ya existe un producto con ese sku.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: |-
+            `CURRENCY_NOT_SUPPORTED` — La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda y no convierte.
+
+            `BRAND_REFERENCE_NOT_FOUND` — El brandId indicado no existe. Es distinto de BRAND_NOT_FOUND: aquí la marca es un dato de la petición, no el recurso pedido.
+
+            `CATEGORY_REFERENCE_NOT_FOUND` — El categoryId indicado no existe. Es distinto de CATEGORY_NOT_FOUND: aquí la categoría es un dato de la petición, no el recurso pedido.
+
+            `BRAND_INACTIVE` — La marca indicada está inactiva y no admite productos nuevos.
+
+            `CATEGORY_INACTIVE` — La categoría indicada está inactiva y no admite productos nuevos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - product:write
+    get:
+      operationId: listProducts
+      summary: Lista los productos para la gestión, en cualquier estado, con los filtros del escaparate más el filtro
+        por estado.
+      description: |-
+        Lista los productos para la gestión, en cualquier estado, con los filtros del escaparate más el filtro por estado.
+
+        **Reglas**:
+
+        - Los filtros son acumulativos; los ausentes no restringen.
+        - Un categoryId o brandId que no existe no es un error; la página vuelve vacía.
+        - El rango de precio se aplica sobre price.amount, con ambos extremos incluidos.
+        - El orden por defecto pone arriba lo último modificado, que es lo que busca quien administra.
+      tags:
+      - gestión — productos
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/ProductStatus'
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: brandId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: name
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 160
+          description: Coincidencia por contenido, ignorando mayúsculas y acentos.
+      - name: minPrice
+        in: query
+        required: false
+        schema:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+      - name: maxPrice
+        in: query
+        required: false
+        schema:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 24
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPage'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `INVALID_PRICE_RANGE` — minPrice es mayor que maxPrice.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - product:read
+  /api/v1/products/{id}:
+    patch:
+      operationId: updateProduct
+      summary: 'Modifica los datos comerciales de un producto: nombre, descripción, precio, marca o categoría.'
+      description: |-
+        Modifica los datos comerciales de un producto: nombre, descripción, precio, marca o categoría.
+
+        **Reglas**:
+
+        - Solo se modifican los campos presentes en la petición; un campo ausente conserva su valor.
+        - Un campo opcional enviado a null se vacía (description); uno obligatorio enviado a null (name, price, brandId, categoryId) es una petición mal formada (400).
+        - BRAND_INACTIVE y CATEGORY_INACTIVE solo se comprueban cuando la petición asigna una marca o una categoría distinta de la actual; reenviar la que ya tiene no falla aunque esté inactiva.
+        - Si ningún valor cambia, se responde con la ficha sin publicar ProductUpdated ni tocar updatedAt ni updatedBy.
+        - El sku no se modifica nunca; es la referencia estable con la que otros servidores conocen al producto.
+
+        **Publica**: `ProductUpdated` (outbox).
+      tags:
+      - gestión — productos
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 160
+                description:
+                  type:
+                  - string
+                  - 'null'
+                  maxLength: 4000
+                price:
+                  $ref: '#/components/schemas/Money'
+                brandId:
+                  type: string
+                  format: uuid
+                categoryId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: |-
+            `BRAND_REFERENCE_NOT_FOUND` — El brandId indicado no existe. Es distinto de BRAND_NOT_FOUND: aquí la marca es un dato de la petición, no el recurso pedido.
+
+            `CATEGORY_REFERENCE_NOT_FOUND` — El categoryId indicado no existe. Es distinto de CATEGORY_NOT_FOUND: aquí la categoría es un dato de la petición, no el recurso pedido.
+
+            `BRAND_INACTIVE` — La marca indicada está inactiva y no admite productos nuevos.
+
+            `CATEGORY_INACTIVE` — La categoría indicada está inactiva y no admite productos nuevos.
+
+            `PRICE_NOT_POSITIVE` — Un producto publicado no puede quedar con precio cero o negativo.
+
+            `CURRENCY_NOT_SUPPORTED` — La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda y no convierte.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - product:write
+    get:
+      operationId: getProduct
+      summary: Recupera un producto por su id para la gestión, en cualquier estado y con su rastro de auditoría.
+      description: Recupera un producto por su id para la gestión, en cualquier estado y con su rastro de auditoría.
+      tags:
+      - gestión — productos
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - product:read
+  /api/v1/products/{id}/publish:
+    post:
+      operationId: publishProduct
+      summary: 'Publica un producto en borrador: pasa a active y aparece en el escaparate.'
+      description: |-
+        Publica un producto en borrador: pasa a active y aparece en el escaparate.
+
+        **Precondiciones**:
+
+        - El producto tiene al menos una imagen y exactamente una marcada como principal.
+        - El precio del producto es mayor que cero.
+
+        **Publica**: `ProductStatusChanged` (outbox).
+      tags:
+      - gestión — productos
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `PRODUCT_HAS_NO_IMAGES` — El producto no tiene ninguna imagen y no puede publicarse.
+
+            `PRODUCT_PRICE_NOT_POSITIVE` — El precio que ya tiene el producto no es mayor que cero, así que no puede publicarse.
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+
+            `INVALID_STATE_TRANSITION` — El producto no está en un estado desde el que se permita esta transición (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - product:publish
+  /api/v1/products/{id}/unpublish:
+    post:
+      operationId: unpublishProduct
+      summary: Retira un producto del escaparate devolviéndolo a borrador para corregirlo.
+      description: |-
+        Retira un producto del escaparate devolviéndolo a borrador para corregirlo.
+
+        **Publica**: `ProductStatusChanged` (outbox).
+      tags:
+      - gestión — productos
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+
+            `INVALID_STATE_TRANSITION` — El producto no está en un estado desde el que se permita esta transición (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - product:publish
+  /api/v1/products/{id}/retire:
+    post:
+      operationId: retireProduct
+      summary: 'Retira definitivamente un producto del catálogo. Es un estado terminal: no vuelve.'
+      description: |-
+        Retira definitivamente un producto del catálogo. Es un estado terminal: no vuelve.
+
+        **Reglas**:
+
+        - El producto retirado conserva todos sus datos e imágenes; sigue siendo resoluble por los servidores que lo consumen.
+        - El motivo, si se indica, viaja en el evento para que el consumidor pueda explicar la baja.
+
+        **Publica**: `ProductStatusChanged` (outbox).
+      tags:
+      - gestión — productos
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 200
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+
+            `INVALID_STATE_TRANSITION` — El producto no está en un estado desde el que se permita esta transición (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: admin
+        roles:
+        - catalog-admin
+        permissions:
+        - product:retire
+  /api/v1/products/{productId}/images:
+    post:
+      operationId: addProductImage
+      summary: Añade una imagen a la ficha de un producto.
+      description: |-
+        Añade una imagen a la ficha de un producto.
+
+        **Reglas**:
+
+        - La imagen se añade al final, en la primera position libre.
+        - La primera imagen de un producto queda siempre marcada como principal, se pida o no.
+        - Si se pide main, la imagen que fuera principal hasta entonces deja de serlo.
+        - El binario se guarda antes de confirmar la imagen; si la confirmación falla, el binario queda sin referencia y nunca hay una imagen que apunte a un archivo inexistente.
+
+        **Publica**: `ProductUpdated` (outbox).
+      tags:
+      - gestión — productos
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Binario de la imagen (bucket `productImages`).
+                altText:
+                  type: string
+                  maxLength: 160
+                main:
+                  type: boolean
+              required:
+              - file
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
+
+            `IMAGE_LIMIT_REACHED` — El producto ya tiene 10 imágenes.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: '`FILE_TOO_LARGE` — La imagen supera el tamaño máximo admitido por el bucket.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '415':
+          description: '`UNSUPPORTED_CONTENT_TYPE` — El formato de la imagen no está entre los admitidos.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - product:write
+  /api/v1/products/{productId}/images/{imageId}:
+    patch:
+      operationId: updateProductImage
+      summary: Cambia el texto alternativo, la posición o la condición de principal de una imagen.
+      description: |-
+        Cambia el texto alternativo, la posición o la condición de principal de una imagen.
+
+        **Reglas**:
+
+        - Solo se modifican los campos presentes en la petición; altText enviado a null se vacía.
+        - Si ningún valor cambia, se responde con la ficha sin publicar ProductUpdated.
+        - Al fijar una position, las demás imágenes del producto se desplazan para que las posiciones queden consecutivas y sin huecos desde 0.
+        - Una position mayor que la última ocupada coloca la imagen al final.
+        - Al marcar main, la imagen que fuera principal hasta entonces deja de serlo.
+
+        **Publica**: `ProductUpdated` (outbox).
+      tags:
+      - gestión — productos
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: imageId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                altText:
+                  type:
+                  - string
+                  - 'null'
+                  maxLength: 160
+                position:
+                  type: integer
+                  minimum: 0
+                  maximum: 9
+                main:
+                  type: boolean
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: |-
+            `PRODUCT_NOT_FOUND` — No existe un producto con ese id.
+
+            `IMAGE_NOT_FOUND` — El producto no tiene ninguna imagen con ese id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
+
+            `MAIN_IMAGE_REQUIRED` — Se pide dejar de ser principal a la única imagen principal de un producto que tiene imágenes.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - product:write
+    delete:
+      operationId: removeProductImage
+      summary: Elimina una imagen de la ficha de un producto.
+      description: |-
+        Elimina una imagen de la ficha de un producto.
+
+        **Reglas**:
+
+        - Las imágenes restantes se recolocan para que las posiciones queden consecutivas y sin huecos desde 0.
+        - Si se elimina la principal y quedan otras, la que pase a ocupar la position 0 se marca como principal.
+        - El binario se borra del almacenamiento después de confirmar el borrado de la imagen; si ese borrado falla, queda un archivo sin referencia, nunca una imagen que apunte a un archivo inexistente.
+
+        **Publica**: `ProductUpdated` (outbox).
+      tags:
+      - gestión — productos
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: imageId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: |-
+            `PRODUCT_NOT_FOUND` — No existe un producto con ese id.
+
+            `IMAGE_NOT_FOUND` — El producto no tiene ninguna imagen con ese id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
+
+            `LAST_IMAGE_OF_ACTIVE_PRODUCT` — Es la única imagen de un producto publicado, que no puede quedarse sin ninguna.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - product:write
+  /api/v1/public/products:
+    get:
+      operationId: listPublicProducts
+      summary: Lista los productos a la venta para el consumidor de la tienda, con los filtros del escaparate.
+      description: |-
+        Lista los productos a la venta para el consumidor de la tienda, con los filtros del escaparate.
+
+        **Reglas**:
+
+        - Solo se devuelven productos en estado active; los draft y los retired no existen para esta operación.
+        - Los filtros son acumulativos; los ausentes no restringen.
+        - Un categoryId o brandId que no existe no es un error; la página vuelve vacía.
+        - El rango de precio se aplica sobre price.amount, con ambos extremos incluidos.
+        - Se filtra por la marca o la categoría indicadas aunque estén inactivas; la inactividad retira el filtro del menú, no los productos del escaparate.
+      tags:
+      - escaparate público
+      parameters:
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: brandId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: name
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 160
+          description: Coincidencia por contenido, ignorando mayúsculas y acentos.
+      - name: minPrice
+        in: query
+        required: false
+        schema:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+      - name: maxPrice
+        in: query
+        required: false
+        schema:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 24
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPublicPage'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `INVALID_PRICE_RANGE` — minPrice es mayor que maxPrice.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security: []
+  /api/v1/public/products/{id}:
+    get:
+      operationId: getPublicProduct
+      summary: Recupera la ficha de un producto a la venta para el consumidor de la tienda.
+      description: |-
+        Recupera la ficha de un producto a la venta para el consumidor de la tienda.
+
+        **Reglas**:
+
+        - Un producto que no está en estado active se responde como inexistente; el escaparate no revela lo que no está a la venta.
+      tags:
+      - escaparate público
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPublic'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto a la venta con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security: []
+  /api/v1/public/categories:
+    get:
+      operationId: listPublicCategories
+      summary: Lista las categorías activas para pintar el menú de filtros de la tienda.
+      description: |-
+        Lista las categorías activas para pintar el menú de filtros de la tienda.
+
+        **Reglas**:
+
+        - Solo se devuelven categorías activas.
+        - La colección no se pagina; el menú de filtros se pinta entero y el catálogo no maneja más de unas decenas de categorías.
+      tags:
+      - escaparate público
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryPublic'
+      security: []
+  /api/v1/public/brands:
+    get:
+      operationId: listPublicBrands
+      summary: Lista las marcas activas para pintar el menú de filtros de la tienda.
+      description: |-
+        Lista las marcas activas para pintar el menú de filtros de la tienda.
+
+        **Reglas**:
+
+        - Solo se devuelven marcas activas.
+        - La colección no se pagina; el menú de filtros se pinta entero y el catálogo no maneja más de unas decenas de marcas.
+      tags:
+      - escaparate público
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BrandPublic'
+      security: []
+  /api/v1/internal/products/{id}:
+    get:
+      operationId: getProductForServices
+      summary: Resuelve un producto por su id para otro servidor, en cualquier estado.
+      description: |-
+        Resuelve un producto por su id para otro servidor, en cualquier estado.
+
+        **Reglas**:
+
+        - Se devuelve el producto sea cual sea su estado, incluido retired, para que el consumidor pueda resolver referencias históricas.
+        - El campo status viaja en la respuesta; es el consumidor quien decide qué hacer con un producto que ya no se vende.
+      tags:
+      - servidores (M2M)
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPublic'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación, o el token se emitió
+            para otra audiencia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - serviceAuth:
+        - product:read
+  /api/v1/internal/products/batch:
+    post:
+      operationId: listProductsBatchForServices
+      summary: Resuelve varios productos por sus ids en una sola llamada, para que un servidor consumidor no encadene
+        peticiones.
+      description: |-
+        Resuelve varios productos por sus ids en una sola llamada, para que un servidor consumidor no encadene peticiones.
+
+        **Reglas**:
+
+        - Se devuelven los productos existentes sea cual sea su estado; los ids que no existen se omiten del resultado, sin error.
+        - Un id repetido en la petición aparece una sola vez en la respuesta.
+        - El resultado puede tener menos elementos que ids se pidieron; es el consumidor quien detecta cuáles faltan.
+      tags:
+      - servidores (M2M)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  minItems: 1
+                  maxItems: 100
+              required:
+              - ids
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductPublic'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación, o el token se emitió
+            para otra audiencia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - serviceAuth:
+        - product:read
+  /api/v1/brands:
+    post:
+      operationId: createBrand
+      summary: Da de alta una marca, activa desde el primer momento.
+      description: |-
+        Da de alta una marca, activa desde el primer momento.
+
+        **Publica**: `BrandCreated` (outbox).
+      tags:
+      - gestión — marcas
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 80
+                description:
+                  type: string
+                  maxLength: 2000
+              required:
+              - name
+      responses:
+        '201':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+          headers:
+            Location:
+              description: URI del recurso creado.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `BRAND_NAME_ALREADY_EXISTS` — Ya existe una marca con ese nombre, ignorando mayúsculas y acentos.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:write
+    get:
+      operationId: listBrands
+      summary: Lista las marcas para la gestión, activas e inactivas.
+      description: |-
+        Lista las marcas para la gestión, activas e inactivas.
+
+        **Reglas**:
+
+        - Sin filtro active se devuelven todas las marcas, activas e inactivas.
+      tags:
+      - gestión — marcas
+      parameters:
+      - name: active
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: name
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 80
+          description: Coincidencia por contenido, ignorando mayúsculas y acentos.
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 24
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandPage'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:read
+  /api/v1/brands/{id}:
+    patch:
+      operationId: updateBrand
+      summary: Modifica el nombre o la descripción de una marca.
+      description: |-
+        Modifica el nombre o la descripción de una marca.
+
+        **Reglas**:
+
+        - Solo se modifican los campos presentes en la petición; description enviada a null se vacía y name a null es una petición mal formada (400).
+        - Si ningún valor cambia, se responde con la marca sin publicar BrandUpdated.
+
+        **Publica**: `BrandUpdated` (outbox).
+      tags:
+      - gestión — marcas
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 80
+                description:
+                  type:
+                  - string
+                  - 'null'
+                  maxLength: 2000
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `BRAND_NAME_ALREADY_EXISTS` — Ya existe otra marca con ese nombre, ignorando mayúsculas y acentos.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:write
+    delete:
+      operationId: deleteBrand
+      summary: Elimina una marca que nunca llegó a usarse.
+      description: |-
+        Elimina una marca que nunca llegó a usarse.
+
+        **Reglas**:
+
+        - Solo se puede borrar una marca sin ningún producto asociado, en cualquier estado; para retirarla del escaparate teniendo productos, se desactiva.
+        - Si a la vez se asigna la marca a un producto, el borrado responde BRAND_HAS_PRODUCTS o el alta responde BRAND_REFERENCE_NOT_FOUND; nunca quedan las dos confirmadas.
+
+        **Publica**: `BrandDeleted` (outbox).
+      tags:
+      - gestión — marcas
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Hecho, sin cuerpo.
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: '`BRAND_HAS_PRODUCTS` — La marca tiene productos asociados y no puede borrarse.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: admin
+        roles:
+        - catalog-admin
+        permissions:
+        - taxonomy:delete
+    get:
+      operationId: getBrand
+      summary: Recupera una marca por su id para la gestión.
+      description: Recupera una marca por su id para la gestión.
+      tags:
+      - gestión — marcas
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:read
+  /api/v1/brands/{id}/activate:
+    post:
+      operationId: activateBrand
+      summary: Devuelve una marca al menú de filtros y vuelve a admitirla en productos nuevos.
+      description: |-
+        Devuelve una marca al menú de filtros y vuelve a admitirla en productos nuevos.
+
+        **Reglas**:
+
+        - Activar una marca ya activa deja el estado como está y se responde con éxito.
+        - Si la marca ya estaba activa, no se publica BrandUpdated; sin cambio no hay evento.
+
+        **Publica**: `BrandUpdated` (outbox).
+      tags:
+      - gestión — marcas
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:write
+  /api/v1/brands/{id}/deactivate:
+    post:
+      operationId: deactivateBrand
+      summary: Retira una marca del menú de filtros y deja de admitirla en productos nuevos.
+      description: |-
+        Retira una marca del menú de filtros y deja de admitirla en productos nuevos.
+
+        **Reglas**:
+
+        - Los productos ya publicados con esta marca siguen visibles y a la venta; desactivar es una decisión de escaparate, no una baja de catálogo.
+        - Desactivar una marca ya inactiva deja el estado como está y se responde con éxito.
+        - Si la marca ya estaba inactiva, no se publica BrandUpdated; sin cambio no hay evento.
+
+        **Publica**: `BrandUpdated` (outbox).
+      tags:
+      - gestión — marcas
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:write
+  /api/v1/categories:
+    post:
+      operationId: createCategory
+      summary: Da de alta una categoría, activa desde el primer momento.
+      description: |-
+        Da de alta una categoría, activa desde el primer momento.
+
+        **Publica**: `CategoryCreated` (outbox).
+      tags:
+      - gestión — categorías
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 80
+                description:
+                  type: string
+                  maxLength: 2000
+              required:
+              - name
+      responses:
+        '201':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          headers:
+            Location:
+              description: URI del recurso creado.
+              schema:
+                type: string
+                format: uri-reference
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `CATEGORY_NAME_ALREADY_EXISTS` — Ya existe una categoría con ese nombre, ignorando mayúsculas y acentos.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:write
+    get:
+      operationId: listCategories
+      summary: Lista las categorías para la gestión, activas e inactivas.
+      description: |-
+        Lista las categorías para la gestión, activas e inactivas.
+
+        **Reglas**:
+
+        - Sin filtro active se devuelven todas las categorías, activas e inactivas.
+      tags:
+      - gestión — categorías
+      parameters:
+      - name: active
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: name
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 80
+          description: Coincidencia por contenido, ignorando mayúsculas y acentos.
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 24
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryPage'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:read
+  /api/v1/categories/{id}:
+    patch:
+      operationId: updateCategory
+      summary: Modifica el nombre o la descripción de una categoría.
+      description: |-
+        Modifica el nombre o la descripción de una categoría.
+
+        **Reglas**:
+
+        - Solo se modifican los campos presentes en la petición; description enviada a null se vacía y name a null es una petición mal formada (400).
+        - Si ningún valor cambia, se responde con la categoría sin publicar CategoryUpdated.
+
+        **Publica**: `CategoryUpdated` (outbox).
+      tags:
+      - gestión — categorías
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 80
+                description:
+                  type:
+                  - string
+                  - 'null'
+                  maxLength: 2000
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `CATEGORY_NAME_ALREADY_EXISTS` — Ya existe otra categoría con ese nombre, ignorando mayúsculas y acentos.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:write
+    delete:
+      operationId: deleteCategory
+      summary: Elimina una categoría que nunca llegó a usarse.
+      description: |-
+        Elimina una categoría que nunca llegó a usarse.
+
+        **Reglas**:
+
+        - Solo se puede borrar una categoría sin ningún producto asociado, en cualquier estado; para retirarla del escaparate teniendo productos, se desactiva.
+        - Si a la vez se asigna la categoría a un producto, el borrado responde CATEGORY_HAS_PRODUCTS o el alta responde CATEGORY_REFERENCE_NOT_FOUND; nunca quedan las dos confirmadas.
+
+        **Publica**: `CategoryDeleted` (outbox).
+      tags:
+      - gestión — categorías
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Hecho, sin cuerpo.
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: '`CATEGORY_HAS_PRODUCTS` — La categoría tiene productos asociados y no puede borrarse.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: admin
+        roles:
+        - catalog-admin
+        permissions:
+        - taxonomy:delete
+    get:
+      operationId: getCategory
+      summary: Recupera una categoría por su id para la gestión.
+      description: Recupera una categoría por su id para la gestión.
+      tags:
+      - gestión — categorías
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: 'Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de
+            negocio).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:read
+  /api/v1/categories/{id}/activate:
+    post:
+      operationId: activateCategory
+      summary: Devuelve una categoría al menú de filtros y vuelve a admitirla en productos nuevos.
+      description: |-
+        Devuelve una categoría al menú de filtros y vuelve a admitirla en productos nuevos.
+
+        **Reglas**:
+
+        - Activar una categoría ya activa deja el estado como está y se responde con éxito.
+        - Si la categoría ya estaba activa, no se publica CategoryUpdated; sin cambio no hay evento.
+
+        **Publica**: `CategoryUpdated` (outbox).
+      tags:
+      - gestión — categorías
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:write
+  /api/v1/categories/{id}/deactivate:
+    post:
+      operationId: deactivateCategory
+      summary: Retira una categoría del menú de filtros y deja de admitirla en productos nuevos.
+      description: |-
+        Retira una categoría del menú de filtros y deja de admitirla en productos nuevos.
+
+        **Reglas**:
+
+        - Los productos ya publicados en esta categoría siguen visibles y a la venta; desactivar es una decisión de escaparate, no una baja de catálogo.
+        - Desactivar una categoría ya inactiva deja el estado como está y se responde con éxito.
+        - Si la categoría ya estaba inactiva, no se publica CategoryUpdated; sin cambio no hay evento.
+
+        **Publica**: `CategoryUpdated` (outbox).
+      tags:
+      - gestión — categorías
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+        description: Clave de intento generada por el cliente, obligatoria. Repetirla con el mismo contenido en
+          las siguientes 86400 s devuelve la respuesta original sin segundo efecto.
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: |-
+            Petición mal formada: incumple la forma o las restricciones del contrato (sin `code` de negocio).
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Sin credencial o credencial inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: La credencial no tiene el permiso, rol o scope que exige la operación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |-
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Llegaron dos peticiones con la misma Idempotency-Key a la vez (código canónico).
+
+            `IDEMPOTENCY_KEY_REUSED` — Se reutilizó una Idempotency-Key con un contenido distinto al de la primera petición (código canónico).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura confirmó antes sobre el mismo recurso; recarga y reintenta (código canónico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+      - userAuth: []
+      x-keel-access:
+        level: required
+        roles:
+        - catalog-manager
+        - catalog-admin
+        permissions:
+        - taxonomy:write
+components:
+  securitySchemes:
+    userAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de usuario OIDC. Los roles y permisos que exige cada operación están en `x-keel-access`.
+    serviceAuth:
+      type: oauth2
+      description: Credencial de máquina (OAuth2 client credentials). El `tokenUrl` real es parámetro de despliegue;
+        se valida la audiencia `catalog`, así que un token emitido para otro servicio se rechaza.
+      flows:
+        clientCredentials:
+          tokenUrl: https://identity.invalid/oauth2/token
+          scopes:
+            product:read: Consultar productos en la gestión, en cualquier estado.
+  schemas:
+    SKU:
+      type: string
+      pattern: ^[A-Z0-9][A-Z0-9_-]{1,31}$
+      description: Identificador comercial único del producto, el que comparten el catálogo y los servidores que
+        lo consumen.
+    Money:
+      type: object
+      description: Importe con su moneda. El servicio no convierte divisas.
+      required:
+      - amount
+      - currency
+      properties:
+        amount:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+          description: Importe.
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          description: Moneda del importe en ISO 4217.
+    ProductStatus:
+      type: string
+      enum:
+      - draft
+      - active
+      - retired
+      description: Situación comercial del producto.
+    BrandEmbedded:
+      type: object
+      description: 'Marca embebida en la ficha de producto: sus campos propios, sin relaciones.'
+      required:
+      - id
+      - name
+      - description
+      - active
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador asignado por el servicio.
+        name:
+          type: string
+          maxLength: 80
+          description: Nombre comercial de la marca.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Texto libre sobre la marca, visible en la tienda.
+        active:
+          type: boolean
+          description: Una marca inactiva no se ofrece como filtro al público ni admite productos nuevos.
+    CategoryEmbedded:
+      type: object
+      description: 'Categoría embebida en la ficha de producto: sus campos propios, sin relaciones.'
+      required:
+      - id
+      - name
+      - description
+      - active
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador asignado por el servicio.
+        name:
+          type: string
+          maxLength: 80
+          description: Nombre de la categoría.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Texto libre sobre la categoría, visible en la tienda.
+        active:
+          type: boolean
+          description: Una categoría inactiva no se ofrece como filtro al público ni admite productos nuevos.
+    ProductImage:
+      type: object
+      description: Imagen de la ficha. Viaja anidada bajo su producto, ordenada por position ascendente.
+      required:
+      - id
+      - file
+      - altText
+      - position
+      - main
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador asignado por el servicio.
+        file:
+          type: string
+          format: uri
+          description: El binario de la imagen.
+        altText:
+          type:
+          - string
+          - 'null'
+          maxLength: 160
+          description: Texto alternativo para accesibilidad y SEO.
+        position:
+          type: integer
+          minimum: 0
+          maximum: 9
+          description: Orden de visualización dentro de la ficha, empezando en 0.
+        main:
+          type: boolean
+          description: Imagen principal (portada) del producto.
+    Product:
+      type: object
+      description: 'Producto en la superficie de gestión: incluye el rastro de auditoría.'
+      required:
+      - id
+      - sku
+      - name
+      - description
+      - price
+      - status
+      - createdAt
+      - updatedAt
+      - createdBy
+      - updatedBy
+      - brand
+      - category
+      - images
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador asignado por el servicio.
+        sku:
+          $ref: '#/components/schemas/SKU'
+        name:
+          type: string
+          maxLength: 160
+          description: Nombre comercial del producto.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+          description: Descripción larga del producto, visible en la ficha de la tienda.
+        price:
+          $ref: '#/components/schemas/Money'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        createdAt:
+          type: string
+          format: date-time
+          description: Instante de creación (UTC).
+        updatedAt:
+          type: string
+          format: date-time
+          description: Instante de la última modificación (UTC).
+        createdBy:
+          type: string
+          description: Principal autenticado que creó el recurso.
+        updatedBy:
+          type: string
+          description: Principal autenticado de la última modificación.
+        brand:
+          $ref: '#/components/schemas/BrandEmbedded'
+        category:
+          $ref: '#/components/schemas/CategoryEmbedded'
+        images:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/ProductImage'
+          description: Imágenes del producto, ordenadas por position ascendente.
+    ProductPublic:
+      type: object
+      description: 'Producto en el escaparate público y en la superficie M2M: sin campos de auditoría.'
+      required:
+      - id
+      - sku
+      - name
+      - description
+      - price
+      - status
+      - brand
+      - category
+      - images
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador asignado por el servicio.
+        sku:
+          $ref: '#/components/schemas/SKU'
+        name:
+          type: string
+          maxLength: 160
+          description: Nombre comercial del producto.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+          description: Descripción larga del producto, visible en la ficha de la tienda.
+        price:
+          $ref: '#/components/schemas/Money'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        brand:
+          $ref: '#/components/schemas/BrandEmbedded'
+        category:
+          $ref: '#/components/schemas/CategoryEmbedded'
+        images:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/ProductImage'
+          description: Imágenes del producto, ordenadas por position ascendente.
+    Brand:
+      type: object
+      description: Marca en la superficie de gestión.
+      required:
+      - id
+      - name
+      - description
+      - active
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador asignado por el servicio.
+        name:
+          type: string
+          maxLength: 80
+          description: Nombre comercial de la marca.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Texto libre sobre la marca, visible en la tienda.
+        active:
+          type: boolean
+          description: Una marca inactiva no se ofrece como filtro al público ni admite productos nuevos.
+    BrandPublic:
+      type: object
+      description: Marca en el menú público de filtros.
+      required:
+      - id
+      - name
+      - description
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador asignado por el servicio.
+        name:
+          type: string
+          maxLength: 80
+          description: Nombre comercial de la marca.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Texto libre sobre la marca, visible en la tienda.
+    Category:
+      type: object
+      description: Categoría en la superficie de gestión.
+      required:
+      - id
+      - name
+      - description
+      - active
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador asignado por el servicio.
+        name:
+          type: string
+          maxLength: 80
+          description: Nombre de la categoría.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Texto libre sobre la categoría, visible en la tienda.
+        active:
+          type: boolean
+          description: Una categoría inactiva no se ofrece como filtro al público ni admite productos nuevos.
+    CategoryPublic:
+      type: object
+      description: Categoría en el menú público de filtros.
+      required:
+      - id
+      - name
+      - description
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador asignado por el servicio.
+        name:
+          type: string
+          maxLength: 80
+          description: Nombre de la categoría.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Texto libre sobre la categoría, visible en la tienda.
+    ProductPage:
+      type: object
+      description: Sobre de paginación canónico (offset, page base 0).
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    ProductPublicPage:
+      type: object
+      description: Sobre de paginación canónico (offset, page base 0).
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductPublic'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    BrandPage:
+      type: object
+      description: Sobre de paginación canónico (offset, page base 0).
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Brand'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    CategoryPage:
+      type: object
+      description: Sobre de paginación canónico (offset, page base 0).
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    Error:
+      type: object
+      description: Forma única del cuerpo de error del servicio. El `code` es contrato; el texto de `message` no.
+      required:
+      - status
+      - code
+      - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type:
+          - array
+          - 'null'
+          items:
+            type: object
+        correlationId:
+          type:
+          - string
+          - 'null'

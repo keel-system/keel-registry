@@ -1,0 +1,189 @@
+reviewedAt: 0.1.0
+passes: 3
+scenariosSha256: d5149440b0b860a4e8e4cb513862b58730b4eb779ca709c07903d4377857f324
+flows:
+  - id: FL-BRD-001
+    sha256: 711286ae007ca69e1198953a30a41295201355636cd62297272240d45facf9e5
+  - id: FL-BRD-010
+    sha256: 06d04dbbf5d88df2f54e5dc1f86eb363cd0bdd15882c18384a6ecc58e247239e
+  - id: FL-BRD-020
+    sha256: 8db3da5123f4ea83a8e105e27b64605668d5ca2986964e2f5107e55b6ceee244
+  - id: FL-BRD-030
+    sha256: 5e0e3c7a12c222b756af97dd052f48b6d2bcd43e8951a77aaf3170d66be4555a
+  - id: FL-BRD-031
+    sha256: f9a50e43dc795b7a73292673bd459c766fa6b1ec01c1f11ee96fd81ca6281727
+  - id: FL-BRD-040
+    sha256: 94ec02197258c7cd8b98c961a87e9bfebb26586f41646eeec605cdb946c7d400
+  - id: FL-CAT-001
+    sha256: 9d228fa2ac15bdf0a97cb82430bf963412ee8be8bdaedc9f6e8107d6fe06b221
+  - id: FL-CAT-010
+    sha256: 4214c3237b8e6556027535f15d0378ac40bd1587b4e996e934f43ed24dcb232b
+  - id: FL-CAT-020
+    sha256: cb0c8b1a7894f660d32b1fa7e727cd18e84f14e2b029f493b08c87f5b634b69f
+  - id: FL-CAT-030
+    sha256: 97accf364915d960bb3770108478d1594a2e2f730c23197043b038a829c7300d
+  - id: FL-CAT-031
+    sha256: 38054a9cfc91f56f9c4cb11a1c8cc5fb531f54e7046f59b1e692b16017b605a1
+  - id: FL-CAT-040
+    sha256: 3be2e5437fb21b46d56ea817086082d9ddcfd68a3cca564997db1ecb784fb9f9
+  - id: FL-PRD-001
+    sha256: 54fa58fd397ee832a09622c3e8df6c2da6c4b5922b5af92f60b4b27d3a1ac9c9
+  - id: FL-PRD-002
+    sha256: 4f49e3e78c06e690af5f147af640f41608d88831de04dd5cbce13f93fc1462e7
+  - id: FL-PRD-010
+    sha256: b5b779e093a533acd78d29e48f465cb37a09e31336b983793bab9716a6724859
+  - id: FL-PRD-011
+    sha256: b3cfcab34baeb0fae65b6909310b54d36cf868c55a26f97a1861e7b6ca99fdc2
+  - id: FL-PRD-040
+    sha256: 0fd5cda3e6e97f6d9754f93823b02f76f47cd052c57b4058908c02d2ff0086b6
+  - id: FL-IMG-001
+    sha256: 4775c3036ead3fddcc4d5e1eaafd5a3949689bfabf0dbb923ff459e9c0e564da
+  - id: FL-IMG-002
+    sha256: 88ecb60904bfbc245b33a11132144facd26f3cd34f1b45a52b1da19b31a93af2
+  - id: FL-IMG-003
+    sha256: 43fb54a46a93d7e922489445ecf027a3ba44d26b0a9e463fee79fc8862ba2f77
+  - id: FL-IMG-004
+    sha256: abf7031e9032b75fe774ae9f93c3ceedea36d7aca59f237d164951aa06c20715
+  - id: FL-LCY-001
+    sha256: f34f710c7090f4109fb30d8904c79bbbfafe5e4361f735fae79431f725f1a831
+  - id: FL-LCY-002
+    sha256: 3daf6eb5b3c5f119f413eeac1b499e071e9da96a5324c5a6d159fa3344b1f6a6
+  - id: FL-LCY-003
+    sha256: cce4914ec4493efbb9ef679dd62afd3ff6263788ef856e68efe6ecf07c7b50aa
+  - id: FL-PUB-001
+    sha256: ca9eaffb77dbcb5abc731f605747745ef58db7908b2f6b7315c6bc32ea67f0e2
+  - id: FL-PUB-002
+    sha256: 7c724b73eff29e07fcdb464b76bf0077cc2ce44bf555c35bf9ca1f584fd792b2
+  - id: FL-PUB-003
+    sha256: 69081dd89a5137506814956e1b02084b96fd7cc75cea758344e7e811380eb273
+  - id: FL-PUB-004
+    sha256: 27d7ab5a23aaaf65deea6f4f295c8d5a22bc54608c99589cb3971520ee27910e
+  - id: FL-M2M-001
+    sha256: 0de8cb53f4fa6595989123079341a4e1e7bf2020bade16b1380de39c68603105
+  - id: FL-M2M-002
+    sha256: 83508074b222a6e83f8e871af2a3bc0666e7ecb4655c8dde96792db569a5f5cb
+  - id: FL-M2M-003
+    sha256: 595d2176968f4822c6aac59e4040d6fb1992d6191e237cb18ae7fb4521d9f588
+  - id: FL-IDM-001
+    sha256: ad69f97862b1ac6fead2caebc02aaf089134cc5b757bb64eb136eb2f43e05c1f
+  - id: FL-SEC-001
+    sha256: 9662fe4d9670a68be9f6940379912c294fd86fad7ebc7585e2a99bc2883ab353
+  - id: FL-SEC-002
+    sha256: 21faf35cd15fa691a79e56660909c7ea0b04806058aaa534bffe300cc3a9b5f8
+  - id: FL-OBX-001
+    sha256: 503539a47628b51d66335b2b28ece5e4b8fc19093d18e551b6979cd1fc7b5b07
+  - id: FL-OBX-002
+    sha256: 87420e53f1feb731ededb15946d1bda10a7cd6bd44b5687dcdec16e9a7c4d7e1
+findings:
+  - flow: FL-PRD-040
+    resolution: accepted
+    reason: "La afirmación de coste la exige el método para toda colección con embed; afirma la forma y su medición es del generador (keel-spring instrumenta las consultas). Se cita en las convenciones."
+    step: "Then 8"
+    kind: unobservable
+    artifact: use-cases.listProducts.output
+    evidence: >-
+      «Una página de 3 productos con marca, categoría e imágenes embebidas no cuesta más
+      consultas al almacén que una de 1». El número de consultas al almacén es interno: ninguna
+      prueba de caja negra contra la API lo observa, y el diseño no declara ninguna superficie
+      (métrica, cabecera) que lo exponga.
+    proposal: >-
+      Sacarlo de los Then y dejarlo en «Lo que no tiene escenario» como verificación estática o
+      propia del generador, o reformularlo como algo observable desde fuera.
+  - flow: FL-PUB-002
+    resolution: accepted
+    reason: "Mismo motivo que FL-PRD-040: coste exigido por el método, medido por el generador."
+    step: "Then 4"
+    kind: unobservable
+    artifact: use-cases.listPublicProducts.output
+    evidence: >-
+      «Servir una página de 24 productos no cuesta más consultas al almacén que servir una de 2».
+      Como en FL-PRD-040 Then 8: las consultas al almacén no son observables por la API y el
+      diseño no declara superficie que las cuente.
+    proposal: Mover a verificación estática/del generador, o reformular como aserción observable.
+  - flow: FL-M2M-002
+    resolution: accepted
+    reason: "Mismo motivo que FL-PRD-040: coste exigido por el método, medido por el generador."
+    step: "Then 4"
+    kind: unobservable
+    artifact: use-cases.listProductsBatchForServices.output
+    evidence: >-
+      «Resolver 100 ids no cuesta más consultas al almacén que resolver 2». No es observable por
+      caja negra y nada en el diseño expone el número de consultas.
+    proposal: Mover a verificación estática/del generador, o reformular como aserción observable.
+  - flow: FL-M2M-003
+    resolution: scenario
+    step: "Then 2"
+    kind: unreachable-given
+    artifact: security.serviceClients
+    evidence: >-
+      El Then usa «un token de máquina válido emitido para otra audiencia». security solo declara
+      los clientes orders y cart (audience catalog), y la convención Identidades del propio
+      documento dice «Ninguna otra identidad aparece en este documento». La identidad que el paso
+      exige no está declarada ni en el diseño ni en la lista de identidades.
+    proposal: >-
+      Añadir a la convención Identidades un «token de máquina de otra audiencia» (emitido por el
+      mismo proveedor para una audiencia distinta de catalog) y cómo se obtiene.
+  - flow: FL-M2M-003
+    resolution: accepted
+    reason: "El status del rechazo por audiencia no lo decide el diseño: lo fija el generador (keel-spring responde 403, token legítimo emitido para otro servicio), y el método pide escribirlo así. Se cita en las convenciones."
+    step: "Then 2, Then 3"
+    kind: other
+    artifact: security.authentication.serviceAuth.validateAudience
+    evidence: >-
+      El Then espera 403 para un token de otra audiencia. El diseño solo dice validateAudience:
+      true con audience catalog; no fija con qué status se rechaza un token cuya audiencia no casa.
+      Un token con audiencia ajena es un token no válido para este servicio, y lo habitual es 401
+      (invalid_token), no 403 (autenticado sin permiso). El 403 no se deduce del YAML.
+    proposal: >-
+      Afirmar 401 (o «401 o 403» si se quiere dejar libre), o fijar el status en una convención
+      del documento si el diseñador quiere 403.
+  - flow: FL-OBX-001
+    resolution: scenario
+    step: "Then 4"
+    kind: count
+    artifact: messaging.publishing.reliability
+    evidence: >-
+      «En ≤ 10 s productEvents recibe exactamente un ProductCreated». El diseño solo declara
+      reliability: outbox; ningún artefacto fija un plazo de entrega tras recuperarse el canal,
+      así que los 10 s no se deducen del YAML.
+    proposal: >-
+      Declarar el plazo como parámetro del entorno de prueba en las convenciones (no contrato del
+      diseño), o quitar el número y afirmar «dentro del timeout del arnés».
+  - flow: FL-OBX-001
+    resolution: scenario
+    step: "Then 5"
+    kind: unobservable
+    artifact: messaging.publishing.reliability
+    evidence: >-
+      «Ningún evento abandonado». El diseño no declara ninguna superficie (operación, métrica,
+      canal) por la que se observe que un evento se abandonó; desde la API y los canales no se
+      distingue «no abandonado» de «abandonado sin rastro».
+    proposal: >-
+      Citar la superficie por la que se observa el abandono si la fija la semántica canónica del
+      outbox, o quitar la aserción (el Then 4 ya prueba la entrega).
+  - flow: FL-OBX-002
+    resolution: scenario
+    step: "When"
+    kind: unreachable-given
+    artifact: messaging.publishing.reliability
+    evidence: >-
+      El When es «se agota el presupuesto de reintentos de ese evento». Ningún artefacto del
+      diseño declara un presupuesto de reintentos del relay (número, backoff, duración): la prueba
+      no puede saber cuándo se alcanza ese estado ni provocarlo desde lo declarado.
+    proposal: >-
+      Fijar en las convenciones el presupuesto como parámetro del entorno de prueba (y cómo se
+      configura), o declararlo en messaging si es parte del contrato.
+  - flow: FL-OBX-002
+    resolution: scenario
+    step: "Then 1, Then 2"
+    kind: unobservable
+    artifact: messaging.publishing.reliability
+    evidence: >-
+      Then 1: «El servidor informa de un evento abandonado», pero el diseño no declara por dónde
+      informa (log, métrica, canal de abandonados). Then 2: «Restablecido el canal, ese
+      ProductCreated no se publica», pero nada en el YAML fija que un evento abandonado no se
+      reintente más tarde; reliability: outbox solo promete que el evento sale con el agregado.
+    proposal: >-
+      Nombrar la superficie observable del abandono y la regla «abandonado = no se vuelve a
+      publicar» (en las convenciones, si es semántica canónica del outbox), o mover el flujo a
+      «Lo que no tiene escenario».

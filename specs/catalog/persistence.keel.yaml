@@ -1,0 +1,56 @@
+# Capa persistence — cómo se persisten las entidades del dominio.
+# Agnóstica del motor: se declara el modelo de almacenamiento, nunca el producto.
+
+default:
+  model: relational
+
+entities:
+  Product:
+    persisted: true
+    naturalKey: [sku]
+    # Los índices salen de los patrones de consulta de use-cases: el escaparate filtra
+    # por categoría, por marca, por nombre y por rango de precio, siempre sobre status.
+    indexes:
+      - [status, name]
+      - [status, categoryId]
+      - [status, brandId]
+      - [status, price.amount]
+      - [updatedAt]
+
+  ProductImage:
+    persisted: true
+    indexes:
+      - fields: [product, position]
+        unique: true
+        description: "Dos imágenes del mismo producto no comparten posición."
+      - fields: [product]
+        unique: true
+        when: { field: main, equals: true }
+        description: "Como máximo una imagen principal por producto."
+
+  Brand:
+    persisted: true
+    naturalKey: [name]
+    indexes:
+      - [active, name]
+
+  Category:
+    persisted: true
+    naturalKey: [name]
+    indexes:
+      - [active, name]
+
+audit:
+  # declared: la auditoría es parte del contrato y sale en las respuestas de gestión,
+  # por eso los campos están en domain. Solo Product los declara (ver DESIGN.md).
+  timestamps: declared
+  authorship: declared
+
+consistency:
+  # Ninguna operación escribe en dos agregados a la vez, así que la frontera por
+  # agregado no acepta ninguna inconsistencia nueva; y el evento del outbox
+  # confirma en la misma transacción que el agregado que cambió.
+  transactionalBoundary: per-aggregate
+  # Dos gestores editando la misma ficha es rutina: la segunda escritura sobre una
+  # versión obsoleta es 409 CONCURRENT_MODIFICATION, no un último-gana silencioso.
+  optimisticLocking: all

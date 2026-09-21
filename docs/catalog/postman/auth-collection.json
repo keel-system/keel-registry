@@ -1,0 +1,363 @@
+{
+  "info": {
+    "name": "catalog — autenticación",
+    "description": "Obtiene un token por rol y por cliente máquina y los deja en globals (token_<rol>). `no-role` es un usuario autenticado sin ningún rol del catálogo; `other-audience` es un cliente cuyo token se emite para otra audiencia. El endpoint de token y las credenciales son del proveedor de identidad del despliegue: rellena las variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Token — catalog-manager",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_catalog-manager}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_catalog-manager}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_catalog-manager', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — catalog-admin",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_catalog-admin}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_catalog-admin}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_catalog-admin', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — no-role",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_no-role}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_no-role}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_no-role', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — orders",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_orders}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_orders}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scope_orders}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_orders', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — cart",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_cart}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_cart}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scope_cart}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_cart', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — other-audience",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_other-audience}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_other-audience}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_other-audience', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "tokenUrl",
+      "value": ""
+    },
+    {
+      "key": "clientId",
+      "value": ""
+    },
+    {
+      "key": "clientSecret",
+      "value": ""
+    },
+    {
+      "key": "username_catalog-manager",
+      "value": ""
+    },
+    {
+      "key": "password_catalog-manager",
+      "value": ""
+    },
+    {
+      "key": "username_catalog-admin",
+      "value": ""
+    },
+    {
+      "key": "password_catalog-admin",
+      "value": ""
+    },
+    {
+      "key": "username_no-role",
+      "value": ""
+    },
+    {
+      "key": "password_no-role",
+      "value": ""
+    },
+    {
+      "key": "scope_orders",
+      "value": "product:read"
+    },
+    {
+      "key": "clientId_orders",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_orders",
+      "value": ""
+    },
+    {
+      "key": "scope_cart",
+      "value": "product:read"
+    },
+    {
+      "key": "clientId_cart",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_cart",
+      "value": ""
+    },
+    {
+      "key": "clientId_other-audience",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_other-audience",
+      "value": ""
+    }
+  ]
+}

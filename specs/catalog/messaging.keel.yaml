@@ -1,0 +1,107 @@
+# Capa messaging — qué eventos publica el servicio y por qué canales lógicos.
+# El catálogo es una fuente: publica y no consume nada de nadie.
+# El broker concreto no se menciona: es decisión de generación.
+
+channels:
+  productEvents:
+    description: "Altas, cambios y cambios de estado de los productos del catálogo."
+  taxonomyEvents:
+    description: "Altas, cambios y bajas de marcas y categorías, para que quien replique el catálogo corrija un nombre sin reindexarlo entero."
+
+publishing:
+  # La ficha viaja entera en el evento: el consumidor actualiza su copia sin llamar de vuelta.
+  reliability: outbox
+
+  events:
+
+    ProductCreated:
+      description: "Se dio de alta un producto. Nace en draft, así que todavía no está a la venta."
+      channel: productEvents
+      payload:
+        productId:    { type: uuid, required: true }
+        sku:          { type: SKU, required: true }
+        name:         { type: string, required: true, constraints: { maxLength: 160 } }
+        description:  { type: text, constraints: { maxLength: 4000 } }
+        price:        { type: Money, required: true }
+        status:       { type: ProductStatus, required: true }
+        brandId:      { type: uuid, required: true }
+        brandName:    { type: string, required: true, constraints: { maxLength: 80 } }
+        categoryId:   { type: uuid, required: true }
+        categoryName: { type: string, required: true, constraints: { maxLength: 80 } }
+        images:       { type: ProductImageRef, list: true, constraints: { maxItems: 10 } }
+
+    ProductUpdated:
+      description: "Cambió algo de la ficha de un producto: datos comerciales o imágenes. Viaja la ficha completa tras el cambio, no el delta."
+      channel: productEvents
+      payload:
+        productId:    { type: uuid, required: true }
+        sku:          { type: SKU, required: true }
+        name:         { type: string, required: true, constraints: { maxLength: 160 } }
+        description:  { type: text, constraints: { maxLength: 4000 } }
+        price:        { type: Money, required: true }
+        status:       { type: ProductStatus, required: true }
+        brandId:      { type: uuid, required: true }
+        brandName:    { type: string, required: true, constraints: { maxLength: 80 } }
+        categoryId:   { type: uuid, required: true }
+        categoryName: { type: string, required: true, constraints: { maxLength: 80 } }
+        images:       { type: ProductImageRef, list: true, constraints: { maxItems: 10 } }
+
+    ProductStatusChanged:
+      description: "Un producto se publicó, se despublicó o se retiró. Es el evento que el consumidor lee como alta o baja comercial."
+      channel: productEvents
+      payload:
+        productId:      { type: uuid, required: true }
+        sku:            { type: SKU, required: true }
+        previousStatus: { type: ProductStatus, required: true }
+        status:         { type: ProductStatus, required: true }
+        reason:         { type: string, constraints: { maxLength: 200 } }
+
+    BrandCreated:
+      description: "Se dio de alta una marca."
+      channel: taxonomyEvents
+      payload:
+        brandId:     { type: uuid, required: true }
+        name:        { type: string, required: true, constraints: { maxLength: 80 } }
+        description: { type: text, constraints: { maxLength: 2000 } }
+        active:      { type: boolean, required: true }
+
+    BrandUpdated:
+      description: "Cambió el nombre, la descripción o la actividad de una marca. Es lo que permite corregir el nombre en una copia sin tocar sus productos."
+      channel: taxonomyEvents
+      payload:
+        brandId:     { type: uuid, required: true }
+        name:        { type: string, required: true, constraints: { maxLength: 80 } }
+        description: { type: text, constraints: { maxLength: 2000 } }
+        active:      { type: boolean, required: true }
+
+    BrandDeleted:
+      description: "Se borró una marca que no tenía ningún producto."
+      channel: taxonomyEvents
+      payload:
+        brandId: { type: uuid, required: true }
+        name:    { type: string, required: true, constraints: { maxLength: 80 } }
+
+    CategoryCreated:
+      description: "Se dio de alta una categoría."
+      channel: taxonomyEvents
+      payload:
+        categoryId:  { type: uuid, required: true }
+        name:        { type: string, required: true, constraints: { maxLength: 80 } }
+        description: { type: text, constraints: { maxLength: 2000 } }
+        active:      { type: boolean, required: true }
+
+    CategoryUpdated:
+      description: "Cambió el nombre, la descripción o la actividad de una categoría."
+      channel: taxonomyEvents
+      payload:
+        categoryId:  { type: uuid, required: true }
+        name:        { type: string, required: true, constraints: { maxLength: 80 } }
+        description: { type: text, constraints: { maxLength: 2000 } }
+        active:      { type: boolean, required: true }
+
+    CategoryDeleted:
+      description: "Se borró una categoría que no tenía ningún producto."
+      channel: taxonomyEvents
+      payload:
+        categoryId: { type: uuid, required: true }
+        name:       { type: string, required: true, constraints: { maxLength: 80 } }

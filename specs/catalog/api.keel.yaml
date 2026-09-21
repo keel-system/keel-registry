@@ -1,0 +1,58 @@
+# Capa api — cómo se exponen las operaciones al cliente vía REST.
+# Tres superficies separadas por prefijo: /public (escaparate anónimo),
+# /internal (servidor a servidor) y el resto (gestión de la tienda).
+
+style: rest
+basePath: /api/v1
+defaultAudience: users
+
+pagination: { style: offset, defaultSize: 24, maxSize: 100 }
+
+endpoints:
+
+  # --- Productos — gestión ---
+  createProduct:      { method: POST,   path: "/products", successStatus: 201 }
+  updateProduct:      { method: PATCH,  path: "/products/{id}", successStatus: 200 }
+  publishProduct:     { method: POST,   path: "/products/{id}/publish", successStatus: 200 }
+  unpublishProduct:   { method: POST,   path: "/products/{id}/unpublish", successStatus: 200 }
+  retireProduct:      { method: POST,   path: "/products/{id}/retire", successStatus: 200 }
+  getProduct:         { method: GET,    path: "/products/{id}", successStatus: 200 }
+  listProducts:       { method: GET,    path: "/products", successStatus: 200 }
+
+  # --- Imágenes de producto ---
+  # El DELETE devuelve el producto porque borrar una imagen recoloca las posiciones
+  # de las demás y puede cambiar cuál es la principal: sin cuerpo, el cliente no
+  # podría predecir el estado resultante y necesitaría un GET inmediato.
+  addProductImage:    { method: POST,   path: "/products/{productId}/images", successStatus: 200 }
+  updateProductImage: { method: PATCH,  path: "/products/{productId}/images/{imageId}", successStatus: 200 }
+  removeProductImage: { method: DELETE, path: "/products/{productId}/images/{imageId}", successStatus: 200 }
+
+  # --- Escaparate público ---
+  listPublicProducts:   { method: GET, path: "/public/products", successStatus: 200 }
+  getPublicProduct:     { method: GET, path: "/public/products/{id}", successStatus: 200 }
+  listPublicCategories: { method: GET, path: "/public/categories", successStatus: 200 }
+  listPublicBrands:     { method: GET, path: "/public/brands", successStatus: 200 }
+
+  # --- Contrato servidor-a-servidor ---
+  # El lote va por POST porque la lista de ids viaja en el cuerpo: una query string
+  # con 100 uuid roza el límite de longitud de URL de cualquier proxy.
+  getProductForServices:        { method: GET,  path: "/internal/products/{id}", successStatus: 200, audience: services }
+  listProductsBatchForServices: { method: POST, path: "/internal/products/batch", successStatus: 200, audience: services }
+
+  # --- Marcas ---
+  createBrand:     { method: POST,   path: "/brands", successStatus: 201 }
+  updateBrand:     { method: PATCH,  path: "/brands/{id}", successStatus: 200 }
+  activateBrand:   { method: POST,   path: "/brands/{id}/activate", successStatus: 200 }
+  deactivateBrand: { method: POST,   path: "/brands/{id}/deactivate", successStatus: 200 }
+  deleteBrand:     { method: DELETE, path: "/brands/{id}", successStatus: 204 }
+  getBrand:        { method: GET,    path: "/brands/{id}", successStatus: 200 }
+  listBrands:      { method: GET,    path: "/brands", successStatus: 200 }
+
+  # --- Categorías ---
+  createCategory:     { method: POST,   path: "/categories", successStatus: 201 }
+  updateCategory:     { method: PATCH,  path: "/categories/{id}", successStatus: 200 }
+  activateCategory:   { method: POST,   path: "/categories/{id}/activate", successStatus: 200 }
+  deactivateCategory: { method: POST,   path: "/categories/{id}/deactivate", successStatus: 200 }
+  deleteCategory:     { method: DELETE, path: "/categories/{id}", successStatus: 204 }
+  getCategory:        { method: GET,    path: "/categories/{id}", successStatus: 200 }
+  listCategories:     { method: GET,    path: "/categories", successStatus: 200 }

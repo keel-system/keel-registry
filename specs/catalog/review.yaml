@@ -1,0 +1,81 @@
+reviewedAt: 0.1.0
+findings:
+  - id: REV-DOMAIN-VAGUE-INVARIANT
+    scope: domain.entities
+    verdict: fixed
+    note: >
+      Dos invariantes cruzaban la frontera de agregado. La de Brand/Category («inactiva no puede
+      asignarse a un producto») se quitó de domain: ya la hacen cumplir BRAND_INACTIVE y
+      CATEGORY_INACTIVE en createProduct/updateProduct. La de moneda única de Product no la
+      sostenía nada: ahora es «la currency de price es la moneda del catálogo» y la hace cumplir
+      CURRENCY_NOT_SUPPORTED (422) en createProduct/updateProduct. El resto son verificables
+      sobre el propio agregado Product.
+  - id: REV-DOMAIN-INVARIANT-IS-TRANSITION
+    scope: domain.entities.Product
+    verdict: ok
+  - id: REV-DOMAIN-PROMISED-STATE
+    scope: domain.entities.Product
+    verdict: ok
+    note: >
+      «El producto retirado conserva todos sus datos» lo sostiene el estado terminal retired sin
+      operación de borrado. El motivo de retireProduct no se promete persistido: la regla dice que
+      viaja en el evento, y ahí es donde queda.
+  - id: REV-USECASES-INTERNAL-REPEAT
+    scope: use-cases.operations
+    verdict: ok
+    note: >
+      Los commands sin idempotency son publish/unpublish/retireProduct (transición irrepetible) y
+      deleteBrand/deleteCategory (DELETE: el segundo intento da 404 y no reemite evento).
+  - id: REV-USECASES-GUARD-ORDER
+    scope: use-cases.operations
+    verdict: ok
+    note: Las rules no fijan orden de rechazos; la precedencia entre errores la fija el análisis de huecos y los escenarios.
+  - id: REV-API-DELETE-BODY
+    scope: api.endpoints.removeProductImage
+    verdict: ok
+    note: >
+      El DELETE de imagen devuelve el producto a propósito: recoloca las posiciones y puede cambiar
+      la imagen principal, que el cliente no puede predecir. deleteBrand/deleteCategory son 204 void.
+  - id: REV-SEC-M2M-AUDIENCE
+    scope: security.authentication.serviceAuth
+    verdict: ok
+    note: validateAudience true con audience catalog.
+  - id: REV-SEC-RESOURCE-SCOPE
+    scope: security.roles
+    verdict: ok
+    note: El catálogo no tiene inquilinos; ningún texto del diseño promete alcance por recurso.
+  - id: REV-MSG-MISSING-CHANNEL
+    scope: messaging
+    verdict: ok
+  - id: REV-PERSIST-MISSING-INDEX
+    scope: persistence
+    verdict: accepted
+    note: >
+      Cubiertos status+name/categoryId/brandId/price.amount y updatedAt. El filtro por nombre es
+      match contains, que un índice ordinario no acelera; se acepta: el volumen esperado de un
+      catálogo de tienda lo tolera, y un índice de texto es decisión del generador según el motor.
+  - id: REV-STORAGE-PUBLIC-SENSITIVE
+    scope: storage.buckets.productImages
+    verdict: ok
+    note: Fotos de escaparate, pensadas para ser públicas; sin datos personales.
+  - id: REV-STORAGE-UPLOAD-ERRORS
+    scope: storage
+    verdict: ok
+    note: addProductImage declara FILE_TOO_LARGE (413) y UNSUPPORTED_CONTENT_TYPE (415).
+
+# Análisis de huecos (paso 4b de /keel-design), v0.1.0. Diez hallazgos, todos decididos.
+coverage:
+  - { gapClass: 1,  units: [Product], result: clean }
+  - { gapClass: 2,  units: [createProduct, updateProduct, publishProduct, unpublishProduct, retireProduct, addProductImage, updateProductImage, removeProductImage, createBrand, updateBrand, activateBrand, deactivateBrand, deleteBrand, createCategory, updateCategory, activateCategory, deactivateCategory, deleteCategory], result: findings }
+  - { gapClass: 3,  units: [Product, ProductImage, Brand, Category, updateProduct, updateProductImage, updateBrand, updateCategory], result: findings }
+  - { gapClass: 4,  units: [Product.sku, Brand.name, Category.name, ProductImage.main, ProductImage.position, deleteBrand, deleteCategory], result: findings }
+  - { gapClass: 5,  units: [listProducts, getProduct, listPublicProducts, getPublicProduct, listPublicCategories, listPublicBrands, getProductForServices, listProductsBatchForServices, listBrands, listCategories], result: findings }
+  - { gapClass: 6,  units: [Product, Brand, Category], result: clean }
+  - { gapClass: 7,  units: [ProductCreated, ProductUpdated, ProductStatusChanged, BrandCreated, BrandUpdated, BrandDeleted, CategoryCreated, CategoryUpdated, CategoryDeleted], result: findings }
+  - { gapClass: 9,  units: [all-operations], result: clean }
+  - { gapClass: 10, units: [productImages, addProductImage, updateProductImage, removeProductImage], result: findings }
+  - { gapClass: 11, units: [getProductForServices, listProductsBatchForServices], result: clean }
+  - { gapClass: 12, units: [service], result: findings }
+  - { gapClass: 14, units: [Product, ProductImage, Brand, Category], result: clean }
+  - { gapClass: 15, units: [api], result: clean }
+  - { gapClass: 16, units: [reliability, idempotency, cache, m2m, transactionalBoundary, pagination, optimisticLocking, audit, visibility], result: clean }

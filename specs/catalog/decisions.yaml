@@ -1,0 +1,36 @@
+# Obligaciones de diseño aceptadas por escrito (docs/design-obligations.md).
+# No forma parte del DSL: registra qué se decidió no declarar y por qué.
+
+decisions:
+  - id: OBL-IDEM-RACE-CODE
+    scope: use-cases
+    reason: >
+      El diseñador acepta el código canónico 409 IDEMPOTENCY_KEY_IN_PROGRESS como contrato
+      público para dos peticiones simultáneas con la misma clave. Es el mismo en todo servicio
+      Keel, así que un integrador que ya consumió otro lo reconoce sin documentación nueva.
+    since: 0.1.0
+  - id: OBL-IDEM-REUSE-CODE
+    scope: use-cases
+    reason: >
+      El diseñador acepta el código canónico 409 IDEMPOTENCY_KEY_REUSED como contrato público
+      para una clave reutilizada con un cuerpo distinto, por la misma razón de homogeneidad
+      entre servicios Keel.
+    since: 0.1.0
+  - id: OBL-CONCURRENCY-CODE
+    scope: persistence
+    reason: >
+      Con optimisticLocking all, la escritura sobre una versión obsoleta de Product, Brand o
+      Category responde el canónico 409 CONCURRENT_MODIFICATION. Se acepta como contrato público
+      en vez de nombrar un código propio por agregado: el cliente reacciona igual en los tres
+      casos (recargar y reintentar).
+    since: 0.1.0
+  - id: OBL-CALLER-IDENTITY
+    scope: security
+    reason: >
+      La identidad del llamante no entra en el trabajo. Las operaciones M2M solo reciben ids y
+      devuelven el mismo producto sea quien sea el consumidor (orders o cart): el catálogo no
+      tiene inquilinos ni datos por consumidor. La credencial decide si se puede preguntar, no
+      qué se ve. Las operaciones de gestión atribuyen la autoría por la auditoría (createdBy /
+      updatedBy desde el principal autenticado), no por un campo del cuerpo.
+    since: 0.1.0
+

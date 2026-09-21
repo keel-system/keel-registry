@@ -1,0 +1,98 @@
+# Capa domain — modelado del dominio: value types, entidades, relaciones, ciclo de vida e invariantes.
+# Cero tecnología: nada de tablas, ORMs ni frameworks.
+
+types:
+  SKU:
+    base: string
+    description: "Identificador comercial único del producto, el que comparten el catálogo y los servidores que lo consumen."
+    constraints: { pattern: "^[A-Z0-9][A-Z0-9_-]{1,31}$" }
+
+  Money:
+    description: "Importe con su moneda. El servicio no convierte divisas."
+    fields:
+      amount:   { type: decimal, required: true, description: "Importe.", constraints: { min: 0, scale: 2, scalePolicy: reject } }
+      currency: { type: string, required: true, description: "Moneda del importe en ISO 4217.", constraints: { pattern: "^[A-Z]{3}$" } }
+
+  ProductImageRef:
+    description: "Proyección de una imagen de producto tal como viaja en los eventos, sin identidad propia fuera de su producto."
+    fields:
+      imageId:  { type: uuid, required: true, description: "Id de la imagen dentro del producto." }
+      file:     { type: file, bucket: productImages, required: true, description: "El binario de la imagen." }
+      altText:  { type: string, description: "Texto alternativo.", constraints: { maxLength: 160 } }
+      position: { type: int, required: true, description: "Orden de visualización dentro de la ficha.", constraints: { min: 0, max: 9 } }
+      main:     { type: boolean, required: true, description: "Imagen principal del producto." }
+
+  ProductStatus:
+    description: "Situación comercial del producto."
+    values: [draft, active, retired]
+
+entities:
+  Brand:
+    description: "Marca fabricante o comercial bajo la que se vende un producto."
+    fields:
+      id:          { type: uuid, id: true, generated: true }
+      name:        { type: string, required: true, unique: true, compare: ignore-case-accents, description: "Nombre comercial de la marca.", constraints: { maxLength: 80 } }
+      description: { type: text, description: "Texto libre sobre la marca, visible en la tienda.", constraints: { maxLength: 2000 } }
+      active:      { type: boolean, required: true, default: true, description: "Una marca inactiva no se ofrece como filtro al público ni admite productos nuevos." }
+
+  Category:
+    description: "Clasificación comercial plana por la que el consumidor navega el catálogo."
+    fields:
+      id:          { type: uuid, id: true, generated: true }
+      name:        { type: string, required: true, unique: true, compare: ignore-case-accents, description: "Nombre de la categoría.", constraints: { maxLength: 80 } }
+      description: { type: text, description: "Texto libre sobre la categoría, visible en la tienda.", constraints: { maxLength: 2000 } }
+      active:      { type: boolean, required: true, default: true, description: "Una categoría inactiva no se ofrece como filtro al público ni admite productos nuevos." }
+
+  Product:
+    description: "Artículo vendible del catálogo, publicado bajo una marca y clasificado en una categoría."
+    fields:
+      id:          { type: uuid, id: true, generated: true }
+      sku:         { type: SKU, required: true, unique: true, compare: exact, description: "Referencia comercial única. Se normaliza a mayúsculas antes de comprobar la unicidad." }
+      name:        { type: string, required: true, compare: ignore-case-accents, description: "Nombre comercial del producto.", constraints: { maxLength: 160 } }
+      description: { type: text, description: "Descripción larga del producto, visible en la ficha de la tienda.", constraints: { maxLength: 4000 } }
+      price:       { type: Money, required: true, description: "Precio de venta al público." }
+      status:      { type: ProductStatus, required: true, default: draft, description: "Situación comercial; solo active es visible para el público." }
+      createdAt:   { type: timestamp, generated: true }
+      updatedAt:   { type: timestamp, generated: true }
+      createdBy:   { type: string, generated: true }
+      updatedBy:   { type: string, generated: true }
+    relations:
+      brand:    { entity: Brand,    cardinality: many-to-one, required: true, description: "Marca bajo la que se vende." }
+      category: { entity: Category, cardinality: many-to-one, required: true, description: "Categoría en la que se clasifica." }
+      images:   { entity: ProductImage, cardinality: one-to-many, description: "Imágenes del producto; viajan siempre ordenadas por position ascendente, en las respuestas y en los eventos." }
+    lifecycle:
+      field: status
+      transitions:
+        draft:   [active, retired]
+        active:  [draft, retired]
+        retired: []
+    invariants:
+      - Un producto en estado active tiene al menos una imagen.
+      - Un producto con al menos una imagen tiene exactamente una imagen marcada como main.
+      - Un producto tiene como mucho 10 imágenes.
+      - Dos imágenes del mismo producto no comparten position.
+      - Un producto en estado active tiene price.amount mayor que cero.
+      - La currency de price es la moneda del catálogo, un parámetro de despliegue único para todo el servicio.
+
+  ProductImage:
+    description: "Imagen de la ficha de un producto. No existe fuera de su producto."
+    fields:
+      id:       { type: uuid, id: true, generated: true }
+      file:     { type: file, bucket: productImages, required: true, description: "El binario de la imagen." }
+      altText:  { type: string, description: "Texto alternativo para accesibilidad y SEO.", constraints: { maxLength: 160 } }
+      position: { type: int, required: true, description: "Orden de visualización dentro de la ficha, empezando en 0.", constraints: { min: 0, max: 9 } }
+      main:     { type: boolean, required: true, default: false, description: "Imagen principal (portada) del producto." }
+    relations:
+      product: { entity: Product, cardinality: many-to-one, required: true, description: "Producto al que pertenece." }
+
+aggregates:
+  Product:
+    description: "Un producto y sus imágenes cambian siempre juntos; la imagen no se referencia desde fuera del producto."
+    root: Product
+    entities: [ProductImage]
+  Brand:
+    description: "La marca es su propia frontera; el producto la referencia por id."
+    root: Brand
+  Category:
+    description: "La categoría es su propia frontera; el producto la referencia por id."
+    root: Category

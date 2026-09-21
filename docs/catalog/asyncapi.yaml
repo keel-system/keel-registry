@@ -1,0 +1,629 @@
+asyncapi: 3.0.0
+info:
+  title: catalog
+  version: 0.1.0
+  description: |-
+    Gestiona el catálogo comercial —productos con sus imágenes, marcas y categorías—, lo expone filtrable al público de la tienda, lo sirve a otros servidores por contrato y publica sus altas y cambios como eventos.
+
+    Contrato asíncrono derivado del diseño Keel (capa messaging). Fiabilidad de publicación: outbox — ningún evento se pierde si la transacción confirma. Los eventos de producto llevan la ficha completa tras el cambio; las imágenes viajan con la clave del objeto, no con su URL. El broker concreto y los nombres físicos de topic/cola se deciden al generar.
+defaultContentType: application/json
+channels:
+  productEvents:
+    address: productEvents
+    title: productEvents
+    description: 'Altas, cambios y cambios de estado de los productos del catálogo. Nombre lógico: el topic/cola
+      físico que lo respalda es parámetro de despliegue.'
+    messages:
+      ProductCreated:
+        $ref: '#/components/messages/ProductCreated'
+      ProductUpdated:
+        $ref: '#/components/messages/ProductUpdated'
+      ProductStatusChanged:
+        $ref: '#/components/messages/ProductStatusChanged'
+  taxonomyEvents:
+    address: taxonomyEvents
+    title: taxonomyEvents
+    description: 'Altas, cambios y bajas de marcas y categorías, para que quien replique el catálogo corrija un
+      nombre sin reindexarlo entero. Nombre lógico: el topic/cola físico que lo respalda es parámetro de despliegue.'
+    messages:
+      BrandCreated:
+        $ref: '#/components/messages/BrandCreated'
+      BrandUpdated:
+        $ref: '#/components/messages/BrandUpdated'
+      BrandDeleted:
+        $ref: '#/components/messages/BrandDeleted'
+      CategoryCreated:
+        $ref: '#/components/messages/CategoryCreated'
+      CategoryUpdated:
+        $ref: '#/components/messages/CategoryUpdated'
+      CategoryDeleted:
+        $ref: '#/components/messages/CategoryDeleted'
+operations:
+  publishProductCreated:
+    action: send
+    channel:
+      $ref: '#/channels/productEvents'
+    summary: Se dio de alta un producto. Nace en draft, así que todavía no está a la venta.
+    messages:
+    - $ref: '#/channels/productEvents/messages/ProductCreated'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - createProduct
+  publishProductUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/productEvents'
+    summary: 'Cambió algo de la ficha de un producto: datos comerciales o imágenes. Viaja la ficha completa tras
+      el cambio, no el delta.'
+    messages:
+    - $ref: '#/channels/productEvents/messages/ProductUpdated'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - updateProduct
+    - addProductImage
+    - updateProductImage
+    - removeProductImage
+  publishProductStatusChanged:
+    action: send
+    channel:
+      $ref: '#/channels/productEvents'
+    summary: Un producto se publicó, se despublicó o se retiró. Es el evento que el consumidor lee como alta o baja
+      comercial.
+    messages:
+    - $ref: '#/channels/productEvents/messages/ProductStatusChanged'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - publishProduct
+    - unpublishProduct
+    - retireProduct
+  publishBrandCreated:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Se dio de alta una marca.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/BrandCreated'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - createBrand
+  publishBrandUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Cambió el nombre, la descripción o la actividad de una marca. Es lo que permite corregir el nombre
+      en una copia sin tocar sus productos.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/BrandUpdated'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - updateBrand
+    - activateBrand
+    - deactivateBrand
+  publishBrandDeleted:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Se borró una marca que no tenía ningún producto.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/BrandDeleted'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - deleteBrand
+  publishCategoryCreated:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Se dio de alta una categoría.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/CategoryCreated'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - createCategory
+  publishCategoryUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Cambió el nombre, la descripción o la actividad de una categoría.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/CategoryUpdated'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - updateCategory
+    - activateCategory
+    - deactivateCategory
+  publishCategoryDeleted:
+    action: send
+    channel:
+      $ref: '#/channels/taxonomyEvents'
+    summary: Se borró una categoría que no tenía ningún producto.
+    messages:
+    - $ref: '#/channels/taxonomyEvents/messages/CategoryDeleted'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - deleteCategory
+components:
+  messages:
+    ProductCreated:
+      name: ProductCreated
+      title: ProductCreated
+      contentType: application/json
+      summary: Se dio de alta un producto. Nace en draft, así que todavía no está a la venta.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/ProductCreatedPayload'
+    ProductUpdated:
+      name: ProductUpdated
+      title: ProductUpdated
+      contentType: application/json
+      summary: 'Cambió algo de la ficha de un producto: datos comerciales o imágenes. Viaja la ficha completa tras
+        el cambio, no el delta.'
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/ProductUpdatedPayload'
+    ProductStatusChanged:
+      name: ProductStatusChanged
+      title: ProductStatusChanged
+      contentType: application/json
+      summary: Un producto se publicó, se despublicó o se retiró. Es el evento que el consumidor lee como alta o
+        baja comercial.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/ProductStatusChangedPayload'
+    BrandCreated:
+      name: BrandCreated
+      title: BrandCreated
+      contentType: application/json
+      summary: Se dio de alta una marca.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/BrandCreatedPayload'
+    BrandUpdated:
+      name: BrandUpdated
+      title: BrandUpdated
+      contentType: application/json
+      summary: Cambió el nombre, la descripción o la actividad de una marca. Es lo que permite corregir el nombre
+        en una copia sin tocar sus productos.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/BrandUpdatedPayload'
+    BrandDeleted:
+      name: BrandDeleted
+      title: BrandDeleted
+      contentType: application/json
+      summary: Se borró una marca que no tenía ningún producto.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/BrandDeletedPayload'
+    CategoryCreated:
+      name: CategoryCreated
+      title: CategoryCreated
+      contentType: application/json
+      summary: Se dio de alta una categoría.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/CategoryCreatedPayload'
+    CategoryUpdated:
+      name: CategoryUpdated
+      title: CategoryUpdated
+      contentType: application/json
+      summary: Cambió el nombre, la descripción o la actividad de una categoría.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/CategoryUpdatedPayload'
+    CategoryDeleted:
+      name: CategoryDeleted
+      title: CategoryDeleted
+      contentType: application/json
+      summary: Se borró una categoría que no tenía ningún producto.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/CategoryDeletedPayload'
+  schemas:
+    Money:
+      type: object
+      description: Importe con su moneda. El servicio no convierte divisas.
+      required:
+      - amount
+      - currency
+      properties:
+        amount:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+          description: Importe.
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          description: Moneda del importe en ISO 4217.
+    ProductImageRef:
+      type: object
+      description: Proyección de una imagen de producto tal como viaja en los eventos, sin identidad propia fuera
+        de su producto.
+      required:
+      - imageId
+      - file
+      - altText
+      - position
+      - main
+      properties:
+        imageId:
+          type: string
+          format: uuid
+          description: Id de la imagen dentro del producto.
+        file:
+          type: string
+          description: Clave del objeto en el bucket lógico `productImages`; en un evento viaja siempre la clave,
+            nunca la URL.
+        altText:
+          type:
+          - string
+          - 'null'
+          maxLength: 160
+          description: Texto alternativo.
+        position:
+          type: integer
+          minimum: 0
+          maximum: 9
+          description: Orden de visualización dentro de la ficha.
+        main:
+          type: boolean
+          description: Imagen principal del producto.
+    ProductStatus:
+      type: string
+      enum:
+      - draft
+      - active
+      - retired
+      description: Situación comercial del producto.
+    SKU:
+      type: string
+      pattern: ^[A-Z0-9][A-Z0-9_-]{1,31}$
+      description: Identificador comercial único del producto, el que comparten el catálogo y los servidores que
+        lo consumen.
+    KeelEventMetadata:
+      type: object
+      description: Metadata transversal de la envoltura Keel; la estampa el servicio al emitir.
+      required:
+      - eventId
+      - eventType
+      - eventVersion
+      - occurredAt
+      - source
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Id único de esta ocurrencia; clave de deduplicación del consumidor.
+        eventType:
+          type: string
+          description: Nombre del evento en el diseño; discriminador cuando el canal lleva varios tipos.
+        eventVersion:
+          type: integer
+          minimum: 1
+          description: Versión del contrato del payload.
+        occurredAt:
+          type: string
+          format: date-time
+          description: Instante UTC en que ocurrió el hecho en el dominio, no el del envío.
+        source:
+          type: string
+          description: Nombre del servicio emisor.
+        correlationId:
+          type:
+          - string
+          - 'null'
+          description: Correlación de la petición que originó el hecho; null si no hubo contexto.
+        traceparent:
+          type:
+          - string
+          - 'null'
+          description: Contexto de traza W3C (traceparent) del hecho; null si el emisor no tiene telemetría.
+    ProductCreatedPayload:
+      type: object
+      required:
+      - productId
+      - sku
+      - name
+      - price
+      - status
+      - brandId
+      - brandName
+      - categoryId
+      - categoryName
+      properties:
+        productId:
+          type: string
+          format: uuid
+        sku:
+          $ref: '#/components/schemas/SKU'
+        name:
+          type: string
+          maxLength: 160
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+        price:
+          $ref: '#/components/schemas/Money'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        brandId:
+          type: string
+          format: uuid
+        brandName:
+          type: string
+          maxLength: 80
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+          maxLength: 80
+        images:
+          type:
+          - array
+          - 'null'
+          items:
+            $ref: '#/components/schemas/ProductImageRef'
+          maxItems: 10
+    ProductUpdatedPayload:
+      type: object
+      required:
+      - productId
+      - sku
+      - name
+      - price
+      - status
+      - brandId
+      - brandName
+      - categoryId
+      - categoryName
+      properties:
+        productId:
+          type: string
+          format: uuid
+        sku:
+          $ref: '#/components/schemas/SKU'
+        name:
+          type: string
+          maxLength: 160
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+        price:
+          $ref: '#/components/schemas/Money'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        brandId:
+          type: string
+          format: uuid
+        brandName:
+          type: string
+          maxLength: 80
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+          maxLength: 80
+        images:
+          type:
+          - array
+          - 'null'
+          items:
+            $ref: '#/components/schemas/ProductImageRef'
+          maxItems: 10
+    ProductStatusChangedPayload:
+      type: object
+      required:
+      - productId
+      - sku
+      - previousStatus
+      - status
+      properties:
+        productId:
+          type: string
+          format: uuid
+        sku:
+          $ref: '#/components/schemas/SKU'
+        previousStatus:
+          $ref: '#/components/schemas/ProductStatus'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        reason:
+          type:
+          - string
+          - 'null'
+          maxLength: 200
+    BrandCreatedPayload:
+      type: object
+      required:
+      - brandId
+      - name
+      - active
+      properties:
+        brandId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 80
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+        active:
+          type: boolean
+    BrandUpdatedPayload:
+      type: object
+      required:
+      - brandId
+      - name
+      - active
+      properties:
+        brandId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 80
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+        active:
+          type: boolean
+    BrandDeletedPayload:
+      type: object
+      required:
+      - brandId
+      - name
+      properties:
+        brandId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 80
+    CategoryCreatedPayload:
+      type: object
+      required:
+      - categoryId
+      - name
+      - active
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 80
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+        active:
+          type: boolean
+    CategoryUpdatedPayload:
+      type: object
+      required:
+      - categoryId
+      - name
+      - active
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 80
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+        active:
+          type: boolean
+    CategoryDeletedPayload:
+      type: object
+      required:
+      - categoryId
+      - name
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 80
+  correlationIds:
+    keelCorrelationId:
+      description: Correlación end-to-end estampada en la envoltura Keel.
+      location: $message.payload#/metadata/correlationId
