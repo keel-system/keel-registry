@@ -1,0 +1,15 @@
+# Capa storage — almacenamiento de archivos (object storage).
+# Agnóstico del proveedor: se declaran buckets lógicos y sus políticas, no S3/MinIO/GCS.
+
+buckets:
+  productImages:
+    description: >
+      Fotos de la galería de cada producto. Público a propósito: son el escaparate de la tienda,
+      así que la URL es estable, un CDN la puede cachear y viaja en los eventos como
+      primaryImageUrl. La contrapartida, aceptada: la URL es la única protección, de modo que la
+      foto de un producto en borrador es alcanzable por quien tenga el enlace. En un catálogo
+      comercial eso no es un secreto; si algún día lo fuera, el bucket pasaría a private y haría
+      falta una operación que produzca el acceso de lectura.
+    visibility: public
+    allowedContentTypes: [image/jpeg, image/png, image/webp]
+    maxSizeMb: 5

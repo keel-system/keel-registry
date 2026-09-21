@@ -1,0 +1,53 @@
+# Capa api — cómo se exponen las operaciones por REST.
+# Tres superficies separadas por prefijo, porque son tres contratos con públicos y ritmos distintos:
+#   /products, /brands, /categories   → la tienda pública, anónima
+#   /management/...                    → el back-office, protegido
+#   /services/...                      → otros servidores, credencial de máquina
+# Versionado, decidido a sabiendas: un cambio incompatible nace como /api/v2 y /api/v1 sigue
+# sirviendo hasta que los tres consumidores migran, cada uno a su ritmo. Es lo que permite evolucionar
+# el catálogo sin coordinar tres despliegues a la vez, al precio de mantener dos superficies un tiempo.
+style: rest
+basePath: /api/v1
+auto: false
+defaultAudience: users
+
+endpoints:
+
+  # ── Tienda pública ───────────────────────────────────────────────────────────
+  listPublicProducts: { method: GET, path: "/products" }
+  getPublicProduct:   { method: GET, path: "/products/{slug}" }
+  listBrands:         { method: GET, path: "/brands" }
+  listCategories:     { method: GET, path: "/categories" }
+
+  # ── Back-office: productos ───────────────────────────────────────────────────
+  listProducts:       { method: GET,    path: "/management/products" }
+  getProduct:         { method: GET,    path: "/management/products/{productId}" }
+  createProduct:      { method: POST,   path: "/management/products", successStatus: 201 }
+  updateProduct:      { method: PUT,    path: "/management/products/{productId}" }
+  deleteProduct:      { method: DELETE, path: "/management/products/{productId}", successStatus: 204 }
+  publishProduct:     { method: POST,   path: "/management/products/{productId}/publish", successStatus: 200 }
+  unpublishProduct:   { method: POST,   path: "/management/products/{productId}/unpublish", successStatus: 200 }
+  discontinueProduct: { method: POST,   path: "/management/products/{productId}/discontinue", successStatus: 200 }
+  reactivateProduct:  { method: POST,   path: "/management/products/{productId}/reactivate", successStatus: 200 }
+
+  # ── Back-office: galería ─────────────────────────────────────────────────────
+  addProductImage:        { method: POST,   path: "/management/products/{productId}/images", successStatus: 201 }
+  removeProductImage:     { method: DELETE, path: "/management/products/{productId}/images/{imageId}", successStatus: 204 }
+  setPrimaryProductImage: { method: PUT,    path: "/management/products/{productId}/images/{imageId}/primary", successStatus: 204 }
+  reorderProductImages:   { method: PUT,    path: "/management/products/{productId}/images/order", successStatus: 204 }
+
+  # ── Back-office: marcas y categorías ─────────────────────────────────────────
+  createBrand:    { method: POST,   path: "/management/brands", successStatus: 201 }
+  updateBrand:    { method: PUT,    path: "/management/brands/{brandId}" }
+  deleteBrand:    { method: DELETE, path: "/management/brands/{brandId}", successStatus: 204 }
+  createCategory: { method: POST,   path: "/management/categories", successStatus: 201 }
+  updateCategory: { method: PUT,    path: "/management/categories/{categoryId}" }
+  deleteCategory: { method: DELETE, path: "/management/categories/{categoryId}", successStatus: 204 }
+
+  # ── Servidor-a-servidor ──────────────────────────────────────────────────────
+  # Operación y endpoint propios, no una reutilización de los públicos: el contrato de máquina
+  # crece hacia lotes y campos estables, el público hacia la pantalla.
+  getProductForServices:        { method: GET, path: "/services/products/{productId}", audience: services }
+  listProductsBatchForServices: { method: GET, path: "/services/products", audience: services }
+
+pagination: { style: offset, defaultSize: 20, maxSize: 100 }

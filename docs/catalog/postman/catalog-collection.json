@@ -1,0 +1,3099 @@
+{
+  "info": {
+    "name": "catalog — API (v0.1.0)",
+    "description": "Colección derivada de specs/catalog v0.1.0: una carpeta por flujo de validation-scenarios.md y una carpeta con los endpoints no cubiertos por los flujos. Importa antes auth-collection.json y ejecuta sus requests de token: esta colección usa las globals token_<rol> y token_<cliente>.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "FL-PRD-001 — alta de producto y publicación de ProductCreated",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.\n\nCasos borde declarados en el escenario (variaciones de la entrada de las requests de esta carpeta):\n- Sin cabecera `Idempotency-Key` → `400` (`IDEMPOTENCY_KEY_REQUIRED`).\n- `sku: \"sku-001\"` con `SKU-001` ya existente → `409` (`SKU_ALREADY_EXISTS`): se normaliza antes.\n- `brandId` inexistente → `422` (`BRAND_REFERENCE_NOT_FOUND`).\n- `categoryId` inexistente → `422` (`CATEGORY_REFERENCE_NOT_FOUND`).\n- `brandId` **y** `categoryId` inexistentes a la vez → `422` (`BRAND_REFERENCE_NOT_FOUND`): la\n  guarda 3 precede a la 4.\n- `sku` ya existente **y** `brandId` inexistente → `409` (`SKU_ALREADY_EXISTS`): la guarda 2 precede.\n- `sku: \"ab\"` → `400` (no casa el patrón: mínimo 3 caracteres).\n- `price: 19.999` → `400` (escala máxima 2).\n- `price` ausente → `400` (requerido).\n- `name` de 141 caracteres → `400` (`maxLength: 140`).",
+      "item": [
+        {
+          "name": "FL-PRD-001 · A — Da de alta un producto en estado draft, invisible para la tienda (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-PRD-001 — alta de producto y publicación de ProductCreated.\nGiven: **Given**: existe la marca `b1` (`name: \"Acme\"`, `slug: \"acme\"`) y la categoría `c1` (`name: \"Laptops\"`, `slug: \"laptops\"`). No existe ningún producto con `sku: \"SKU-001\"`. Credencial de usuario con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-001 · B — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-PRD-001 — alta de producto y publicación de ProductCreated.\nGiven: **Given**: existe la marca `b1` (`name: \"Acme\"`, `slug: \"acme\"`) y la categoría `c1` (`name: \"Laptops\"`, `slug: \"laptops\"`). No existe ningún producto con `sku: \"SKU-001\"`. Credencial de usuario con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRD-010 — edición de la ficha y ProductUpdated",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.\n\nCasos borde declarados en el escenario (variaciones de la entrada de las requests de esta carpeta):\n- `productId` inexistente → `404` (`PRODUCT_NOT_FOUND`).\n- Sobre un producto `active`, `price: 0` → `422` (`PRICE_REQUIRED_FOR_ACTIVE_PRODUCT`).\n- Sobre un producto `draft`, `price: 0` → `200`: en borrador el precio cero es legítimo.\n- Sobre un producto `discontinued`, la edición se **acepta** (`200`): su ficha la siguen mostrando\n  los pedidos históricos.",
+      "item": [
+        {
+          "name": "FL-PRD-010 · A — Cambia la ficha comercial de un producto (nombre, descripción, precio, (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-PRD-010 — edición de la ficha y ProductUpdated.\nGiven: **Given**: el flujo crea `b1`, `c1`, la marca `b2` (`name: \"Globex\"`) y el producto `p1` con `createProduct` (`sku: \"SKU-010\"`, `name: \"Teclado K1\"`, `description: \"Mecánico.\"`, `price: 79.90`, marca `b1`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-010 · B — Recupera la ficha completa de un producto para el back-office, con su  (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-PRD-010 — edición de la ficha y ProductUpdated.\nGiven: **Given**: el flujo crea `b1`, `c1`, la marca `b2` (`name: \"Globex\"`) y el producto `p1` con `createProduct` (`sku: \"SKU-010\"`, `name: \"Teclado K1\"`, `description: \"Mecánico.\"`, `price: 79.90`, marca `b1`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRD-020 — ciclo de vida completo del producto",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-PRD-020 · A — Publica un producto en borrador para que la tienda lo muestre (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/publish",
+            "description": "Escenario de FL-PRD-020 — ciclo de vida completo del producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` (`sku: \"SKU-020\"`, `name: \"Monitor M27\"`, `price: 249.00`) con **una** imagen en su galería (vía `addProductImage`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · B — Devuelve la ficha pública de un producto a partir de su slug (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{slug}}",
+            "description": "Escenario de FL-PRD-020 — ciclo de vida completo del producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` (`sku: \"SKU-020\"`, `name: \"Monitor M27\"`, `price: 249.00`) con **una** imagen en su galería (vía `addProductImage`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · C — Cambia la ficha comercial de un producto (nombre, descripción, precio, (404)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-PRD-020 — ciclo de vida completo del producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` (`sku: \"SKU-020\"`, `name: \"Monitor M27\"`, `price: 249.00`) con **una** imagen en su galería (vía `addProductImage`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · D — Retira un producto de la tienda y lo devuelve a borrador para corregir (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/unpublish",
+            "description": "Escenario de FL-PRD-020 — ciclo de vida completo del producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` (`sku: \"SKU-020\"`, `name: \"Monitor M27\"`, `price: 249.00`) con **una** imagen en su galería (vía `addProductImage`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · E — Publica un producto en borrador para que la tienda lo muestre (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/publish",
+            "description": "Escenario de FL-PRD-020 — ciclo de vida completo del producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` (`sku: \"SKU-020\"`, `name: \"Monitor M27\"`, `price: 249.00`) con **una** imagen en su galería (vía `addProductImage`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · F — Marca un producto como descontinuado; deja de venderse pero su ficha s (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/discontinue",
+            "description": "Escenario de FL-PRD-020 — ciclo de vida completo del producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` (`sku: \"SKU-020\"`, `name: \"Monitor M27\"`, `price: 249.00`) con **una** imagen en su galería (vía `addProductImage`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · G — Recupera la ficha completa de un producto para el back-office, con su  (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-PRD-020 — ciclo de vida completo del producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` (`sku: \"SKU-020\"`, `name: \"Monitor M27\"`, `price: 249.00`) con **una** imagen en su galería (vía `addProductImage`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · H — Vuelve a poner a la venta un producto descontinuado (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/reactivate",
+            "description": "Escenario de FL-PRD-020 — ciclo de vida completo del producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` (`sku: \"SKU-020\"`, `name: \"Monitor M27\"`, `price: 249.00`) con **una** imagen en su galería (vía `addProductImage`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · I — Publica un producto en borrador para que la tienda lo muestre (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/publish",
+            "description": "Escenario de FL-PRD-020 — ciclo de vida completo del producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` (`sku: \"SKU-020\"`, `name: \"Monitor M27\"`, `price: 249.00`) con **una** imagen en su galería (vía `addProductImage`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-020 · J — Retira un producto de la tienda y lo devuelve a borrador para corregir (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/unpublish",
+            "description": "Escenario de FL-PRD-020 — ciclo de vida completo del producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` (`sku: \"SKU-020\"`, `name: \"Monitor M27\"`, `price: 249.00`) con **una** imagen en su galería (vía `addProductImage`). Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRD-030 — borrado de un borrador y su vía de baja",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.\n\nCasos borde declarados en el escenario (variaciones de la entrada de las requests de esta carpeta):\n- `deleteProduct` sobre `p2` (en `draft`, pero ya estuvo publicado) → `409`\n  (`PRODUCT_NOT_DELETABLE`): otros servidores guardan su id.\n- `deleteProduct` sobre un producto `active` → `409` (`PRODUCT_NOT_DELETABLE`).\n- `deleteProduct` sobre un producto `discontinued` → `409` (`PRODUCT_NOT_DELETABLE`).\n- `deleteProduct` con `productId` inexistente → `404` (`PRODUCT_NOT_FOUND`).\n- `deleteProduct` con credencial de `catalog-editor` → `403`: el permiso `product:delete` solo lo\n  tiene `catalog-admin`.",
+      "item": [
+        {
+          "name": "FL-PRD-030 · A — Elimina definitivamente un producto que nunca llegó a publicarse (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-PRD-030 — borrado de un borrador y su vía de baja.\nGiven: **Given**: el flujo crea `b1`, `c1`, el producto `p1` en `draft` (nunca publicado, `sku: \"SKU-030\"`) con una imagen, y el producto `p2` publicado y luego despublicado (`slugFrozen: true`). Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-030 · B — Recupera la ficha completa de un producto para el back-office, con su  (204)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-PRD-030 — borrado de un borrador y su vía de baja.\nGiven: **Given**: el flujo crea `b1`, `c1`, el producto `p1` en `draft` (nunca publicado, `sku: \"SKU-030\"`) con una imagen, y el producto `p2` publicado y luego despublicado (`slugFrozen: true`). Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRD-040 — dos ediciones concurrentes del mismo producto",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-PRD-040 · A — Cambia la ficha comercial de un producto (nombre, descripción, precio, (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-PRD-040 — dos ediciones concurrentes del mismo producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` (`name: \"Silla S1\"`, `price: 149.00`). Se lee `p1` con `getProduct` **dos veces**, obteniendo dos lecturas con el mismo `lockVersion`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PRD-040 · B — Recupera la ficha completa de un producto para el back-office, con su  (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-PRD-040 — dos ediciones concurrentes del mismo producto.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` (`name: \"Silla S1\"`, `price: 149.00`). Se lee `p1` con `getProduct` **dos veces**, obteniendo dos lecturas con el mismo `lockVersion`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PRD-050 — listado de back-office — orden, paginación y filtros",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-PRD-050 · A — Lista los productos para el back-office, en cualquier estado, con filt (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/management/products",
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "brandId",
+                  "value": "{{brandId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "name",
+                  "value": "Laptop Pro 14",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sku",
+                  "value": "SKU-001",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Escenario de FL-PRD-050 — listado de back-office — orden, paginación y filtros.\nGiven: **Given**: el flujo crea `b1` (`\"Acme\"`), `b2` (`\"Globex\"`), `c1` (`\"Laptops\"`), `c2` (`\"Monitores\"`) y **25** productos: `p1..p10` de `b1`/`c1`, `p11..p20` de `b2`/`c2`, `p21..p25` de `b1`/`c2`. De ellos, `p1..p5` se publican (`active`), `p6` se publica y se descontinúa, y el resto queda en `draft`. Cada producto se creó en orden, así que `p25` es el de `updatedAt` más reciente. Credencial con ro"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-IMG-001 — galería de un producto — alta, principal, orden y baja",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.\n\nCasos borde declarados en el escenario (variaciones de la entrada de las requests de esta carpeta):\n- Subir una undécima imagen → `422` (`TOO_MANY_PRODUCT_IMAGES`).\n- Subir un `image/jpeg` de 6 MB → `413` (`FILE_TOO_LARGE`).\n- Subir un `application/pdf` → `415` (`UNSUPPORTED_CONTENT_TYPE`).\n- Subir un `image/gif` → `415` (`UNSUPPORTED_CONTENT_TYPE`): solo jpeg, png y webp.\n- `addProductImage` con `productId` inexistente → `404` (`PRODUCT_NOT_FOUND`).\n- `removeProductImage` con `imageId` de **otro** producto → `404` (`PRODUCT_IMAGE_NOT_FOUND`).\n- `setPrimaryProductImage` con `imageId` inexistente → `404` (`PRODUCT_IMAGE_NOT_FOUND`).\n- Sobre un producto **publicado** con una sola imagen, `removeProductImage` → `409`\n  (`LAST_IMAGE_OF_ACTIVE_PRODUCT`); sobre el mismo producto en `draft`, `204`.\n- `reorderProductImages` con una lista que **omite** una imagen del producto → `422`\n  (`IMAGE_SET_MISMATCH`).\n- `reorderProductImages` con una lista que **repite** un id → `422` (`IMAGE_SET_MISMATCH`).\n- `reorderProductImages` con un id ajeno al producto → `422` (`IMAGE_SET_MISMATCH`).\n- `reorderProductImages` con `imageIds: []` → `400` (`minItems: 1`).\n- `reorderProductImages` con 11 ids → `400` (`maxItems: 10`).\n- `altText` de 201 caracteres → `400` (`maxLength: 200`).",
+      "item": [
+        {
+          "name": "FL-IMG-001 · A — Sube una imagen a la galería de un producto y la coloca al final del o (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": [],
+                  "description": "Archivo de imagen (jpeg, png o webp), hasta 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Vista frontal del producto"
+                },
+                {
+                  "key": "primary",
+                  "type": "text",
+                  "value": "True"
+                }
+              ]
+            },
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · B — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · C — Sube una imagen a la galería de un producto y la coloca al final del o (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": [],
+                  "description": "Archivo de imagen (jpeg, png o webp), hasta 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Vista frontal del producto"
+                },
+                {
+                  "key": "primary",
+                  "type": "text",
+                  "value": "True"
+                }
+              ]
+            },
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · D — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · E — Elige qué imagen representa al producto en los listados (204)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/{{imageId}}/primary",
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · F — Recupera la ficha completa de un producto para el back-office, con su  (204)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · G — Reordena la galería de un producto (204)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/order",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageIds\": [\n    \"{{imageId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · H — Recupera la ficha completa de un producto para el back-office, con su  (204)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · I — Quita una imagen de la galería de un producto (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/{{imageId}}",
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · J — Recupera la ficha completa de un producto para el back-office, con su  (204)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-001 · K — Sube una imagen a la galería de un producto y la coloca al final del o (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": [],
+                  "description": "Archivo de imagen (jpeg, png o webp), hasta 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Vista frontal del producto"
+                },
+                {
+                  "key": "primary",
+                  "type": "text",
+                  "value": "True"
+                }
+              ]
+            },
+            "description": "Escenario de FL-IMG-001 — galería de un producto — alta, principal, orden y baja.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` en `draft` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-IMG-010 — la galería de un producto descontinuado no se toca",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-IMG-010 · A — Sube una imagen a la galería de un producto y la coloca al final del o (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": [],
+                  "description": "Archivo de imagen (jpeg, png o webp), hasta 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Vista frontal del producto"
+                },
+                {
+                  "key": "primary",
+                  "type": "text",
+                  "value": "True"
+                }
+              ]
+            },
+            "description": "Escenario de FL-IMG-010 — la galería de un producto descontinuado no se toca.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` con dos imágenes, lo publica y lo descontinúa. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-010 · B — Quita una imagen de la galería de un producto (200)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/{{imageId}}",
+            "description": "Escenario de FL-IMG-010 — la galería de un producto descontinuado no se toca.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` con dos imágenes, lo publica y lo descontinúa. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-010 · C — Elige qué imagen representa al producto en los listados (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/{{imageId}}/primary",
+            "description": "Escenario de FL-IMG-010 — la galería de un producto descontinuado no se toca.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` con dos imágenes, lo publica y lo descontinúa. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-IMG-020 — idempotencia de la subida de una imagen",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-IMG-020 · A — Sube una imagen a la galería de un producto y la coloca al final del o (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": [],
+                  "description": "Archivo de imagen (jpeg, png o webp), hasta 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Vista frontal del producto"
+                },
+                {
+                  "key": "primary",
+                  "type": "text",
+                  "value": "True"
+                }
+              ]
+            },
+            "description": "Escenario de FL-IMG-020 — idempotencia de la subida de una imagen.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-020 · B — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-IMG-020 — idempotencia de la subida de una imagen.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-020 · C — Recupera la ficha completa de un producto para el back-office, con su  (esperado)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-IMG-020 — idempotencia de la subida de una imagen.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-020 · D — Recupera la ficha completa de un producto para el back-office, con su  (esperado)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-IMG-020 — idempotencia de la subida de una imagen.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-020 · E — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-IMG-020 — idempotencia de la subida de una imagen.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` sin imágenes. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-BRD-001 — alta, edición y borrado de una marca",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.\n\nCasos borde declarados en el escenario (variaciones de la entrada de las requests de esta carpeta):\n- `createBrand` con `name: \"ACME\"` existiendo `\"Acme\"` → `409` (`BRAND_NAME_ALREADY_EXISTS`): la\n  unicidad ignora mayúsculas.\n- `createBrand` con `name: \"Acmé\"` existiendo `\"Acme\"` → `409` (`BRAND_NAME_ALREADY_EXISTS`): y\n  también ignora acentos.\n- `createBrand` con `name: \"Acme!\"` existiendo `\"Acme\"` → `409` (`BRAND_SLUG_ALREADY_EXISTS`): los\n  nombres **no** coinciden, pero los dos dan el slug `\"acme\"`. Es el `code` que distingue los dos\n  fallos.\n- `updateBrand` con el nombre de otra marca → `409` (`BRAND_NAME_ALREADY_EXISTS`).\n- `updateBrand` con `brandId` inexistente → `404` (`BRAND_NOT_FOUND`).\n- `deleteBrand` con `brandId` inexistente → `404` (`BRAND_NOT_FOUND`).\n- `name` de 81 caracteres → `400` (`maxLength: 80`).\n- `name` ausente → `400` (requerido).\n- Cualquiera de las tres con credencial de `catalog-editor` → `403`: la taxonomía es del admin.",
+      "item": [
+        {
+          "name": "FL-BRD-001 · A — Da de alta una marca (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-BRD-001 — alta, edición y borrado de una marca.\nGiven: **Given**: no existe ninguna marca. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-001 · B — Cambia el nombre o la reseña de una marca (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/{{brandId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-BRD-001 — alta, edición y borrado de una marca.\nGiven: **Given**: no existe ninguna marca. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-001 · C — Elimina una marca que ningún producto referencia (409)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/{{brandId}}",
+            "description": "Escenario de FL-BRD-001 — alta, edición y borrado de una marca.\nGiven: **Given**: no existe ninguna marca. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-001 · D — Elimina definitivamente un producto que nunca llegó a publicarse (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-BRD-001 — alta, edición y borrado de una marca.\nGiven: **Given**: no existe ninguna marca. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-001 · E — Elimina una marca que ningún producto referencia (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/{{brandId}}",
+            "description": "Escenario de FL-BRD-001 — alta, edición y borrado de una marca.\nGiven: **Given**: no existe ninguna marca. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-BRD-001 · F — Da de alta una marca (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-BRD-001 — alta, edición y borrado de una marca.\nGiven: **Given**: no existe ninguna marca. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-BRD-010 — idempotencia del alta de marca",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-BRD-010 · A — Da de alta una marca (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-BRD-010 — idempotencia del alta de marca.\nGiven: **Given**: no existe ninguna marca. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CAT-001 — alta, edición y borrado de una categoría",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.\n\nCasos borde declarados en el escenario (variaciones de la entrada de las requests de esta carpeta):\n- `createCategory` con `name: \"LAPTOPS\"` existiendo `\"Laptops\"` → `409`\n  (`CATEGORY_NAME_ALREADY_EXISTS`).\n- `createCategory` con `name: \"Laptops+\"` existiendo `\"Laptops\"` → `409`\n  (`CATEGORY_SLUG_ALREADY_EXISTS`).\n- `updateCategory` con `categoryId` inexistente → `404` (`CATEGORY_NOT_FOUND`).\n- `deleteCategory` con `categoryId` inexistente → `404` (`CATEGORY_NOT_FOUND`).\n- Cualquiera con credencial de `catalog-editor` → `403`.",
+      "item": [
+        {
+          "name": "FL-CAT-001 · A — Da de alta una categoría (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-CAT-001 — alta, edición y borrado de una categoría.\nGiven: **Given**: no existe ninguna categoría. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CAT-001 · B — Cambia el nombre o el texto de cabecera de una categoría (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-CAT-001 — alta, edición y borrado de una categoría.\nGiven: **Given**: no existe ninguna categoría. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CAT-001 · C — Elimina una categoría que ningún producto referencia (409)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories/{{categoryId}}",
+            "description": "Escenario de FL-CAT-001 — alta, edición y borrado de una categoría.\nGiven: **Given**: no existe ninguna categoría. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CAT-001 · D — Elimina una categoría que ningún producto referencia (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories/{{categoryId}}",
+            "description": "Escenario de FL-CAT-001 — alta, edición y borrado de una categoría.\nGiven: **Given**: no existe ninguna categoría. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CAT-001 · E — Da de alta una categoría (204)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-CAT-001 — alta, edición y borrado de una categoría.\nGiven: **Given**: no existe ninguna categoría. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CAT-001 · F — Cambia el nombre o el texto de cabecera de una categoría (204)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories/{{categoryId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-CAT-001 — alta, edición y borrado de una categoría.\nGiven: **Given**: no existe ninguna categoría. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CAT-010 — idempotencia del alta de categoría",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-CAT-010 · A — Da de alta una categoría (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-CAT-010 — idempotencia del alta de categoría.\nGiven: **Given**: no existe ninguna categoría. Credencial con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-IDM-001 — reintento, reutilización de clave y carrera en createProduct",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-IDM-001 · A — Da de alta un producto en estado draft, invisible para la tienda (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-IDM-001 — reintento, reutilización de clave y carrera en createProduct.\nGiven: **Given**: el flujo crea `b1` y `c1`. No existe ningún producto. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IDM-001 · B — Lista los productos para el back-office, en cualquier estado, con filt (201)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/management/products",
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "brandId",
+                  "value": "{{brandId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "name",
+                  "value": "Laptop Pro 14",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sku",
+                  "value": "SKU-001",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Escenario de FL-IDM-001 — reintento, reutilización de clave y carrera en createProduct.\nGiven: **Given**: el flujo crea `b1` y `c1`. No existe ningún producto. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IDM-001 · C — Da de alta un producto en estado draft, invisible para la tienda (esperado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-IDM-001 — reintento, reutilización de clave y carrera en createProduct.\nGiven: **Given**: el flujo crea `b1` y `c1`. No existe ningún producto. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IDM-001 · D — Lista los productos para el back-office, en cualquier estado, con filt (esperado)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/management/products",
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "brandId",
+                  "value": "{{brandId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "name",
+                  "value": "Laptop Pro 14",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sku",
+                  "value": "SKU-001",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Escenario de FL-IDM-001 — reintento, reutilización de clave y carrera en createProduct.\nGiven: **Given**: el flujo crea `b1` y `c1`. No existe ningún producto. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IDM-001 · E — Da de alta un producto en estado draft, invisible para la tienda (esperado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-IDM-001 — reintento, reutilización de clave y carrera en createProduct.\nGiven: **Given**: el flujo crea `b1` y `c1`. No existe ningún producto. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IDM-001 · F — Lista los productos para el back-office, en cualquier estado, con filt (esperado)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/management/products",
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "brandId",
+                  "value": "{{brandId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "name",
+                  "value": "Laptop Pro 14",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sku",
+                  "value": "SKU-001",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Escenario de FL-IDM-001 — reintento, reutilización de clave y carrera en createProduct.\nGiven: **Given**: el flujo crea `b1` y `c1`. No existe ningún producto. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PUB-001 — escaparate con filtros de categoría, marca, nombre y precio",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.\n\nCasos borde declarados en el escenario (variaciones de la entrada de las requests de esta carpeta):\n- `?minPrice=1000&maxPrice=500` → `422` con `code: INVALID_PRICE_RANGE`.\n- `?minPrice=10.999` → `400` (escala máxima 2).\n- `?minPrice=500` sin `maxPrice` → `200`: el rango abierto es válido.",
+      "item": [
+        {
+          "name": "FL-PUB-001 · A — Lista los productos a la venta, con filtros de categoría, marca, nombr (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products",
+              "query": [
+                {
+                  "key": "categorySlug",
+                  "value": "laptops",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "brandSlug",
+                  "value": "acme",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "name",
+                  "value": "Laptop Pro 14",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "minPrice",
+                  "value": "100.0",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "2000.0",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Escenario de FL-PUB-001 — escaparate con filtros de categoría, marca, nombre y precio.\nGiven: **Given**: el flujo crea `b1` (`\"Acme\"`, slug `acme`), `b2` (`\"Globex\"`, slug `globex`), `c1` (`\"Laptops\"`, slug `laptops`), `c2` (`\"Monitores\"`, slug `monitores`) y **25** productos con una imagen cada uno: `q1..q22` publicados (`active`), `q23` en `draft`, `q24` `discontinued` y `q25` en `draft`. Entre los publicados, `q1` (`\"Laptop A\"`, `b1`/`c1`, `price: 700.00`), `q2` (`\"Laptop B\"`, `b1`/`c1`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PUB-010 — ficha pública por slug",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.\n\nCasos borde declarados en el escenario (variaciones de la entrada de las requests de esta carpeta):\n- `GET /api/v1/products/teclado-k1` (borrador) → `404` con `code: PRODUCT_NOT_FOUND`: la tienda no\n  revela borradores, y responde como si no existiera.\n- `GET /api/v1/products/monitor-viejo` (descontinuado) → `404` (`PRODUCT_NOT_FOUND`).\n- `GET /api/v1/products/no-existe` → `404` (`PRODUCT_NOT_FOUND`). Los tres casos son\n  indistinguibles para el consumidor, que es el objetivo.",
+      "item": [
+        {
+          "name": "FL-PUB-010 · A — Devuelve la ficha pública de un producto a partir de su slug (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{slug}}",
+            "description": "Escenario de FL-PUB-010 — ficha pública por slug.\nGiven: **Given**: el flujo crea `b1` (`\"Acme\"`), `c1` (`\"Laptops\"`) y tres productos con una imagen cada uno: `q1` publicado (`name: \"Laptop Pro 14\"`, slug `laptop-pro-14`, `price: 1299.00`, `description: \"Portátil de 14 pulgadas.\"`), `q2` en `draft` (slug `teclado-k1`) y `q3` `discontinued` (slug `monitor-viejo`). **Sin credencial**."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-PUB-020 — navegación de la tienda — marcas y categorías",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-PUB-020 · A — Lista las marcas para que la tienda construya su navegación (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/brands",
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Escenario de FL-PUB-020 — navegación de la tienda — marcas y categorías.\nGiven: **Given**: el flujo crea 3 marcas (`\"Acme\"`, `\"Globex\"`, `\"Initech\"`) y 3 categorías (`\"Laptops\"`, `\"Monitores\"`, `\"Teclados\"`). **Sin credencial**."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-PUB-020 · B — Lista las categorías para que la tienda construya su navegación (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Escenario de FL-PUB-020 — navegación de la tienda — marcas y categorías.\nGiven: **Given**: el flujo crea 3 marcas (`\"Acme\"`, `\"Globex\"`, `\"Initech\"`) y 3 categorías (`\"Laptops\"`, `\"Monitores\"`, `\"Teclados\"`). **Sin credencial**."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CCH-001 — invalidación y retención de la ficha pública",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-CCH-001 · A — Cambia la ficha comercial de un producto (nombre, descripción, precio, (404)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-CCH-001 — invalidación y retención de la ficha pública.\nGiven: **Given**: el flujo crea `b1` (`\"Acme\"`), `c1` (`\"Laptops\"`) y el producto `q1` publicado (slug `laptop-pro-14`, `price: 1299.00`) con una imagen. La caché de `getPublicProduct` tiene un TTL de 60 s y se invalida por `ProductUpdated`, `ProductStatusChanged`, `BrandUpdated` y `CategoryUpdated`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-001 · B — Sube una imagen a la galería de un producto y la coloca al final del o (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": [],
+                  "description": "Archivo de imagen (jpeg, png o webp), hasta 5 MB."
+                },
+                {
+                  "key": "altText",
+                  "type": "text",
+                  "value": "Vista frontal del producto"
+                },
+                {
+                  "key": "primary",
+                  "type": "text",
+                  "value": "True"
+                }
+              ]
+            },
+            "description": "Escenario de FL-CCH-001 — invalidación y retención de la ficha pública.\nGiven: **Given**: el flujo crea `b1` (`\"Acme\"`), `c1` (`\"Laptops\"`) y el producto `q1` publicado (slug `laptop-pro-14`, `price: 1299.00`) con una imagen. La caché de `getPublicProduct` tiene un TTL de 60 s y se invalida por `ProductUpdated`, `ProductStatusChanged`, `BrandUpdated` y `CategoryUpdated`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CCH-001 · C — Cambia el nombre o la reseña de una marca (404)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/{{brandId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-CCH-001 — invalidación y retención de la ficha pública.\nGiven: **Given**: el flujo crea `b1` (`\"Acme\"`), `c1` (`\"Laptops\"`) y el producto `q1` publicado (slug `laptop-pro-14`, `price: 1299.00`) con una imagen. La caché de `getPublicProduct` tiene un TTL de 60 s y se invalida por `ProductUpdated`, `ProductStatusChanged`, `BrandUpdated` y `CategoryUpdated`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CCH-010 — invalidación y retención de la ficha M2M",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-CCH-010 · A — Marca un producto como descontinuado; deja de venderse pero su ficha s (esperado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/discontinue",
+            "description": "Escenario de FL-CCH-010 — invalidación y retención de la ficha M2M.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `q1` publicado con una imagen. Credencial de máquina del cliente `orders-service`. La caché de `getProductForServices` tiene TTL de 60 s y las mismas cuatro vías de invalidación."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SRV-001 — ficha de producto para otro servidor",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.\n\nCasos borde declarados en el escenario (variaciones de la entrada de las requests de esta carpeta):\n- `GET /api/v1/services/products/{q2}` (borrador) → `404` con `code: PRODUCT_NOT_FOUND`: un borrador\n  no es todavía un artículo del catálogo.\n- `productId` inexistente → `404` (`PRODUCT_NOT_FOUND`).\n- **Sin credencial** → `401`.\n- Con credencial de máquina **sin** el scope `product:read` → `403`.\n- Con un token de máquina emitido para **otra audiencia** → `403`: el token es legítimo, pero no está\n  emitido para este servicio.",
+      "item": [
+        {
+          "name": "FL-SRV-001 · A — Resuelve un producto por su id para otro servidor que necesita su fich (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_orders-service}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/services/products/{{productId}}",
+            "description": "Escenario de FL-SRV-001 — ficha de producto para otro servidor.\nGiven: **Given**: el flujo crea `b1` (`\"Acme\"`), `c1` (`\"Laptops\"`), el producto `q1` publicado (`sku: \"SKU-M01\"`, `price: 1299.00`) con una imagen, `q2` en `draft` y `q3` `discontinued`. Credencial de máquina del cliente `orders-service`, con el scope `product:read`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SRV-010 — resolución por lote",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.\n\nCasos borde declarados en el escenario (variaciones de la entrada de las requests de esta carpeta):\n- Sin el parámetro de ids → `422` con `code: EMPTY_ID_LIST`.\n- Lista vacía → `422` (`EMPTY_ID_LIST`).\n- Lista con 101 ids → `422` (`TOO_MANY_IDS`).\n- Lista con exactamente 100 ids → `200`.\n- Un id que no es un uuid → `400`.\n- **Sin credencial** → `401`; con credencial de máquina sin `product:read` → `403`; con token de otra\n  audiencia → `403`.",
+      "item": [
+        {
+          "name": "FL-SRV-010 · A — Resuelve varios productos por sus ids en una sola llamada, para que un (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_orders-service}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/services/products",
+              "query": [
+                {
+                  "key": "productIds",
+                  "value": "{{productId}}",
+                  "disabled": true,
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Escenario de FL-SRV-010 — resolución por lote.\nGiven: **Given**: el flujo crea `b1`, `c1` y cinco productos: `q1` (`sku: \"SKU-B01\"`), `q2` (`sku: \"SKU-B02\"`) y `q3` (`sku: \"SKU-B03\"`) publicados, `q4` en `draft`, `q5` `discontinued`. Credencial de máquina del cliente `cart-service`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-OBX-001 — el evento sobrevive a un canal indisponible",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-OBX-001 · A — Da de alta un producto en estado draft, invisible para la tienda (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-OBX-001 — el evento sobrevive a un canal indisponible.\nGiven: **Given**: el flujo crea `b1` y `c1`. El canal `productEvents` está **sin mensajes** e **indisponible**. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-OBX-001 · B — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-OBX-001 — el evento sobrevive a un canal indisponible.\nGiven: **Given**: el flujo crea `b1` y `c1`. El canal `productEvents` está **sin mensajes** e **indisponible**. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-001 — quién puede llamar a qué",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-SEC-001 · A — Lista los productos para el back-office, en cualquier estado, con filt (401)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/management/products",
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "brandId",
+                  "value": "{{brandId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "name",
+                  "value": "Laptop Pro 14",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "sku",
+                  "value": "SKU-001",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Escenario de FL-SEC-001 — quién puede llamar a qué.\nGiven: **Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · B — Elimina definitivamente un producto que nunca llegó a publicarse (esperado)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "description": "Escenario de FL-SEC-001 — quién puede llamar a qué.\nGiven: **Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · C — Da de alta una marca (esperado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-SEC-001 — quién puede llamar a qué.\nGiven: **Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · D — Cambia el nombre o la reseña de una marca (esperado)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/brands/{{brandId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-SEC-001 — quién puede llamar a qué.\nGiven: **Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · E — Da de alta un producto en estado draft, invisible para la tienda (esperado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Obligatoria: sin ella la respuesta es 400 IDEMPOTENCY_KEY_REQUIRED."
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-SEC-001 — quién puede llamar a qué.\nGiven: **Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · F — Cambia la ficha comercial de un producto (nombre, descripción, precio, (esperado)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Laptop Pro 14\",\n  \"description\": \"Portátil de 14 pulgadas, 16 GB de RAM.\",\n  \"price\": 1299.0,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-SEC-001 — quién puede llamar a qué.\nGiven: **Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · G — Publica un producto en borrador para que la tienda lo muestre (esperado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/publish",
+            "description": "Escenario de FL-SEC-001 — quién puede llamar a qué.\nGiven: **Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · H — Lista los productos a la venta, con filtros de categoría, marca, nombr (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products",
+              "query": [
+                {
+                  "key": "categorySlug",
+                  "value": "laptops",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "brandSlug",
+                  "value": "acme",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "name",
+                  "value": "Laptop Pro 14",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "minPrice",
+                  "value": "100.0",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "2000.0",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Escenario de FL-SEC-001 — quién puede llamar a qué.\nGiven: **Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · I — Devuelve la ficha pública de un producto a partir de su slug (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{slug}}",
+            "description": "Escenario de FL-SEC-001 — quién puede llamar a qué.\nGiven: **Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · J — Lista las marcas para que la tienda construya su navegación (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/brands",
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Escenario de FL-SEC-001 — quién puede llamar a qué.\nGiven: **Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario con rol `catalog-admin`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-020 — petición normal cross-origin",
+      "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
+      "item": [
+        {
+          "name": "FL-SEC-020 · A — Devuelve la ficha pública de un producto a partir de su slug (200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{slug}}",
+            "description": "Escenario de FL-SEC-020 — petición normal cross-origin.\nGiven: **Given**: la misma política, y un producto `q1` publicado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-010 — preflight del navegador",
+      "description": "El preflight no corresponde a ninguna operación del diseño: se deriva de la política cors declarada en la capa security.",
+      "item": [
+        {
+          "name": "FL-SEC-010 · A — Preflight del navegador (2xx)",
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{webOrigin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              },
+              {
+                "key": "Access-Control-Request-Headers",
+                "value": "Authorization, Content-Type, Idempotency-Key"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products",
+            "description": "Preflight sin credencial sobre una ruta protegida: no debe morir en la cadena de seguridad. La política declara las cabeceras Authorization, Content-Type, Idempotency-Key, expone X-Correlation-Id y cachea el preflight 3600 s. El origen concreto es despliegue: va en la variable webOrigin."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('el preflight no se rechaza', () => pm.expect(pm.response.code).to.be.below(300));",
+                  "pm.test('admite el método anunciado', () => pm.expect(pm.response.headers.get('Access-Control-Allow-Methods') || '').to.include('POST'));",
+                  "pm.test('admite Idempotency-Key', () => pm.expect((pm.response.headers.get('Access-Control-Allow-Headers') || '').toLowerCase()).to.include('idempotency-key'));",
+                  "pm.test('declara el maxAge de la politica', () => pm.expect(pm.response.headers.get('Access-Control-Max-Age')).to.eql('3600'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-OBX-002 — el evento que el relay abandona",
+      "description": "Este flujo no tiene petición propia: su When es que se agote el presupuesto de reintentos del relay con el canal indisponible, y eso lo gobierna la infraestructura, no la API. Se prepara con la request de FL-OBX-001 (el canal caído y una mutación ya ejecutada) y se verifica sobre el canal y la señal de eventos abandonados que publique el servidor.",
+      "item": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "keelVersion",
+      "value": "0.1.0"
+    },
+    {
+      "key": "productId",
+      "value": ""
+    },
+    {
+      "key": "brandId",
+      "value": ""
+    },
+    {
+      "key": "categoryId",
+      "value": ""
+    },
+    {
+      "key": "imageId",
+      "value": ""
+    }
+  ]
+}

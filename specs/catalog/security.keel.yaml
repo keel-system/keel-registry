@@ -1,0 +1,94 @@
+# Capa security — autenticación y reglas de acceso, declaradas por operación.
+# Agnóstica del proveedor: se declara el protocolo, nunca el producto que lo implementa.
+
+authentication:
+  protocol: oidc
+  tokenLocation: header
+  serviceAuth:
+    protocol: client-credentials
+    validateAudience: true
+    audience: catalog
+
+roles:
+  catalog-admin:
+    description: Responsable del catálogo. Gestiona la taxonomía (marcas y categorías) y puede borrar borradores.
+  catalog-editor:
+    description: >
+      Carga y mantiene fichas de producto y su galería. Ninguna regla lo exige por nombre a
+      propósito: se define por lo que alcanza vía roleGrants (product:read y product:write) y,
+      sobre todo, por lo que no alcanza — la taxonomía y el borrado exigen catalog-admin.
+
+permissions:
+  product:read:
+    description: Leer fichas de producto desde el back-office, en cualquier estado.
+  product:write:
+    description: Crear y modificar productos, su estado comercial y su galería de imágenes.
+  product:delete:
+    description: Eliminar definitivamente un producto en borrador.
+  taxonomy:write:
+    description: Crear, modificar y eliminar marcas y categorías.
+
+roleGrants:
+  catalog-admin:  [product:read, product:write, product:delete, taxonomy:write]
+  catalog-editor: [product:read, product:write]
+
+# Catálogo de servidores consumidores reconocidos, cada uno con el mínimo privilegio que necesita.
+serviceClients:
+  orders-service:
+    description: Resuelve la ficha y el precio de los artículos de un pedido, por id y por lote.
+    scopes: [product:read]
+  cart-service:
+    description: Resuelve por lote los artículos que el comprador tiene en el carrito.
+    scopes: [product:read]
+  search-service:
+    description: Mantiene su índice de búsqueda con los eventos del catálogo y usa el lote para reconstruirlo.
+    scopes: [product:read]
+
+access:
+  # Cerrado por defecto: una operación nueva sin regla explícita exige token, nunca queda abierta.
+  default: { level: required, permissions: [product:read] }
+  rules:
+
+    # ── Tienda pública: sin token. Es el escaparate ──────────────────────────────
+    listPublicProducts: { level: public }
+    getPublicProduct:   { level: public }
+    listBrands:         { level: public }
+    listCategories:     { level: public }
+
+    # ── Back-office: lectura ─────────────────────────────────────────────────────
+    getProduct:   { level: required, permissions: [product:read] }
+    listProducts: { level: required, permissions: [product:read] }
+
+    # ── Back-office: fichas, estado comercial y galería ──────────────────────────
+    createProduct:          { level: required, permissions: [product:write] }
+    updateProduct:          { level: required, permissions: [product:write] }
+    publishProduct:         { level: required, permissions: [product:write] }
+    unpublishProduct:       { level: required, permissions: [product:write] }
+    discontinueProduct:     { level: required, permissions: [product:write] }
+    reactivateProduct:      { level: required, permissions: [product:write] }
+    addProductImage:        { level: required, permissions: [product:write] }
+    removeProductImage:     { level: required, permissions: [product:write] }
+    setPrimaryProductImage: { level: required, permissions: [product:write] }
+    reorderProductImages:   { level: required, permissions: [product:write] }
+
+    # Borrar es la única acción irreversible sobre un producto: permiso propio, solo del admin.
+    deleteProduct: { level: admin, roles: [catalog-admin], permissions: [product:delete] }
+
+    # ── Taxonomía: la comparten todos los productos, así que solo el admin ───────
+    createBrand:    { level: admin, roles: [catalog-admin], permissions: [taxonomy:write] }
+    updateBrand:    { level: admin, roles: [catalog-admin], permissions: [taxonomy:write] }
+    deleteBrand:    { level: admin, roles: [catalog-admin], permissions: [taxonomy:write] }
+    createCategory: { level: admin, roles: [catalog-admin], permissions: [taxonomy:write] }
+    updateCategory: { level: admin, roles: [catalog-admin], permissions: [taxonomy:write] }
+    deleteCategory: { level: admin, roles: [catalog-admin], permissions: [taxonomy:write] }
+
+    # ── Servidor-a-servidor: credencial de máquina, nunca token de usuario ───────
+    getProductForServices:        { level: service, scopes: [product:read] }
+    listProductsBatchForServices: { level: service, scopes: [product:read] }
+
+cors:
+  description: Consumido desde el navegador por la tienda y por la SPA de back-office.
+  allowCredentials: false
+  allowedHeaders: [Authorization, Content-Type, Idempotency-Key]
+  exposedHeaders: [X-Correlation-Id]
+  maxAgeSeconds: 3600

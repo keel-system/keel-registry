@@ -6,20 +6,21 @@ keel: "2.13"
 service:
   name: catalog
   version: 0.1.0
-  # keel validate trata cualquier description que empiece por "TODO" como placeholder pendiente.
-  description: "TODO: describe en una frase qué problema de negocio resuelve este servicio."
-  # domain: commerce
-  # basedOn: billing@1.2.0         # linaje: diseño@versión del que se derivó (lo escribe `keel new --from`)
+  description: >
+    Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus
+    categorías. Los publica a los consumidores con búsqueda y filtros, los gestiona el personal de
+    la tienda con rastro de autoría, y difunde sus altas y sus cambios al resto de servidores por
+    consulta directa y por eventos.
+  domain: commerce
 
 layers:
   domain: domain.keel.yaml         # obligatoria
   use-cases: use-cases.keel.yaml   # obligatoria
-  # Descomenta las capas que apliquen y crea el archivo desde templates/service/:
-  # api: api.keel.yaml
-  # security: security.keel.yaml
-  # messaging: messaging.keel.yaml
-  # http-clients: http-clients.keel.yaml
-  # dependencies: dependencies.keel.yaml
-  # persistence: persistence.keel.yaml
-  # storage: storage.keel.yaml
-  # mail: mail.keel.yaml
+  api: api.keel.yaml
+  security: security.keel.yaml
+  messaging: messaging.keel.yaml
+  persistence: persistence.keel.yaml
+  storage: storage.keel.yaml
+  # http-clients: no aplica — el catálogo no llama a nadie
+  # dependencies: no aplica — no necesita ningún dato ajeno
+  # mail: no aplica — no manda correo

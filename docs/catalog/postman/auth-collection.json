@@ -1,0 +1,319 @@
+{
+  "info": {
+    "name": "catalog — Auth",
+    "description": "Tokens para la colección de API. Ejecuta primero las requests de esta colección: cada una guarda su token en una global (token_<rol>, token_<cliente>). Las variables son del stack, no del diseño: rellénalas según tu proveedor.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Token — catalog-admin",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Token de usuario con el rol catalog-admin. Permisos: product:read, product:write, product:delete, taxonomy:write.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_catalog-admin}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_catalog-admin}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_catalog-admin', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — catalog-editor",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Token de usuario con el rol catalog-editor. Permisos: product:read, product:write.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_catalog-editor}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_catalog-editor}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_catalog-editor', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — orders-service",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Resuelve la ficha y el precio de los artículos de un pedido, por id y por lote. Scopes concedidos: product:read.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_orders-service}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_orders-service}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scopes_orders-service}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_orders-service', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — cart-service",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Resuelve por lote los artículos que el comprador tiene en el carrito. Scopes concedidos: product:read.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_cart-service}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_cart-service}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scopes_cart-service}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_cart-service', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token M2M — search-service",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "description": "Mantiene su índice de búsqueda con los eventos del catálogo y usa el lote para reconstruirlo. Scopes concedidos: product:read.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_search-service}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_search-service}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scopes_search-service}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_search-service', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "tokenUrl",
+      "value": "",
+      "description": "Endpoint de token del proveedor de identidad. Es parámetro de despliegue: el diseño declara el protocolo (OIDC / client-credentials), nunca el producto."
+    },
+    {
+      "key": "clientId",
+      "value": ""
+    },
+    {
+      "key": "clientSecret",
+      "value": ""
+    },
+    {
+      "key": "username_catalog-admin",
+      "value": ""
+    },
+    {
+      "key": "password_catalog-admin",
+      "value": ""
+    },
+    {
+      "key": "username_catalog-editor",
+      "value": ""
+    },
+    {
+      "key": "password_catalog-editor",
+      "value": ""
+    },
+    {
+      "key": "clientId_orders-service",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_orders-service",
+      "value": ""
+    },
+    {
+      "key": "scopes_orders-service",
+      "value": "product:read"
+    },
+    {
+      "key": "clientId_cart-service",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_cart-service",
+      "value": ""
+    },
+    {
+      "key": "scopes_cart-service",
+      "value": "product:read"
+    },
+    {
+      "key": "clientId_search-service",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_search-service",
+      "value": ""
+    },
+    {
+      "key": "scopes_search-service",
+      "value": "product:read"
+    }
+  ]
+}

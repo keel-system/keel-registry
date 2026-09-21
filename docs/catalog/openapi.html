@@ -1,0 +1,3215 @@
+<!doctype html>
+<!-- keel:version 0.1.0 -->
+<!--
+  Visor de contratos Keel — plantilla de forma fija, común a OpenAPI y AsyncAPI.
+  NO edites el markup, el CSS ni el JS al generar. Copia este archivo tal cual y sustituye
+  únicamente los tres marcadores que aparecen más abajo (el título de la pestaña, el nombre del
+  renderer y el marcador de la constante del spec). Los tokens exactos y el procedimiento están
+  en ../overview-html-guide.md.
+
+  El spec va embebido, nunca por fetch: así el archivo abre con doble clic desde file://.
+  El renderer se carga de CDN; sin conexión, la página muestra el fallback con enlaces al
+  archivo crudo y al editor online.
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>catalog · OpenAPI</title>
+<style>
+  :root { color-scheme: light dark; --bg:#ffffff; --text:#1b1f24; --muted:#5c6773; --border:#dfe3e8; --accent:#2f6feb; --panel:#f6f7f9; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151a; --text:#e6e9ee; --muted:#9aa5b1; --border:#2c333d; --accent:#6ea0ff; --panel:#191d24; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--border); background:var(--panel); }
+  .bar strong { font-size:14px; }
+  .bar a, .bar button {
+    font:inherit; font-size:13px; padding:5px 11px; border:1px solid var(--border); border-radius:8px;
+    background:var(--bg); color:var(--text); text-decoration:none; cursor:pointer;
+  }
+  .bar a:hover, .bar button:hover { border-color:var(--accent); color:var(--accent); }
+  .spacer { flex:1 1 auto; }
+  #fallback { max-width:780px; margin:48px auto; padding:0 20px; }
+  #fallback h1 { font-size:22px; }
+  #fallback p { color:var(--muted); }
+  #fallback ul { padding-left:20px; }
+  #fallback pre {
+    background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px;
+    max-height:50vh; overflow:auto; font-size:12.5px;
+  }
+  /*
+    Isla clara para el render. Ni Redoc ni el componente de AsyncAPI traen tema oscuro: pintan sus
+    propios fondos claros y dejan que el texto herede del documento. Si el visor hereda el esquema
+    oscuro de la barra, el resultado es texto claro sobre panel claro (ilegible: ~1.2:1). Fijamos
+    aquí fondo, color y color-scheme para que el contenido del contrato se renderice siempre sobre
+    claro, con el contraste que el propio renderer diseñó. La barra y el fallback siguen siendo
+    sensibles al tema: son nuestros y sí tienen ambas variantes.
+  */
+  #render { min-height:60vh; background:#ffffff; color:#1b1f24; color-scheme: light; }
+  /*
+    El `code` inline de Redoc por defecto es #e53935 sobre #263238: 3.11:1, por debajo de AA.
+    Solo el inline de markdown (hijo de p, li, td…): quedan fuera los bloques con resaltado de
+    sintaxis (`.redoc-json` en Redoc, `pre` en el visor de AsyncAPI), que traen su propia paleta
+    sobre fondo oscuro y se romperían al forzarles un fondo claro.
+  */
+  #render :not(pre):not(.redoc-json) > code { background:#eceff3; color:#8a1c17; }
+  /*
+    Redoc rotula «Authorizations:», «path Parameters», «Request Body schema:»… con su color de
+    texto al 50% de opacidad (2.9:1 sobre blanco). Mismo gris «muted» de esta plantilla: sigue
+    siendo secundario, pero legible (5.76:1).
+  */
+  #render h5 { color:#5c6773; }
+  /*
+    Pestañas de respuesta de Redoc: la seleccionada se pinta sobre blanco (pasa AA), pero las no
+    seleccionadas caen sobre el panel oscuro de ejemplos manteniendo el rojo/verde pensados para
+    fondo claro (3.45:1 el rojo; el verde queda igual de bajo en cuanto se selecciona una de error).
+    Tonos claros de la misma familia para el estado no seleccionado.
+  */
+  #render li.tab-error:not(.react-tabs__tab--selected) { color:#ff8a80; }
+  #render li.tab-success:not(.react-tabs__tab--selected) { color:#7ddc8a; }
+  [hidden] { display:none !important; }
+</style>
+<link id="viewer-css" rel="stylesheet" href="">
+</head>
+<body>
+<div class="bar">
+  <strong id="doc-title">catalog · OpenAPI</strong>
+  <span class="spacer"></span>
+  <a href="overview.html">← Panel del servicio</a>
+  <a id="raw-link" href="#" download>Descargar spec</a>
+  <a id="editor-link" href="#" target="_blank" rel="noopener">Abrir editor online</a>
+  <button id="copy" type="button">Copiar spec</button>
+</div>
+
+<div id="render"></div>
+
+<div id="fallback" hidden>
+  <h1>No se pudo cargar el visor</h1>
+  <p>
+    El renderizado usa una librería servida desde un CDN y esta página no ha podido descargarla
+    (normalmente, por falta de conexión). El contrato en sí está completo y embebido aquí abajo.
+  </p>
+  <ul>
+    <li>Descarga el archivo con el botón <em>Descargar spec</em> y ábrelo con tu herramienta habitual.</li>
+    <li>O pulsa <em>Copiar spec</em> y pégalo en el <span id="editor-name">editor online</span>.</li>
+    <li>O vuelve a abrir esta página con conexión a internet.</li>
+  </ul>
+  <pre id="raw"></pre>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Contrato embebido. `/keel-docs` sustituye el placeholder por el spec completo.
+// ---------------------------------------------------------------------------
+var KEEL_SPEC = {
+  "openapi": "3.1.0",
+  "info": {
+    "title": "catalog",
+    "version": "0.1.0",
+    "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías. Los publica a los consumidores con búsqueda y filtros, los gestiona el personal de la tienda con rastro de autoría, y difunde sus altas y sus cambios al resto de servidores por consulta directa y por eventos.\n\nContrato HTTP derivado del diseño Keel (`specs/catalog`). Tres superficies con contratos distintos: la tienda pública (anónima), la gestión del back-office (autenticada, con rastro de autoría) y la superficie servidor-a-servidor (credencial de máquina).\n\nConvenciones del servicio: un campo sin valor **no viaja** en la respuesta; los instantes son UTC ISO-8601; `price` es decimal de escala 2 que se valida, no se redondea. El `code` de cada error y su status son contrato estable; el texto de `message`, no.",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "El host y el puerto son parámetro de despliegue, no diseño: las rutas de este documento son relativas a la raíz del servicio."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Tienda pública",
+      "description": "Lo que consume un comprador anónimo: escaparate, ficha y navegación."
+    },
+    {
+      "name": "Gestión de productos",
+      "description": "Back-office: fichas, estado comercial y galería de imágenes."
+    },
+    {
+      "name": "Gestión de marcas",
+      "description": "Back-office: la taxonomía de marcas, reservada al rol catalog-admin."
+    },
+    {
+      "name": "Gestión de categorías",
+      "description": "Back-office: la taxonomía de categorías, reservada al rol catalog-admin."
+    },
+    {
+      "name": "Servidor-a-servidor",
+      "description": "Superficie M2M: resolución de productos por id y por lote con credencial de máquina."
+    }
+  ],
+  "paths": {
+    "/api/v1/products": {
+      "get": {
+        "operationId": "listPublicProducts",
+        "summary": "Lista los productos a la venta, con filtros de categoría, marca, nombre y rango de precio.",
+        "description": "Lista los productos a la venta, con filtros de categoría, marca, nombre y rango de precio.\n\nAcceso público: no exige credencial.\n\n**Precondiciones**\n- Si llegan los dos extremos del rango, minPrice no es mayor que maxPrice.\n\n**Reglas**\n- Solo se devuelven productos active; los borradores y los descontinuados nunca salen aquí.\n- Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan.\n- El filtro name casa por coincidencia parcial sobre el nombre, ignorando mayúsculas y acentos.\n- Los extremos del rango de precio son inclusivos.\n- Un categorySlug o brandSlug que no existe no es un error: la página sale vacía.",
+        "tags": [
+          "Tienda pública"
+        ],
+        "parameters": [
+          {
+            "name": "categorySlug",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/Slug"
+            }
+          },
+          {
+            "name": "brandSlug",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/Slug"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string",
+              "maxLength": 140
+            }
+          },
+          {
+            "name": "minPrice",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/Price"
+            }
+          },
+          {
+            "name": "maxPrice",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/Price"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Índice de página, base 0.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "description": "Tamaño de página. Por defecto 20; un valor mayor que 100 se recorta a 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageProductPublic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Códigos posibles con este status:\n\n- `INVALID_PRICE_RANGE` — minPrice es mayor que maxPrice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/products/{slug}": {
+      "get": {
+        "operationId": "getPublicProduct",
+        "summary": "Devuelve la ficha pública de un producto a partir de su slug.",
+        "description": "Devuelve la ficha pública de un producto a partir de su slug.\n\nAcceso público: no exige credencial.\n\nRespuesta cacheada 60s (clave: slug), invalidada por ProductUpdated, ProductStatusChanged, BrandUpdated, CategoryUpdated.\n\n**Reglas**\n- Un producto que no está active responde como si no existiera: la tienda no revela borradores ni descontinuados.",
+        "tags": [
+          "Tienda pública"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "$ref": "#/components/schemas/Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPublic"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No hay ningún producto active con ese slug.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/brands": {
+      "get": {
+        "operationId": "listBrands",
+        "summary": "Lista las marcas para que la tienda construya su navegación.",
+        "description": "Lista las marcas para que la tienda construya su navegación.\n\nAcceso público: no exige credencial.",
+        "tags": [
+          "Tienda pública"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Índice de página, base 0.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "description": "Tamaño de página. Por defecto 20; un valor mayor que 100 se recorta a 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageBrand"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "operationId": "listCategories",
+        "summary": "Lista las categorías para que la tienda construya su navegación.",
+        "description": "Lista las categorías para que la tienda construya su navegación.\n\nAcceso público: no exige credencial.",
+        "tags": [
+          "Tienda pública"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Índice de página, base 0.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "description": "Tamaño de página. Por defecto 20; un valor mayor que 100 se recorta a 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageCategory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/management/products": {
+      "get": {
+        "operationId": "listProducts",
+        "summary": "Lista los productos para el back-office, en cualquier estado, con filtros de gestión.",
+        "description": "Lista los productos para el back-office, en cualquier estado, con filtros de gestión.\n\nExige token de usuario con permisos `product:read`.\n\n**Reglas**\n- Los filtros se combinan con AND: un producto sale solo si cumple todos los que llegan.\n- Sin filtro de status se devuelven los productos en los tres estados.\n- El filtro name casa por coincidencia parcial, ignorando mayúsculas y acentos.\n- Un valor de filtro que no corresponde a ninguna marca o categoría no es un error: la página sale vacía.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/ProductStatus"
+            }
+          },
+          {
+            "name": "brandId",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string",
+              "maxLength": 140
+            }
+          },
+          {
+            "name": "sku",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "$ref": "#/components/schemas/SKU"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Índice de página, base 0.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "description": "Tamaño de página. Por defecto 20; un valor mayor que 100 se recorta a 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageProductDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createProduct",
+        "summary": "Da de alta un producto en estado draft, invisible para la tienda.",
+        "description": "Da de alta un producto en estado draft, invisible para la tienda.\n\nExige token de usuario con permisos `product:write`.\n\n**Idempotente**: exige la cabecera `Idempotency-Key`. El reintento con la misma clave reproduce la respuesta original; TTL 86400s.\n\n**Precondiciones**\n- La marca indicada existe.\n- La categoría indicada existe.\n\n**Reglas**\n- El sku se normaliza a mayúsculas antes de comprobar su unicidad.\n- El producto nace en draft con slugFrozen falso, así que su slug sigue al nombre hasta que se publique.\n- El slug se deriva del name; si el slug resultante ya existe, se le añade un sufijo numérico.\n\n**Publica** `ProductCreated`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Clave con la que el cliente identifica su petición; el reintento con la misma clave no produce un segundo efecto.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sku": {
+                    "$ref": "#/components/schemas/SKU"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 140
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "price": {
+                    "$ref": "#/components/schemas/Price"
+                  },
+                  "brandId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "categoryId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "sku",
+                  "name",
+                  "price",
+                  "brandId",
+                  "categoryId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Respuesta correcta.",
+            "headers": {
+              "Location": {
+                "description": "URI del recurso creado.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `IDEMPOTENCY_KEY_REQUIRED` — La petición llega sin la cabecera Idempotency-Key, que esta operación exige.\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `SKU_ALREADY_EXISTS` — Ya existe un producto con ese sku.\n- `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma clave de idempotencia se está ejecutando en este momento.\n- `IDEMPOTENCY_KEY_REUSED` — La misma clave de idempotencia llega con un contenido distinto al de la primera petición.\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Códigos posibles con este status:\n\n- `BRAND_REFERENCE_NOT_FOUND` — El brandId indicado no corresponde a ninguna marca existente.\n- `CATEGORY_REFERENCE_NOT_FOUND` — El categoryId indicado no corresponde a ninguna categoría existente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}": {
+      "get": {
+        "operationId": "getProduct",
+        "summary": "Recupera la ficha completa de un producto para el back-office, con su rastro de autoría.",
+        "description": "Recupera la ficha completa de un producto para el back-office, con su rastro de autoría.\n\nExige token de usuario con permisos `product:read`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "updateProduct",
+        "summary": "Cambia la ficha comercial de un producto (nombre, descripción, precio, marca o categoría).",
+        "description": "Cambia la ficha comercial de un producto (nombre, descripción, precio, marca o categoría).\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto existe.\n- La marca y la categoría indicadas existen.\n\n**Reglas**\n- El sku no se puede cambiar: no forma parte de la entrada.\n- El slug se recalcula a partir del nuevo name solo si slugFrozen es falso.\n- Un producto active no puede quedarse con price igual a cero.\n- La entrada es la representación completa de la ficha: un campo opcional que no viene se vacía, no se conserva.\n- Un producto discontinued sí se puede editar; su ficha la siguen mostrando los pedidos históricos.\n\n**Publica** `ProductUpdated`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 140
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "price": {
+                    "$ref": "#/components/schemas/Price"
+                  },
+                  "brandId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "categoryId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "price",
+                  "brandId",
+                  "categoryId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Códigos posibles con este status:\n\n- `BRAND_REFERENCE_NOT_FOUND` — El brandId indicado no corresponde a ninguna marca existente.\n- `CATEGORY_REFERENCE_NOT_FOUND` — El categoryId indicado no corresponde a ninguna categoría existente.\n- `PRICE_REQUIRED_FOR_ACTIVE_PRODUCT` — Se intenta dejar en cero el precio de un producto active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteProduct",
+        "summary": "Elimina definitivamente un producto que nunca llegó a publicarse.",
+        "description": "Elimina definitivamente un producto que nunca llegó a publicarse.\n\nExige token de usuario con permisos `product:delete` y rol `catalog-admin`.\n\n**Precondiciones**\n- El producto existe y está en draft.\n- El producto no se ha publicado nunca (slugFrozen es falso).\n\n**Reglas**\n- Las imágenes de la galería se eliminan con el producto, y sus objetos se retiran del bucket.\n- Un producto que ya estuvo publicado no se borra: se descontinúa, porque otros servidores guardan su id.\n\n**Publica** `ProductDeleted`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operación ejecutada; sin cuerpo de respuesta."
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_DELETABLE` — El producto no está en draft o ya estuvo publicado alguna vez.\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/publish": {
+      "post": {
+        "operationId": "publishProduct",
+        "summary": "Publica un producto en borrador para que la tienda lo muestre.",
+        "description": "Publica un producto en borrador para que la tienda lo muestre.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto existe y está en draft.\n- El producto tiene un price mayor que cero.\n- El producto tiene al menos una imagen.\n\n**Reglas**\n- Al publicarse por primera vez, slugFrozen pasa a verdadero y el slug deja de seguir al nombre.\n\n**Publica** `ProductStatusChanged`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_IN_DRAFT` — El producto no está en draft.\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_PRICE_NOT_SET` — El producto tiene price igual a cero.\n- `PRODUCT_HAS_NO_IMAGES` — El producto no tiene ninguna imagen en su galería.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/unpublish": {
+      "post": {
+        "operationId": "unpublishProduct",
+        "summary": "Retira un producto de la tienda y lo devuelve a borrador para corregirlo.",
+        "description": "Retira un producto de la tienda y lo devuelve a borrador para corregirlo.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto existe y está active.\n\n**Reglas**\n- El slug no vuelve a seguir al nombre: slugFrozen no se deshace.\n\n**Publica** `ProductStatusChanged`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_ACTIVE` — El producto no está active.\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/discontinue": {
+      "post": {
+        "operationId": "discontinueProduct",
+        "summary": "Marca un producto como descontinuado; deja de venderse pero su ficha sigue existiendo.",
+        "description": "Marca un producto como descontinuado; deja de venderse pero su ficha sigue existiendo.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto existe y está active.\n\n**Publica** `ProductStatusChanged`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_ACTIVE` — El producto no está active.\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/reactivate": {
+      "post": {
+        "operationId": "reactivateProduct",
+        "summary": "Vuelve a poner a la venta un producto descontinuado.",
+        "description": "Vuelve a poner a la venta un producto descontinuado.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto existe y está discontinued.\n- El producto tiene un price mayor que cero y al menos una imagen.\n\n**Publica** `ProductStatusChanged`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_DISCONTINUED` — El producto no está discontinued.\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_PRICE_NOT_SET` — El producto tiene price igual a cero.\n- `PRODUCT_HAS_NO_IMAGES` — El producto no tiene ninguna imagen en su galería.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/images": {
+      "post": {
+        "operationId": "addProductImage",
+        "summary": "Sube una imagen a la galería de un producto y la coloca al final del orden.",
+        "description": "Sube una imagen a la galería de un producto y la coloca al final del orden.\n\nExige token de usuario con permisos `product:write`.\n\n**Idempotente**: exige la cabecera `Idempotency-Key`. El reintento con la misma clave reproduce la respuesta original; TTL 86400s.\n\n**Precondiciones**\n- El producto existe y no está discontinued.\n- El producto no ha alcanzado el máximo de diez imágenes.\n\n**Reglas**\n- La imagen recibe la position siguiente a la mayor de la galería.\n- Si llega con primary verdadero, la imagen que lo era deja de serlo.\n- Si es la primera imagen del producto, se marca primary aunque no se pida.\n\n**Publica** `ProductUpdated`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Clave con la que el cliente identifica su petición; el reintento con la misma clave no produce un segundo efecto.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Contenido binario del archivo (bucket lógico `productImages`)."
+                  },
+                  "altText": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "primary": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "image"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Respuesta correcta.",
+            "headers": {
+              "Location": {
+                "description": "URI del recurso creado.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductImage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `IDEMPOTENCY_KEY_REQUIRED` — La petición llega sin la cabecera Idempotency-Key, que esta operación exige.\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_DISCONTINUED` — El producto está descontinuado y su galería ya no se toca.\n- `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma clave de idempotencia se está ejecutando en este momento.\n- `IDEMPOTENCY_KEY_REUSED` — La misma clave de idempotencia llega con un contenido distinto al de la primera petición.\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Códigos posibles con este status:\n\n- `FILE_TOO_LARGE` — El archivo supera el tamaño máximo del bucket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Códigos posibles con este status:\n\n- `UNSUPPORTED_CONTENT_TYPE` — El archivo no es de un tipo de imagen admitido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Códigos posibles con este status:\n\n- `TOO_MANY_PRODUCT_IMAGES` — El producto ya tiene diez imágenes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/images/{imageId}": {
+      "delete": {
+        "operationId": "removeProductImage",
+        "summary": "Quita una imagen de la galería de un producto.",
+        "description": "Quita una imagen de la galería de un producto.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto no está discontinued.\n- La imagen existe y pertenece a ese producto.\n- Si el producto está active, la imagen no es la última de su galería.\n\n**Reglas**\n- Si se quita la imagen primary y quedan otras, pasa a ser primary la de menor position.\n- El objeto se retira del bucket junto con la imagen.\n\n**Publica** `ProductUpdated`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "imageId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operación ejecutada; sin cuerpo de respuesta."
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.\n- `PRODUCT_IMAGE_NOT_FOUND` — No existe esa imagen en la galería del producto.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_DISCONTINUED` — El producto está descontinuado y su galería ya no se toca.\n- `LAST_IMAGE_OF_ACTIVE_PRODUCT` — Se intenta quitar la única imagen de un producto active.\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/images/{imageId}/primary": {
+      "put": {
+        "operationId": "setPrimaryProductImage",
+        "summary": "Elige qué imagen representa al producto en los listados.",
+        "description": "Elige qué imagen representa al producto en los listados.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto no está discontinued.\n- La imagen existe y pertenece a ese producto.\n\n**Reglas**\n- La imagen que era primary deja de serlo en la misma transacción.\n- Marcar como primary la que ya lo es no cambia nada y no es un error.\n\n**Publica** `ProductUpdated`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "imageId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operación ejecutada; sin cuerpo de respuesta."
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.\n- `PRODUCT_IMAGE_NOT_FOUND` — No existe esa imagen en la galería del producto.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_DISCONTINUED` — El producto está descontinuado y su galería ya no se toca.\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/products/{productId}/images/order": {
+      "put": {
+        "operationId": "reorderProductImages",
+        "summary": "Reordena la galería de un producto.",
+        "description": "Reordena la galería de un producto.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto no está discontinued.\n- La lista trae exactamente las imágenes del producto, sin repetir ninguna y sin omitir ninguna.\n\n**Reglas**\n- La position de cada imagen es su índice en la lista recibida.\n- Reordenar no cambia qué imagen es primary.\n\n**Publica** `ProductUpdated`.",
+        "tags": [
+          "Gestión de productos"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "imageIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid",
+                      "minItems": 1,
+                      "maxItems": 10
+                    },
+                    "minItems": 1,
+                    "maxItems": 10
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "imageIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Operación ejecutada; sin cuerpo de respuesta."
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto con ese productId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_DISCONTINUED` — El producto está descontinuado y su galería ya no se toca.\n- `CONCURRENT_MODIFICATION` — Otra escritura modificó el producto mientras se ejecutaba esta. Lo emite el framework por el control de versión de la raíz del agregado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Códigos posibles con este status:\n\n- `IMAGE_SET_MISMATCH` — La lista no coincide exactamente con las imágenes del producto.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/brands": {
+      "post": {
+        "operationId": "createBrand",
+        "summary": "Da de alta una marca.",
+        "description": "Da de alta una marca.\n\nExige token de usuario con permisos `taxonomy:write` y rol `catalog-admin`.\n\n**Idempotente**: exige la cabecera `Idempotency-Key`. El reintento con la misma clave reproduce la respuesta original; TTL 86400s.\n\n**Reglas**\n- El slug se deriva del name; si ya existe, la escritura se rechaza.\n\n**Publica** `BrandCreated`.",
+        "tags": [
+          "Gestión de marcas"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Clave con la que el cliente identifica su petición; el reintento con la misma clave no produce un segundo efecto.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Respuesta correcta.",
+            "headers": {
+              "Location": {
+                "description": "URI del recurso creado.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Brand"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `IDEMPOTENCY_KEY_REQUIRED` — La petición llega sin la cabecera Idempotency-Key, que esta operación exige.\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `BRAND_NAME_ALREADY_EXISTS` — Ya existe una marca con ese nombre.\n- `BRAND_SLUG_ALREADY_EXISTS` — El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: Acmé y Acme dan el mismo.\n- `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma clave de idempotencia se está ejecutando en este momento.\n- `IDEMPOTENCY_KEY_REUSED` — La misma clave de idempotencia llega con un contenido distinto al de la primera petición.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/brands/{brandId}": {
+      "put": {
+        "operationId": "updateBrand",
+        "summary": "Cambia el nombre o la reseña de una marca.",
+        "description": "Cambia el nombre o la reseña de una marca.\n\nExige token de usuario con permisos `taxonomy:write` y rol `catalog-admin`.\n\n**Reglas**\n- El slug se recalcula con el nuevo name; las URLs públicas de marca cambian con él.\n- La entrada es la representación completa: si no viene description, la marca se queda sin reseña.\n\n**Publica** `BrandUpdated`.",
+        "tags": [
+          "Gestión de marcas"
+        ],
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Brand"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `BRAND_NOT_FOUND` — No existe una marca con ese brandId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `BRAND_NAME_ALREADY_EXISTS` — Otra marca ya tiene ese nombre.\n- `BRAND_SLUG_ALREADY_EXISTS` — El slug derivado del nuevo nombre ya lo usa otra marca aunque los nombres no coincidan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteBrand",
+        "summary": "Elimina una marca que ningún producto referencia.",
+        "description": "Elimina una marca que ningún producto referencia.\n\nExige token de usuario con permisos `taxonomy:write` y rol `catalog-admin`.\n\n**Precondiciones**\n- Ningún producto referencia la marca.\n\n**Publica** `BrandDeleted`.",
+        "tags": [
+          "Gestión de marcas"
+        ],
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operación ejecutada; sin cuerpo de respuesta."
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `BRAND_NOT_FOUND` — No existe una marca con ese brandId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `BRAND_IN_USE` — Algún producto referencia esa marca.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/categories": {
+      "post": {
+        "operationId": "createCategory",
+        "summary": "Da de alta una categoría.",
+        "description": "Da de alta una categoría.\n\nExige token de usuario con permisos `taxonomy:write` y rol `catalog-admin`.\n\n**Idempotente**: exige la cabecera `Idempotency-Key`. El reintento con la misma clave reproduce la respuesta original; TTL 86400s.\n\n**Reglas**\n- El slug se deriva del name; si ya existe, la escritura se rechaza.\n\n**Publica** `CategoryCreated`.",
+        "tags": [
+          "Gestión de categorías"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Clave con la que el cliente identifica su petición; el reintento con la misma clave no produce un segundo efecto.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Respuesta correcta.",
+            "headers": {
+              "Location": {
+                "description": "URI del recurso creado.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `IDEMPOTENCY_KEY_REQUIRED` — La petición llega sin la cabecera Idempotency-Key, que esta operación exige.\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `CATEGORY_NAME_ALREADY_EXISTS` — Ya existe una categoría con ese nombre.\n- `CATEGORY_SLUG_ALREADY_EXISTS` — El slug derivado del nombre ya lo usa otra categoría aunque los nombres no coincidan.\n- `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma clave de idempotencia se está ejecutando en este momento.\n- `IDEMPOTENCY_KEY_REUSED` — La misma clave de idempotencia llega con un contenido distinto al de la primera petición.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/management/categories/{categoryId}": {
+      "put": {
+        "operationId": "updateCategory",
+        "summary": "Cambia el nombre o el texto de cabecera de una categoría.",
+        "description": "Cambia el nombre o el texto de cabecera de una categoría.\n\nExige token de usuario con permisos `taxonomy:write` y rol `catalog-admin`.\n\n**Reglas**\n- El slug se recalcula con el nuevo name; las URLs públicas de categoría cambian con él.\n- La entrada es la representación completa: si no viene description, la categoría se queda sin texto de cabecera.\n\n**Publica** `CategoryUpdated`.",
+        "tags": [
+          "Gestión de categorías"
+        ],
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `CATEGORY_NOT_FOUND` — No existe una categoría con ese categoryId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `CATEGORY_NAME_ALREADY_EXISTS` — Otra categoría ya tiene ese nombre.\n- `CATEGORY_SLUG_ALREADY_EXISTS` — El slug derivado del nuevo nombre ya lo usa otra categoría aunque los nombres no coincidan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteCategory",
+        "summary": "Elimina una categoría que ningún producto referencia.",
+        "description": "Elimina una categoría que ningún producto referencia.\n\nExige token de usuario con permisos `taxonomy:write` y rol `catalog-admin`.\n\n**Precondiciones**\n- Ningún producto referencia la categoría.\n\n**Publica** `CategoryDeleted`.",
+        "tags": [
+          "Gestión de categorías"
+        ],
+        "parameters": [
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operación ejecutada; sin cuerpo de respuesta."
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `CATEGORY_NOT_FOUND` — No existe una categoría con ese categoryId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Códigos posibles con este status:\n\n- `CATEGORY_IN_USE` — Algún producto referencia esa categoría.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/services/products/{productId}": {
+      "get": {
+        "operationId": "getProductForServices",
+        "summary": "Resuelve un producto por su id para otro servidor que necesita su ficha.",
+        "description": "Resuelve un producto por su id para otro servidor que necesita su ficha.\n\nExige credencial de máquina con scopes `product:read`.\n\nRespuesta cacheada 60s (clave: productId), invalidada por ProductUpdated, ProductStatusChanged, BrandUpdated, CategoryUpdated.\n\n**Reglas**\n- Se resuelven productos active y discontinued: un pedido histórico referencia artículos que ya no se venden.\n- Un producto en draft responde como si no existiera: un borrador no es todavía un artículo del catálogo.\n- updatedAt viaja en la respuesta para que el consumidor sepa de cuándo es la ficha que recibe.\n\nSuperficie **servidor-a-servidor**: la consumen otros servidores con credencial de máquina.",
+        "tags": [
+          "Servidor-a-servidor"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "description": "Identificador en la ruta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductForServices"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Códigos posibles con este status:\n\n- `PRODUCT_NOT_FOUND` — No existe un producto active o discontinued con ese productId.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceToken": [
+              "product:read"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/v1/services/products": {
+      "get": {
+        "operationId": "listProductsBatchForServices",
+        "summary": "Resuelve varios productos por sus ids en una sola llamada, para que un servidor consumidor no haga una petición por artículo.",
+        "description": "Resuelve varios productos por sus ids en una sola llamada, para que un servidor consumidor no haga una petición por artículo.\n\nExige credencial de máquina con scopes `product:read`.\n\n**Precondiciones**\n- La lista de ids llega presente y con al menos un elemento.\n- La lista no trae más de cien ids.\n\n**Reglas**\n- Los ids que no existen, los repetidos y los de productos en draft se omiten del resultado sin fallar.\n- El resultado sale ordenado por sku, no en el orden de la petición: el consumidor lo indexa por id.\n- La respuesta puede traer menos elementos que la petición; eso no es un error.\n\nSuperficie **servidor-a-servidor**: la consumen otros servidores con credencial de máquina.",
+        "tags": [
+          "Servidor-a-servidor"
+        ],
+        "parameters": [
+          {
+            "name": "productIds",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "style": "form",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Respuesta correcta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductForServices"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Códigos posibles con este status:\n\n- `VALIDATION_ERROR` — La petición no cumple las cotas declaradas en la entrada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Códigos posibles con este status:\n\n- `UNAUTHORIZED` — La petición llega sin credencial o con una no válida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Códigos posibles con este status:\n\n- `FORBIDDEN` — La credencial es válida pero no alcanza lo que esta operación exige.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Códigos posibles con este status:\n\n- `EMPTY_ID_LIST` — La lista de ids llega vacía o ausente.\n- `TOO_MANY_IDS` — La lista trae más de cien ids.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceToken": [
+              "product:read"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SKU": {
+        "type": "string",
+        "pattern": "^[A-Z0-9][A-Z0-9-]{2,31}$",
+        "description": "Código comercial con el que el negocio conoce el artículo (almacén, proveedor, facturas). Único e inmutable: identifica al mismo artículo físico durante toda su vida."
+      },
+      "Slug": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "maxLength": 160,
+        "description": "Identificador legible usado en las URLs públicas, derivado del nombre."
+      },
+      "Price": {
+        "type": "number",
+        "minimum": 0,
+        "multipleOf": 0.01,
+        "description": "Importe de venta al público en la divisa única de la tienda, que es una constante del despliegue y no un dato del producto. La escala de dos decimales se valida, no se ajusta: un importe con más decimales se rechaza en vez de redondearse, porque el servicio no hace aritmética sobre el precio — lo guarda y lo devuelve tal cual llegó."
+      },
+      "ProductStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "active",
+          "discontinued"
+        ],
+        "description": "Situación comercial del producto, que decide si la tienda pública lo muestra."
+      },
+      "Brand": {
+        "type": "object",
+        "description": "Marca o fabricante bajo el que se vende un producto.",
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Reseña de la marca para la ficha pública."
+          }
+        }
+      },
+      "Category": {
+        "type": "object",
+        "description": "Agrupación comercial por la que el consumidor navega el catálogo. Las categorías son planas, sin jerarquía.",
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Texto de cabecera de la categoría en la tienda."
+          }
+        }
+      },
+      "ProductImage": {
+        "type": "object",
+        "description": "Una imagen de la galería de un producto, con su posición en el orden de la ficha.",
+        "required": [
+          "id",
+          "image",
+          "position",
+          "primary"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "image": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL absoluta del objeto en el bucket lógico `productImages` (lectura anónima)."
+          },
+          "altText": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Texto alternativo para lectores de pantalla y buscadores."
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Orden de la imagen dentro de la galería; el menor se muestra primero."
+          },
+          "primary": {
+            "type": "boolean",
+            "description": "Marca la imagen que representa al producto en los listados."
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "description": "Forma única del cuerpo de error del servicio. `code` y el status HTTP son contrato estable; `message` es texto para humanos y puede cambiar sin romper a nadie.",
+        "required": [
+          "status",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string",
+            "description": "Nombre del status HTTP."
+          },
+          "code": {
+            "type": "string",
+            "description": "Código de negocio estable."
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "correlationId": {
+            "type": "string",
+            "description": "Correlación de la petición."
+          }
+        }
+      },
+      "ProductPublic": {
+        "type": "object",
+        "description": "Proyección de Product tal como la devuelve la superficie correspondiente.",
+        "required": [
+          "id",
+          "sku",
+          "name",
+          "slug",
+          "price",
+          "status",
+          "brand",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "$ref": "#/components/schemas/SKU"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 140
+          },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Descripción comercial larga que la tienda muestra en la ficha."
+          },
+          "price": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProductStatus"
+          },
+          "brand": {
+            "$ref": "#/components/schemas/Brand"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductImage"
+            }
+          }
+        }
+      },
+      "PageProductPublic": {
+        "type": "object",
+        "description": "Página de resultados. Sobre canónico de paginación del método Keel.",
+        "required": [
+          "items",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductPublic"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Índice de la página, base 0."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Tamaño de página efectivo."
+          },
+          "totalElements": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PageBrand": {
+        "type": "object",
+        "description": "Página de resultados. Sobre canónico de paginación del método Keel.",
+        "required": [
+          "items",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Brand"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Índice de la página, base 0."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Tamaño de página efectivo."
+          },
+          "totalElements": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PageCategory": {
+        "type": "object",
+        "description": "Página de resultados. Sobre canónico de paginación del método Keel.",
+        "required": [
+          "items",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Índice de la página, base 0."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Tamaño de página efectivo."
+          },
+          "totalElements": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ProductDetail": {
+        "type": "object",
+        "description": "Proyección de Product tal como la devuelve la superficie correspondiente.",
+        "required": [
+          "id",
+          "sku",
+          "name",
+          "slug",
+          "slugFrozen",
+          "price",
+          "status",
+          "lockVersion",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy",
+          "brand",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "$ref": "#/components/schemas/SKU"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 140
+          },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "slugFrozen": {
+            "type": "boolean",
+            "description": "Falso mientras el producto no se haya publicado nunca. Lo pone a verdadero publishProduct la primera vez, y no vuelve a ser falso: es lo que protege los enlaces ya compartidos frente a un cambio de nombre."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Descripción comercial larga que la tienda muestra en la ficha."
+          },
+          "price": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProductStatus"
+          },
+          "lockVersion": {
+            "type": "integer",
+            "description": "Control de versión de la ficha; una escritura sobre una versión obsoleta es un conflicto."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdBy": {
+            "type": "string",
+            "description": "Identidad del gestor que dio de alta el producto."
+          },
+          "updatedBy": {
+            "type": "string",
+            "description": "Identidad del gestor que hizo el último cambio."
+          },
+          "brand": {
+            "$ref": "#/components/schemas/Brand"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductImage"
+            }
+          }
+        }
+      },
+      "PageProductDetail": {
+        "type": "object",
+        "description": "Página de resultados. Sobre canónico de paginación del método Keel.",
+        "required": [
+          "items",
+          "page",
+          "size",
+          "totalElements",
+          "totalPages"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductDetail"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Índice de la página, base 0."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Tamaño de página efectivo."
+          },
+          "totalElements": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ProductForServices": {
+        "type": "object",
+        "description": "Proyección de Product tal como la devuelve la superficie correspondiente.",
+        "required": [
+          "id",
+          "sku",
+          "name",
+          "slug",
+          "price",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "brand",
+          "category"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sku": {
+            "$ref": "#/components/schemas/SKU"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 140
+          },
+          "slug": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Descripción comercial larga que la tienda muestra en la ficha."
+          },
+          "price": {
+            "$ref": "#/components/schemas/Price"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProductStatus"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "brand": {
+            "$ref": "#/components/schemas/Brand"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductImage"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "userToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Token de usuario emitido por el proveedor OIDC. El emisor concreto y su URL son parámetro de despliegue, no diseño."
+      },
+      "serviceToken": {
+        "type": "oauth2",
+        "description": "Credencial de máquina (OAuth2 client credentials). La URL de token es parámetro de despliegue: el marcador usa el TLD reservado `.invalid` a propósito. El token debe declarar la audiencia `catalog`.",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "https://authorization-server.invalid/oauth2/token",
+            "scopes": {
+              "product:read": "Leer fichas de producto desde el back-office, en cualquier estado."
+            }
+          }
+        }
+      }
+    }
+  }
+};
+var KEEL_RENDERER = "redoc";
+
+(function () {
+  'use strict';
+
+  var VIEWERS = {
+    redoc: {
+      js: 'https://cdn.redocly.com/redoc/latest/bundles/redoc.standalone.js',
+      css: '',
+      global: 'Redoc',
+      rawFile: 'openapi.yaml',
+      editor: 'https://editor.swagger.io/',
+      editorName: 'Swagger Editor',
+      mount: function (spec, node) { window.Redoc.init(spec, { hideDownloadButton: true }, node); }
+    },
+    asyncapi: {
+      js: 'https://unpkg.com/@asyncapi/react-component@latest/browser/standalone/index.js',
+      css: 'https://unpkg.com/@asyncapi/react-component@latest/styles/default.min.css',
+      global: 'AsyncApiStandalone',
+      rawFile: 'asyncapi.yaml',
+      editor: 'https://studio.asyncapi.com/',
+      editorName: 'AsyncAPI Studio',
+      mount: function (spec, node) {
+        window.AsyncApiStandalone.render({
+          schema: JSON.stringify(spec),
+          config: { show: { sidebar: true, errors: true } }
+        }, node);
+      }
+    }
+  };
+
+  var v = VIEWERS[KEEL_RENDERER];
+  var fallback = document.getElementById('fallback');
+  var render = document.getElementById('render');
+  var json = KEEL_SPEC ? JSON.stringify(KEEL_SPEC, null, 2) : '';
+
+  document.getElementById('raw').textContent = json;
+  document.getElementById('editor-name').textContent = v ? v.editorName : 'editor online';
+  if (v) {
+    document.getElementById('editor-link').href = v.editor;
+    document.getElementById('editor-link').textContent = 'Abrir ' + v.editorName;
+    var raw = document.getElementById('raw-link');
+    raw.href = v.rawFile;
+    raw.setAttribute('download', v.rawFile);
+  }
+  document.getElementById('copy').addEventListener('click', function () {
+    var btn = this;
+    var done = function () { btn.textContent = 'Copiado ✓'; setTimeout(function () { btn.textContent = 'Copiar spec'; }, 1800); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(json).then(done, showRaw);
+    else showRaw();
+  });
+
+  function showRaw() { render.hidden = true; fallback.hidden = false; }
+
+  if (!v || !KEEL_SPEC) { showRaw(); return; }
+
+  if (v.css) document.getElementById('viewer-css').href = v.css;
+
+  var timer = setTimeout(showRaw, 12000);
+  var s = document.createElement('script');
+  s.src = v.js;
+  s.onload = function () {
+    clearTimeout(timer);
+    try { v.mount(KEEL_SPEC, render); } catch (e) { showRaw(); }
+  };
+  s.onerror = function () { clearTimeout(timer); showRaw(); };
+  document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>
