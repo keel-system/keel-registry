@@ -13,7 +13,7 @@
       "variant": null,
       "service": {
         "name": "catalog",
-        "version": "0.1.1",
+        "version": "0.1.2",
         "dsl": "2.14",
         "domain": "commerce",
         "basedOn": null,
@@ -99,6 +99,7 @@
         "specs/catalog/design.yaml",
         "specs/catalog/decisions.yaml",
         "specs/catalog/review.yaml",
+        "specs/catalog/flow-review.yaml",
         "specs/catalog/validation-scenarios.md",
         "docs/catalog/DESIGN.md",
         "docs/catalog/openapi.yaml",

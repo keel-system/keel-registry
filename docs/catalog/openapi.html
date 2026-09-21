@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.1 -->
+<!-- keel:version 0.1.2 -->
 <!--
   Visor de contratos Keel — plantilla de forma fija, común a OpenAPI y AsyncAPI.
   NO edites el markup, el CSS ni el JS al generar. Copia este archivo tal cual y sustituye
@@ -107,7 +107,7 @@ var KEEL_SPEC = {
   "openapi": "3.1.0",
   "info": {
     "title": "catalog",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías. Los publica a los consumidores con búsqueda y filtros, los gestiona el personal de la tienda con rastro de autoría, y difunde sus altas y sus cambios al resto de servidores por consulta directa y por eventos.\n\nContrato HTTP derivado del diseño Keel (`specs/catalog`). Tres superficies con contratos distintos: la tienda pública (anónima), la gestión del back-office (autenticada, con rastro de autoría) y la superficie servidor-a-servidor (credencial de máquina).\n\nConvenciones del servicio: un campo sin valor **no viaja** en la respuesta; los instantes son UTC ISO-8601; `price` es decimal de escala 2 que se valida, no se redondea. El `code` de cada error y su status son contrato estable; el texto de `message`, no.",
     "license": {
       "name": "Apache-2.0",
@@ -777,7 +777,7 @@ var KEEL_SPEC = {
       "put": {
         "operationId": "updateProduct",
         "summary": "Cambia la ficha comercial de un producto (nombre, descripción, precio, marca o categoría).",
-        "description": "Cambia la ficha comercial de un producto (nombre, descripción, precio, marca o categoría).\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto existe.\n- La marca y la categoría indicadas existen.\n\n**Reglas**\n- El sku no se puede cambiar: no forma parte de la entrada.\n- El slug se recalcula a partir del nuevo name solo si slugFrozen es falso.\n- Un producto active no puede quedarse con price igual a cero.\n- La entrada es la representación completa de la ficha: un campo opcional que no viene se vacía, no se conserva.\n- Un producto discontinued sí se puede editar; su ficha la siguen mostrando los pedidos históricos.\n\n**Publica** `ProductUpdated`.",
+        "description": "Cambia la ficha comercial de un producto (nombre, descripción, precio, marca o categoría).\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto existe.\n- La marca y la categoría indicadas existen.\n\n**Reglas**\n- El sku no se puede cambiar: no forma parte de la entrada.\n- El slug se recalcula a partir del nuevo name solo si slugFrozen es falso.\n- Un producto active no puede quedarse con price igual a cero.\n- La entrada es la representación completa de la ficha: un campo opcional que no viene se vacía, no se conserva.\n- Un producto discontinued sí se puede editar; su ficha la siguen mostrando los pedidos históricos.\n- El control de versión protege frente a escrituras que se solapan: si dos ediciones confirman a la vez sobre la misma versión, la que pierde responde 409 CONCURRENT_MODIFICATION. La versión leída no viaja en la petición, así que dos ediciones sucesivas se aplican en orden y prevalece la última.\n\n**Publica** `ProductUpdated`.",
         "tags": [
           "Gestión de productos"
         ],
@@ -1370,7 +1370,7 @@ var KEEL_SPEC = {
       "post": {
         "operationId": "addProductImage",
         "summary": "Sube una imagen a la galería de un producto y la coloca al final del orden.",
-        "description": "Sube una imagen a la galería de un producto y la coloca al final del orden.\n\nExige token de usuario con permisos `product:write`.\n\n**Idempotente**: exige la cabecera `Idempotency-Key`. El reintento con la misma clave reproduce la respuesta original; TTL 86400s.\n\n**Precondiciones**\n- El producto existe y no está discontinued.\n- El producto no ha alcanzado el máximo de diez imágenes.\n\n**Reglas**\n- La imagen recibe la position siguiente a la mayor de la galería.\n- Si llega con primary verdadero, la imagen que lo era deja de serlo.\n- Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.\n- Si es la primera imagen del producto, se marca primary aunque no se pida.\n\n**Publica** `ProductUpdated`.",
+        "description": "Sube una imagen a la galería de un producto y la coloca al final del orden.\n\nExige token de usuario con permisos `product:write`.\n\n**Idempotente**: exige la cabecera `Idempotency-Key`. El reintento con la misma clave reproduce la respuesta original; TTL 86400s.\n\n**Precondiciones**\n- El producto existe y no está discontinued.\n- El producto no ha alcanzado el máximo de diez imágenes.\n\n**Reglas**\n- La imagen recibe la position siguiente a la mayor de la galería; la primera imagen de una galería vacía recibe position 0.\n- Si llega con primary verdadero, la imagen que lo era deja de serlo.\n- Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.\n- Si es la primera imagen del producto, se marca primary aunque no se pida.\n\n**Publica** `ProductUpdated`.",
         "tags": [
           "Gestión de productos"
         ],
@@ -1536,7 +1536,7 @@ var KEEL_SPEC = {
       "delete": {
         "operationId": "removeProductImage",
         "summary": "Quita una imagen de la galería de un producto.",
-        "description": "Quita una imagen de la galería de un producto.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto no está discontinued.\n- La imagen existe y pertenece a ese producto.\n- Si el producto está active, la imagen no es la última de su galería.\n\n**Reglas**\n- Si se quita la imagen primary y quedan otras, pasa a ser primary la de menor position.\n- El objeto se retira del bucket junto con la imagen.\n\n**Publica** `ProductUpdated`.",
+        "description": "Quita una imagen de la galería de un producto.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto existe.\n- El producto no está discontinued.\n- La imagen existe y pertenece a ese producto.\n- Si el producto está active, la imagen no es la última de su galería.\n\n**Reglas**\n- Si se quita la imagen primary y quedan otras, pasa a ser primary la de menor position.\n- El objeto se retira del bucket junto con la imagen.\n\n**Publica** `ProductUpdated`.",
         "tags": [
           "Gestión de productos"
         ],
@@ -1628,7 +1628,7 @@ var KEEL_SPEC = {
       "put": {
         "operationId": "setPrimaryProductImage",
         "summary": "Elige qué imagen representa al producto en los listados.",
-        "description": "Elige qué imagen representa al producto en los listados.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto no está discontinued.\n- La imagen existe y pertenece a ese producto.\n\n**Reglas**\n- La imagen que era primary deja de serlo en la misma transacción.\n- Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.\n- Marcar como primary la que ya lo es no cambia nada y no es un error.\n\n**Publica** `ProductUpdated`.",
+        "description": "Elige qué imagen representa al producto en los listados.\n\nExige token de usuario con permisos `product:write`.\n\n**Precondiciones**\n- El producto existe.\n- El producto no está discontinued.\n- La imagen existe y pertenece a ese producto.\n\n**Reglas**\n- La imagen que era primary deja de serlo en la misma transacción.\n- Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.\n- Marcar como primary la que ya lo es no cambia la galería y no es un error; la operación confirma igual y publica su ProductUpdated, porque el evento anuncia el resultado de la escritura, no que algo haya cambiado.\n\n**Publica** `ProductUpdated`.",
         "tags": [
           "Gestión de productos"
         ],
@@ -2989,7 +2989,7 @@ var KEEL_SPEC = {
           },
           "lockVersion": {
             "type": "integer",
-            "description": "Control de versión de la ficha; una escritura sobre una versión obsoleta es un conflicto."
+            "description": "Control de versión de la ficha; una escritura sobre una versión obsoleta es un conflicto. Avanza exactamente una vez por escritura confirmada: la que pierde el conflicto no lo mueve."
           },
           "createdAt": {
             "type": "string",

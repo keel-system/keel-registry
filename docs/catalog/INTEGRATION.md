@@ -1,6 +1,6 @@
 ---
 service: catalog
-version: 0.1.1
+version: 0.1.2
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -267,8 +267,13 @@ del evento es el contenido de `data`; `metadata` es la misma para todos.
 | `data` | objeto | Payload del evento; su forma depende del `eventType` (ver cada evento abajo). |
 
 **Garantía de entrega.** La publicación es `outbox`: el evento se escribe en la misma transacción que
-el cambio de estado y un relay lo publica después, así que **ningún cambio confirmado se queda sin
-anunciar**. Lo que no garantiza es *cuándo*: puede llegar con retraso si el broker estuvo caído.
+el cambio de estado y un relay lo publica después, así que **un cambio confirmado no se queda sin
+anunciar por una caída del canal**. Lo que no garantiza es *cuándo*: puede llegar con retraso si el
+broker estuvo caído. Y hay un desenlace que sí pierde el evento y conviene conocer: el relay tiene un
+presupuesto de reintentos (lo fija el stack del proveedor, no el diseño), y el evento que lo agota se
+da por **abandonado** — no se publica ya, y el servidor lo cuenta y lo señala para que alguien lo
+reponga. Un consumidor que no tolere ese hueco debe reconciliar por el endpoint de lote
+(`listProductsBatchForServices`), no asumir que el canal lo trae todo.
 
 **Dos canales, a propósito.** `productEvents` lleva el ciclo de vida de los productos;
 `taxonomyEvents`, el de marcas y categorías. Están separados para que quien solo sigue productos no

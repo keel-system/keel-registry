@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.1 -->
+<!-- keel:version 0.1.2 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,7 +188,7 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías. Los publica a los consumidores con búsqueda y filtros, los gestiona el personal de la tienda con rastro de autoría, y difunde sus altas y sus cambios al resto de servidores por consulta directa y por eventos.",
     "domain": "commerce",
     "generatedAt": "2026-09-21"
@@ -584,7 +584,8 @@ const KEEL = {
         "El slug se recalcula a partir del nuevo name solo si slugFrozen es falso.",
         "Un producto active no puede quedarse con price igual a cero.",
         "La entrada es la representación completa de la ficha: un campo opcional que no viene se vacía, no se conserva.",
-        "Un producto discontinued sí se puede editar; su ficha la siguen mostrando los pedidos históricos."
+        "Un producto discontinued sí se puede editar; su ficha la siguen mostrando los pedidos históricos.",
+        "El control de versión protege frente a escrituras que se solapan: si dos ediciones confirman a la vez sobre la misma versión, la que pierde responde 409 CONCURRENT_MODIFICATION. La versión leída no viaja en la petición, así que dos ediciones sucesivas se aplican en orden y prevalece la última."
       ],
       "errors": [
         {
@@ -1115,7 +1116,7 @@ const KEEL = {
         "El producto no ha alcanzado el máximo de diez imágenes."
       ],
       "rules": [
-        "La imagen recibe la position siguiente a la mayor de la galería.",
+        "La imagen recibe la position siguiente a la mayor de la galería; la primera imagen de una galería vacía recibe position 0.",
         "Si llega con primary verdadero, la imagen que lo era deja de serlo.",
         "Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.",
         "Si es la primera imagen del producto, se marca primary aunque no se pida."
@@ -1280,7 +1281,7 @@ const KEEL = {
       "rules": [
         "La imagen que era primary deja de serlo en la misma transacción.",
         "Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product.",
-        "Marcar como primary la que ya lo es no cambia nada y no es un error."
+        "Marcar como primary la que ya lo es no cambia la galería y no es un error; la operación confirma igual y publica su ProductUpdated, porque el evento anuncia el resultado de la escritura, no que algo haya cambiado."
       ],
       "errors": [
         {

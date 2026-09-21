@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "catalog — API (v0.1.1)",
-    "description": "Colección derivada de specs/catalog v0.1.1: una carpeta por flujo de validation-scenarios.md y una carpeta con los endpoints no cubiertos por los flujos. Importa antes auth-collection.json y ejecuta sus requests de token: esta colección usa las globals token_<rol> y token_<cliente>.",
+    "name": "catalog — API (v0.1.2)",
+    "description": "Colección derivada de specs/catalog v0.1.2: una carpeta por flujo de validation-scenarios.md y una carpeta con los endpoints no cubiertos por los flujos. Importa antes auth-collection.json y ejecuta sus requests de token: esta colección usa las globals token_<rol> y token_<cliente>.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -53,7 +53,7 @@
           ]
         },
         {
-          "name": "FL-PRD-001 · B — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "name": "FL-PRD-001 · B — Recupera la ficha completa de un producto para el back-office, con su  (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -71,7 +71,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -442,7 +442,7 @@
           ]
         },
         {
-          "name": "FL-PRD-030 · B — Recupera la ficha completa de un producto para el back-office, con su  (204)",
+          "name": "FL-PRD-030 · B — Recupera la ficha completa de un producto para el back-office, con su  (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -460,7 +460,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -668,7 +668,7 @@
           ]
         },
         {
-          "name": "FL-IMG-001 · B — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "name": "FL-IMG-001 · B — Recupera la ficha completa de un producto para el back-office, con su  (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -686,7 +686,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -744,7 +744,7 @@
           ]
         },
         {
-          "name": "FL-IMG-001 · D — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "name": "FL-IMG-001 · D — Recupera la ficha completa de un producto para el back-office, con su  (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -762,7 +762,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -794,7 +794,7 @@
           ]
         },
         {
-          "name": "FL-IMG-001 · F — Recupera la ficha completa de un producto para el back-office, con su  (204)",
+          "name": "FL-IMG-001 · F — Recupera la ficha completa de un producto para el back-office, con su  (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -812,7 +812,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -857,7 +857,7 @@
           ]
         },
         {
-          "name": "FL-IMG-001 · H — Recupera la ficha completa de un producto para el back-office, con su  (204)",
+          "name": "FL-IMG-001 · H — Recupera la ficha completa de un producto para el back-office, con su  (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -875,7 +875,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -907,7 +907,7 @@
           ]
         },
         {
-          "name": "FL-IMG-001 · J — Recupera la ficha completa de un producto para el back-office, con su  (204)",
+          "name": "FL-IMG-001 · J — Recupera la ficha completa de un producto para el back-office, con su  (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -925,14 +925,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "FL-IMG-001 · K — Sube una imagen a la galería de un producto y la coloca al final del o (204)",
+          "name": "FL-IMG-001 · K — Sube una imagen a la galería de un producto y la coloca al final del o (201)",
           "request": {
             "method": "POST",
             "header": [
@@ -976,7 +976,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
                 ]
               }
             }
@@ -989,7 +989,7 @@
       "description": "Flujo del contrato de validación. Se ejecuta en orden; el estado lo crea la primera request del flujo.",
       "item": [
         {
-          "name": "FL-IMG-010 · A — Sube una imagen a la galería de un producto y la coloca al final del o (200)",
+          "name": "FL-IMG-010 · A — Sube una imagen a la galería de un producto descontinuado (409)",
           "request": {
             "method": "POST",
             "header": [
@@ -1033,14 +1033,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code PRODUCT_DISCONTINUED', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_DISCONTINUED'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "FL-IMG-010 · B — Quita una imagen de la galería de un producto (200)",
+          "name": "FL-IMG-010 · B — Quita una imagen de un producto descontinuado (409)",
           "request": {
             "method": "DELETE",
             "header": [
@@ -1058,14 +1059,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code PRODUCT_DISCONTINUED', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_DISCONTINUED'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "FL-IMG-010 · C — Elige qué imagen representa al producto en los listados (200)",
+          "name": "FL-IMG-010 · C — Marca la principal de un producto descontinuado (409)",
           "request": {
             "method": "PUT",
             "header": [
@@ -1076,6 +1078,80 @@
             ],
             "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/{{imageId}}/primary",
             "description": "Escenario de FL-IMG-010 — la galería de un producto descontinuado no se toca.\nGiven: **Given**: el flujo crea `b1`, `c1` y el producto `p1` con dos imágenes, lo publica y lo descontinúa. Credencial con rol `catalog-editor`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code PRODUCT_DISCONTINUED', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_DISCONTINUED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-010 · D — Reordena la galería de un producto descontinuado (409)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}/images/order",
+            "description": "Escenario de FL-IMG-010 — la galería de un producto descontinuado no se toca.\nThen 4: reorderProductImages responde 409 PRODUCT_DISCONTINUED.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageIds\": [\"{{imageId2}}\", \"{{imageId}}\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code PRODUCT_DISCONTINUED', () => pm.expect(pm.response.json().code).to.eql('PRODUCT_DISCONTINUED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-IMG-010 · E — Cambia la ficha de un producto descontinuado (200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/management/products/{{productId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Monitor M27 Discontinuado\",\n  \"price\": 249.00,\n  \"brandId\": \"{{brandId}}\",\n  \"categoryId\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Escenario de FL-IMG-010 — la galería de un producto descontinuado no se toca.\nThen 7: la ficha de un descontinuado sí se edita; la entrada es la representación completa."
           },
           "event": [
             {
@@ -1147,7 +1223,7 @@
           ]
         },
         {
-          "name": "FL-IMG-020 · B — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "name": "FL-IMG-020 · B — Recupera la ficha completa de un producto para el back-office, con su  (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -1165,7 +1241,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -1222,7 +1298,7 @@
           ]
         },
         {
-          "name": "FL-IMG-020 · E — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "name": "FL-IMG-020 · E — Recupera la ficha completa de un producto para el back-office, con su  (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -1240,7 +1316,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -1409,7 +1485,7 @@
           ]
         },
         {
-          "name": "FL-BRD-001 · F — Da de alta una marca (204)",
+          "name": "FL-BRD-001 · F — Da de alta una marca (201)",
           "request": {
             "method": "POST",
             "header": [
@@ -1445,7 +1521,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
                 ]
               }
             }
@@ -1638,7 +1714,7 @@
           ]
         },
         {
-          "name": "FL-CAT-001 · E — Da de alta una categoría (204)",
+          "name": "FL-CAT-001 · E — Da de alta una categoría (201)",
           "request": {
             "method": "POST",
             "header": [
@@ -1674,14 +1750,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "FL-CAT-001 · F — Cambia el nombre o el texto de cabecera de una categoría (204)",
+          "name": "FL-CAT-001 · F — Cambia el nombre o el texto de cabecera de una categoría (200)",
           "request": {
             "method": "PUT",
             "header": [
@@ -1712,7 +1788,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -1817,7 +1893,7 @@
           ]
         },
         {
-          "name": "FL-IDM-001 · B — Lista los productos para el back-office, en cualquier estado, con filt (201)",
+          "name": "FL-IDM-001 · B — Lista los productos para el back-office, en cualquier estado, con filt (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -1879,7 +1955,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -2565,7 +2641,7 @@
           ]
         },
         {
-          "name": "FL-OBX-001 · B — Recupera la ficha completa de un producto para el back-office, con su  (201)",
+          "name": "FL-OBX-001 · B — Recupera la ficha completa de un producto para el back-office, con su  (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -2583,7 +2659,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -3077,7 +3153,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.1.1"
+      "value": "0.1.2"
     },
     {
       "key": "productId",

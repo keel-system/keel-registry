@@ -33,7 +33,7 @@ entities:
     fields:
       id:          { type: uuid, id: true, generated: true }
       name:        { type: string, required: true, unique: true, compare: ignore-case-accents, constraints: { maxLength: 80 } }
-      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case; si el slug resultante ya existe, la escritura se rechaza." }
+      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case: se pasa a minúsculas, las letras con diacrítico se transliteran a su base (á→a, ñ→n), los separadores se vuelven guiones y se descarta cualquier otro carácter fuera del patrón de Slug. Si el slug resultante ya existe, la escritura se rechaza." }
       description: { type: text, constraints: { maxLength: 1000 }, description: Reseña de la marca para la ficha pública. }
 
   Category:
@@ -41,7 +41,7 @@ entities:
     fields:
       id:          { type: uuid, id: true, generated: true }
       name:        { type: string, required: true, unique: true, compare: ignore-case-accents, constraints: { maxLength: 80 } }
-      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case; si el slug resultante ya existe, la escritura se rechaza." }
+      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case: se pasa a minúsculas, las letras con diacrítico se transliteran a su base (á→a, ñ→n), los separadores se vuelven guiones y se descarta cualquier otro carácter fuera del patrón de Slug. Si el slug resultante ya existe, la escritura se rechaza." }
       description: { type: text, constraints: { maxLength: 1000 }, description: Texto de cabecera de la categoría en la tienda. }
 
   Product:
@@ -50,12 +50,12 @@ entities:
       id:          { type: uuid, id: true, generated: true }
       sku:         { type: SKU, required: true, unique: true }
       name:        { type: string, required: true, constraints: { maxLength: 140 } }
-      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case, con sufijo numérico si colisiona. Solo se recalcula mientras slugFrozen es falso." }
+      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case (minúsculas, diacríticos transliterados a su letra base, separadores a guiones, el resto de caracteres fuera del patrón de Slug descartados), con sufijo numérico si colisiona. Solo se recalcula mientras slugFrozen es falso." }
       slugFrozen:  { type: boolean, generated: true, description: "Falso mientras el producto no se haya publicado nunca. Lo pone a verdadero publishProduct la primera vez, y no vuelve a ser falso: es lo que protege los enlaces ya compartidos frente a un cambio de nombre." }
       description: { type: text, constraints: { maxLength: 4000 }, description: Descripción comercial larga que la tienda muestra en la ficha. }
       price:       { type: Price, required: true }
       status:      { type: ProductStatus, default: draft }
-      lockVersion: { type: int, generated: true, description: Control de versión de la ficha; una escritura sobre una versión obsoleta es un conflicto. }
+      lockVersion: { type: int, generated: true, description: "Control de versión de la ficha; una escritura sobre una versión obsoleta es un conflicto. Avanza exactamente una vez por escritura confirmada: la que pierde el conflicto no lo mueve." }
       createdAt:   { type: timestamp, generated: true }
       updatedAt:   { type: timestamp, generated: true }
       createdBy:   { type: string, generated: true, description: Identidad del gestor que dio de alta el producto. }

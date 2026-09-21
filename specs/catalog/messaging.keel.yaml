@@ -15,9 +15,12 @@ channels:
       sus copias por brandId o categoryId.
 
 publishing:
-  # Ningún cambio confirmado se queda sin anunciar: el evento se escribe en la misma transacción
-  # que el agregado y un relay lo publica después. Lo exige que search-service mantenga su índice
-  # solo con estos eventos — un evento perdido es un producto que no aparece en la búsqueda.
+  # Un cambio confirmado no se queda sin anunciar por una caída del canal: el evento se escribe en
+  # la misma transacción que el agregado y un relay lo publica después, cuando el canal vuelve. Lo
+  # exige que search-service mantenga su índice solo con estos eventos — un evento perdido es un
+  # producto que no aparece en la búsqueda. El relay sí tiene un presupuesto de reintentos (lo fija
+  # el generador, no este diseño): el evento que lo agota se da por abandonado, no se publica ya, y
+  # el servidor lo cuenta y lo señala para que alguien lo reponga. Perderlo en silencio, nunca.
   reliability: outbox
 
   events:

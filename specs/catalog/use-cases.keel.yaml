@@ -26,13 +26,15 @@ operations:
       - El sku se normaliza a mayúsculas antes de comprobar su unicidad.
       - El producto nace en draft con slugFrozen falso, así que su slug sigue al nombre hasta que se publique.
       - El slug se deriva del name; si el slug resultante ya existe, se le añade un sufijo numérico.
+    # El orden es el de evaluación: la clave de idempotencia se resuelve antes de tocar el dominio,
+    # porque un reintento tiene que reproducir la respuesta original sin volver a chocar con el sku.
     errors:
-      - { code: SKU_ALREADY_EXISTS, when: Ya existe un producto con ese sku., http: 409 }
-      - { code: BRAND_REFERENCE_NOT_FOUND, when: El brandId indicado no corresponde a ninguna marca existente., http: 422 }
-      - { code: CATEGORY_REFERENCE_NOT_FOUND, when: El categoryId indicado no corresponde a ninguna categoría existente., http: 422 }
       - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición llega sin la cabecera Idempotency-Key, que esta operación exige.", http: 400 }
       - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: Otra petición con la misma clave de idempotencia se está ejecutando en este momento., http: 409 }
       - { code: IDEMPOTENCY_KEY_REUSED, when: La misma clave de idempotencia llega con un contenido distinto al de la primera petición., http: 409 }
+      - { code: SKU_ALREADY_EXISTS, when: Ya existe un producto con ese sku., http: 409 }
+      - { code: BRAND_REFERENCE_NOT_FOUND, when: El brandId indicado no corresponde a ninguna marca existente., http: 422 }
+      - { code: CATEGORY_REFERENCE_NOT_FOUND, when: El categoryId indicado no corresponde a ninguna categoría existente., http: 422 }
     emits: [ProductCreated]
 
   updateProduct:
@@ -56,6 +58,7 @@ operations:
       - Un producto active no puede quedarse con price igual a cero.
       - "La entrada es la representación completa de la ficha: un campo opcional que no viene se vacía, no se conserva."
       - Un producto discontinued sí se puede editar; su ficha la siguen mostrando los pedidos históricos.
+      - "El control de versión protege frente a escrituras que se solapan: si dos ediciones confirman a la vez sobre la misma versión, la que pierde responde 409 CONCURRENT_MODIFICATION. La versión leída no viaja en la petición, así que dos ediciones sucesivas se aplican en orden y prevalece la última."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese productId., http: 404 }
       - { code: BRAND_REFERENCE_NOT_FOUND, when: El brandId indicado no corresponde a ninguna marca existente., http: 422 }
@@ -201,25 +204,27 @@ operations:
         image:     { type: file, bucket: productImages, required: true }
         altText:   { type: string, constraints: { maxLength: 200 } }
         primary:   { type: boolean, default: false }
-    output: { entity: ProductImage }
+    # La imagen es la raíz de este payload, pero su producto ya está en la ruta: devolver productId
+    # sería repetir lo que el cliente acaba de decir.
+    output: { entity: ProductImage, exclude: [product] }
     idempotency: { keySource: client-key, ttlSeconds: 86400 }
     preconditions:
       - El producto existe y no está discontinued.
       - El producto no ha alcanzado el máximo de diez imágenes.
     rules:
-      - La imagen recibe la position siguiente a la mayor de la galería.
+      - La imagen recibe la position siguiente a la mayor de la galería; la primera imagen de una galería vacía recibe position 0.
       - Si llega con primary verdadero, la imagen que lo era deja de serlo.
       - "Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product."
       - Si es la primera imagen del producto, se marca primary aunque no se pida.
     errors:
+      - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición llega sin la cabecera Idempotency-Key, que esta operación exige.", http: 400 }
+      - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: Otra petición con la misma clave de idempotencia se está ejecutando en este momento., http: 409 }
+      - { code: IDEMPOTENCY_KEY_REUSED, when: La misma clave de idempotencia llega con un contenido distinto al de la primera petición., http: 409 }
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese productId., http: 404 }
       - { code: PRODUCT_DISCONTINUED, when: El producto está descontinuado y su galería ya no se toca., http: 409 }
       - { code: TOO_MANY_PRODUCT_IMAGES, when: El producto ya tiene diez imágenes., http: 422 }
       - { code: FILE_TOO_LARGE, when: El archivo supera el tamaño máximo del bucket., http: 413 }
       - { code: UNSUPPORTED_CONTENT_TYPE, when: El archivo no es de un tipo de imagen admitido., http: 415 }
-      - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición llega sin la cabecera Idempotency-Key, que esta operación exige.", http: 400 }
-      - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: Otra petición con la misma clave de idempotencia se está ejecutando en este momento., http: 409 }
-      - { code: IDEMPOTENCY_KEY_REUSED, when: La misma clave de idempotencia llega con un contenido distinto al de la primera petición., http: 409 }
     emits: [ProductUpdated]
 
   removeProductImage:
@@ -231,6 +236,7 @@ operations:
         imageId:   { type: uuid, required: true }
     output: "void"
     preconditions:
+      - El producto existe.
       - El producto no está discontinued.
       - La imagen existe y pertenece a ese producto.
       - Si el producto está active, la imagen no es la última de su galería.
@@ -239,8 +245,8 @@ operations:
       - El objeto se retira del bucket junto con la imagen.
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese productId., http: 404 }
-      - { code: PRODUCT_IMAGE_NOT_FOUND, when: No existe esa imagen en la galería del producto., http: 404 }
       - { code: PRODUCT_DISCONTINUED, when: El producto está descontinuado y su galería ya no se toca., http: 409 }
+      - { code: PRODUCT_IMAGE_NOT_FOUND, when: No existe esa imagen en la galería del producto., http: 404 }
       - { code: LAST_IMAGE_OF_ACTIVE_PRODUCT, when: Se intenta quitar la única imagen de un producto active., http: 409 }
     emits: [ProductUpdated]
 
@@ -253,16 +259,17 @@ operations:
         imageId:   { type: uuid, required: true }
     output: "void"
     preconditions:
+      - El producto existe.
       - El producto no está discontinued.
       - La imagen existe y pertenece a ese producto.
     rules:
       - La imagen que era primary deja de serlo en la misma transacción.
       - "Si otra escritura concurrente sobre la galería marcó otra primary antes, esta pierde con 409 CONCURRENT_MODIFICATION: la galería es parte del agregado Product."
-      - Marcar como primary la que ya lo es no cambia nada y no es un error.
+      - "Marcar como primary la que ya lo es no cambia la galería y no es un error; la operación confirma igual y publica su ProductUpdated, porque el evento anuncia el resultado de la escritura, no que algo haya cambiado."
     errors:
       - { code: PRODUCT_NOT_FOUND, when: No existe un producto con ese productId., http: 404 }
-      - { code: PRODUCT_IMAGE_NOT_FOUND, when: No existe esa imagen en la galería del producto., http: 404 }
       - { code: PRODUCT_DISCONTINUED, when: El producto está descontinuado y su galería ya no se toca., http: 409 }
+      - { code: PRODUCT_IMAGE_NOT_FOUND, when: No existe esa imagen en la galería del producto., http: 404 }
     emits: [ProductUpdated]
 
   reorderProductImages:
@@ -299,11 +306,11 @@ operations:
     rules:
       - El slug se deriva del name; si ya existe, la escritura se rechaza.
     errors:
-      - { code: BRAND_NAME_ALREADY_EXISTS, when: Ya existe una marca con ese nombre., http: 409 }
-      - { code: BRAND_SLUG_ALREADY_EXISTS, when: "El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: «Acme!» y «Acme» dan el mismo.", http: 409 }
       - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición llega sin la cabecera Idempotency-Key, que esta operación exige.", http: 400 }
       - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: Otra petición con la misma clave de idempotencia se está ejecutando en este momento., http: 409 }
       - { code: IDEMPOTENCY_KEY_REUSED, when: La misma clave de idempotencia llega con un contenido distinto al de la primera petición., http: 409 }
+      - { code: BRAND_NAME_ALREADY_EXISTS, when: Ya existe una marca con ese nombre., http: 409 }
+      - { code: BRAND_SLUG_ALREADY_EXISTS, when: "El slug derivado del nombre ya lo usa otra marca, aunque los nombres no coincidan: «Acme!» y «Acme» dan el mismo.", http: 409 }
     emits: [BrandCreated]
 
   updateBrand:
@@ -352,11 +359,11 @@ operations:
     rules:
       - El slug se deriva del name; si ya existe, la escritura se rechaza.
     errors:
-      - { code: CATEGORY_NAME_ALREADY_EXISTS, when: Ya existe una categoría con ese nombre., http: 409 }
-      - { code: CATEGORY_SLUG_ALREADY_EXISTS, when: El slug derivado del nombre ya lo usa otra categoría aunque los nombres no coincidan., http: 409 }
       - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición llega sin la cabecera Idempotency-Key, que esta operación exige.", http: 400 }
       - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: Otra petición con la misma clave de idempotencia se está ejecutando en este momento., http: 409 }
       - { code: IDEMPOTENCY_KEY_REUSED, when: La misma clave de idempotencia llega con un contenido distinto al de la primera petición., http: 409 }
+      - { code: CATEGORY_NAME_ALREADY_EXISTS, when: Ya existe una categoría con ese nombre., http: 409 }
+      - { code: CATEGORY_SLUG_ALREADY_EXISTS, when: El slug derivado del nombre ya lo usa otra categoría aunque los nombres no coincidan., http: 409 }
     emits: [CategoryCreated]
 
   updateCategory:

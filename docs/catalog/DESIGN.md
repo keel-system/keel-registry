@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.1.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.1.2. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -21,7 +21,9 @@ relevancia. Es la verdad de **qué se vende y a qué precio**, no de cuánto hay
 
 - `SKU` — el código con el que el negocio conoce el artículo (almacén, proveedor, facturas). Único e
   inmutable: identifica al mismo artículo físico durante toda su vida.
-- `Slug` — identificador legible para las URLs públicas, derivado del nombre.
+- `Slug` — identificador legible para las URLs públicas, derivado del nombre: minúsculas,
+  diacríticos transliterados a su letra base (`"Portátiles"` → `portatiles`), separadores a guiones
+  y el resto de caracteres descartados.
 - `Price` — importe de venta en la divisa única de la tienda. La escala de dos decimales se
   **valida, no se ajusta**: un importe con más decimales se rechaza en vez de redondearse, porque el
   servicio no hace aritmética sobre el precio; lo guarda y lo devuelve tal cual llegó
@@ -34,7 +36,7 @@ relevancia. Es la verdad de **qué se vende y a qué precio**, no de cuánto hay
 |---|---|
 | `Brand` | `id`, `name` (único), `slug` (*computed*), `description` |
 | `Category` | `id`, `name` (único), `slug` (*computed*), `description` — planas, sin jerarquía |
-| `Product` | `id`, `sku` (único), `name`, `slug` (*computed*), `slugFrozen` (*generated*), `description`, `price`, `status`, `lockVersion` (*generated*), `createdAt` / `updatedAt` / `createdBy` / `updatedBy` (*generated*) |
+| `Product` | `id`, `sku` (único), `name`, `slug` (*computed*), `slugFrozen` (*generated*), `description`, `price`, `status`, `lockVersion` (*generated*, avanza exactamente una vez por escritura confirmada), `createdAt` / `updatedAt` / `createdBy` / `updatedBy` (*generated*) |
 | `ProductImage` | `id`, `image` (archivo en el bucket `productImages`), `altText`, `position`, `primary` |
 
 `Product` referencia una `Brand` y una `Category` (obligatorias, por id) y posee una galería de
@@ -63,6 +65,14 @@ No hay estado terminal: un artículo descontinuado se puede volver a poner a la 
   (`compare: ignore-case-accents` en el campo: `ACME`, `acme` y `Acmé` son el mismo nombre);
   tampoco el mismo `slug`, que es un fallo distinto y tiene su propio código (`Acme!` frente a `Acme`).
 - El `sku` es inmutable: no forma parte de la entrada de `updateProduct`.
+- La primera imagen de una galería vacía recibe `position` 0; cada siguiente, la posición siguiente a
+  la mayor. Y la primera imagen de un producto es su `primary` aunque no se pida.
+- En las cuatro operaciones con clave de idempotencia, la clave se resuelve **antes** que cualquier
+  guarda de negocio: un reintento tiene que reproducir la respuesta original sin volver a chocar con
+  la unicidad del `sku` o del nombre. El orden de la lista `errors` de cada operación es el orden en
+  que se evalúan sus guardas.
+- El control de versión de `Product` protege frente a escrituras que **se solapan**: la versión leída
+  no viaja en la petición, así que dos ediciones sucesivas se aplican en orden y prevalece la última.
 - El `slug` de un producto sigue a su nombre **hasta la primera publicación**; ahí se congela
   (`slugFrozen`) y no vuelve a moverse, ni siquiera al despublicar.
 - Una marca o categoría no se elimina mientras algún producto la referencie.
@@ -180,6 +190,8 @@ de back-office llaman desde el navegador; los orígenes concretos son despliegue
 | **Acceso por permiso, con el rol como puerta donde importa** | Permisos en las 12 operaciones de producto; `level: admin` + `roles: [catalog-admin]` en las 7 irreversibles o estructurales | Repetir los roles en las 25 reglas duplicaría lo que `roleGrants` ya dice en dos líneas. `catalog-editor` se define por lo que **no** alcanza; `keel validate` avisa de que ninguna regla lo exige por nombre, y se acepta con ese porqué. |
 | **Versionado del contrato** | Convivencia de `/api/v1` y `/api/v2` | Permite evolucionar sin coordinar el despliegue de los tres consumidores a la vez. Descartado: solo aditivo (un error de contrato se arrastra para siempre) y romper coordinando (cada cambio es una ventana de mantenimiento). |
 | **Ausencia** | Un campo sin valor **no viaja** | Convención única del servicio, en respuestas y en payloads de evento: es lo que hace que dos stacks produzcan el mismo JSON. Descartado: `null` explícito. Desde v0.1.1 está declarada en el manifiesto (`conventions.nulls: omit`) y ya no solo en la prosa de los escenarios. |
+| **Retención de caché, observada por la señal del servidor** | Los escenarios de retención afirman el **acierto de caché**, no un cuerpo viejo | Toda vía por la que la ficha cambia está declarada en `invalidatedBy` —que es lo que se quiere de ella—, y sustituir el objeto de la imagen en el bucket con la misma clave no cambia ningún campo del cuerpo: la retención no es observable comparando respuestas. O se afirma sobre la señal del servidor —el mismo trato que «ningún evento abandonado» del outbox— o no se afirma, y sin ella una implementación que no cachea nada pasa todas las aserciones de invalidación. Descartado: quitar la aserción. Aceptado por escrito en `flow-review.yaml` (v0.1.2). |
+| **El presupuesto de reintentos del relay es del generador** | `outbox` promete que un cambio confirmado no se queda sin anunciar **por una caída del canal**; el evento que agota los reintentos se da por abandonado, se cuenta y se señala | Prometer que ningún evento se abandona jamás es una promesa que ningún relay cumple, y esconderla es peor que declararla: un evento perdido en silencio es un producto que no aparece en la búsqueda y nadie se entera. Cuántos intentos son es decisión del stack, no del diseño. Precisado en v0.1.2. |
 | **Carrera de la imagen principal** | El choque del índice único parcial responde `409 CONCURRENT_MODIFICATION`, sin código propio | Ninguna petición legítima puede chocar: las dos operaciones que marcan una principal desmarcan la anterior en la misma transacción. Solo choca la carrera de dos escrituras concurrentes sobre la galería, que es una modificación concurrente del agregado, así que «reintenta» es la respuesta correcta. Descartado: un `PRIMARY_IMAGE_CONFLICT` propio (minor), que nombraría un caso que el cliente no puede provocar a propósito. Decidido en v0.1.1. |
 
 ## 7. Ficha de reutilización: adoptar, derivar o evolucionar

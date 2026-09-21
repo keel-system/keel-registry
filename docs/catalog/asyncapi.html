@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.1 -->
+<!-- keel:version 0.1.2 -->
 <!--
   Visor de contratos Keel — plantilla de forma fija, común a OpenAPI y AsyncAPI.
   NO edites el markup, el CSS ni el JS al generar. Copia este archivo tal cual y sustituye
@@ -107,7 +107,7 @@ var KEEL_SPEC = {
   "asyncapi": "3.0.0",
   "info": {
     "title": "catalog",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Catálogo comercial de una tienda: es la fuente de verdad de los productos, sus marcas y sus categorías. Los publica a los consumidores con búsqueda y filtros, los gestiona el personal de la tienda con rastro de autoría, y difunde sus altas y sus cambios al resto de servidores por consulta directa y por eventos.\n\nContrato asíncrono derivado del diseño Keel (capa messaging). El broker concreto y los nombres físicos de topic/cola se deciden al generar.\n\nTodo evento publicado viaja en la envoltura estándar Keel (`metadata` + `data`): `data` es el payload declarado en el diseño y `metadata` es transversal e idéntica en los diez eventos. La publicación es `outbox`: el evento se escribe en la misma transacción que el agregado y un relay lo publica después, así que ningún cambio confirmado se queda sin anunciar.",
     "license": {
       "name": "Apache-2.0",

@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.1.1. Contrato de validación para la fase de generación.
+> specs/catalog v0.1.2. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -20,8 +20,9 @@ se rechaza con `400`. Vale para toda entrada de tipo `Price`, filtros `minPrice`
 El servicio no hace aritmética sobre el precio, así que no hay redondeo que fijar.
 
 **Ausencia.** Un campo sin valor **no aparece**; nunca viaja como `null` (`conventions.nulls: omit`
-en el manifiesto). Vale para las respuestas y para los payloads de evento: `description`, `altText`,
-el `image` de una galería vacía y el `primaryImageUrl` de un producto sin imágenes. Un `Then` que enumera el cuerpo da por
+en el manifiesto). Vale para las respuestas y para los payloads de evento: `description`, `altText`
+y el `primaryImageUrl` de un producto sin imágenes. Una colección vacía **no** es un campo sin valor:
+viaja como `[]` (el `images` de un producto sin galería). Un `Then` que enumera el cuerpo da por
 ausentes los campos que no nombra.
 
 **Mayúsculas y acentos.** La unicidad de `name` (`compare: ignore-case-accents` en `Brand.name` y
@@ -29,6 +30,33 @@ ausentes los campos que no nombra.
 `listProducts` y `listPublicProducts`) ignoran mayúsculas y acentos:
 `ACME`, `acme` y `Acmé` son el mismo nombre para la unicidad, y los tres casan el mismo filtro. El
 `sku` se normaliza a mayúsculas antes de comprobar su unicidad: `sku-001` y `SKU-001` colisionan.
+Los tres `slug` se derivan transliterando los diacríticos a su letra base y descartando lo que queda
+fuera del patrón de `Slug`: `"Portátiles"` da `portatiles` y `"Acme!"` da `acme`.
+
+**Representación completa.** La entrada de `updateProduct`, `updateBrand` y `updateCategory` es la
+ficha **entera**, no un parche: un campo opcional que no viene se vacía, y los requeridos
+(`name`, `price`, `brandId` y `categoryId` en `updateProduct`) viajan siempre. Cuando un `When` dice
+«`updateProduct` con `price: 1199.00`» se entiende la ficha completa con ese único campo cambiado;
+una petición que omitiera un requerido sería `400`.
+
+**Preparación del `Given`.** Los datos de partida se crean **por la API**, cada operación con la
+identidad que su regla de acceso exige: las marcas y las categorías con credencial de
+`catalog-admin` (la taxonomía es `level: admin`), los productos y su galería con `catalog-editor`.
+La credencial que el escenario nombra es la de las llamadas que **está probando**, no la de su
+preparación. Lo mismo vale para las mutaciones que un `When` usa como **medio** y no como sujeto —las
+que pueblan o invalidan una caché, las que provocan una carrera—: cada una se hace con la identidad
+que su regla exige, y la credencial nombrada es la de la lectura o la operación bajo prueba.
+
+**Envoltura de evento.** Todo evento viaja como `{metadata, data}`: `metadata` lleva `eventId`,
+`eventType`, `eventVersion`, `occurredAt`, `source`, `correlationId` y `traceparent`, y `data` es el
+`payload` declarado en `messaging`. Cuando un `Then` enumera «el payload» habla de `data`; el
+`correlationId` que algunos afirman es `metadata.correlationId`, que trae el de la petición que
+originó el hecho.
+
+**Enumeración de eventos.** Un `Then` que enumera un evento afirma los campos que **nombra**; los
+demás `required` de su `payload` viajan igualmente, coherentes con el estado resultante, y se
+verifican por forma. La convención de **Ausencia** solo afirma que un campo no viaja cuando el
+`Then` lo dice explícitamente («**sin** `primaryImageUrl`»).
 
 **Cuerpo de error.** El servicio tiene **una** forma de error, la que emite el generador:
 `{timestamp, status, error, code, message, details}` más `correlationId`. Los escenarios afirman
@@ -170,9 +198,10 @@ producto de nombre `"Laptop Pro 14"` el segundo slug es `"laptop-pro-14-2"`.
 
 ### FL-PRD-010: edición de la ficha y ProductUpdated
 
-**Given**: el flujo crea `b1`, `c1`, la marca `b2` (`name: "Globex"`) y el producto `p1` con
-`createProduct` (`sku: "SKU-010"`, `name: "Teclado K1"`, `description: "Mecánico."`, `price: 79.90`,
-marca `b1`). Credencial con rol `catalog-editor`.
+**Given**: el flujo crea la marca `b1` (`name: "Acme"`), la categoría `c1` (`name: "Laptops"`), la
+marca `b2` (`name: "Globex"`) y el producto `p1` con `createProduct` (`sku: "SKU-010"`,
+`name: "Teclado K1"`, `description: "Mecánico."`, `price: 79.90`, marca `b1`, categoría `c1`).
+Credencial con rol `catalog-editor`.
 
 **When**: `updateProduct` — `PUT /api/v1/management/products/{p1}`
 
@@ -272,8 +301,13 @@ Credencial con rol `catalog-editor`.
 - `publishProduct` sobre un `draft` **sin imágenes** → `422` (`PRODUCT_HAS_NO_IMAGES`).
 - `publishProduct` sobre un `draft` con `price: 0` y sin imágenes → `422`
   (`PRODUCT_PRICE_NOT_SET`): la guarda 3 precede a la 4.
-- `reactivateProduct` sobre un `discontinued` con `price: 0` → `422` (`PRODUCT_PRICE_NOT_SET`).
-- `reactivateProduct` sobre un `discontinued` sin imágenes → `422` (`PRODUCT_HAS_NO_IMAGES`).
+- `reactivateProduct` sobre un `discontinued` con `price: 0` → `422` (`PRODUCT_PRICE_NOT_SET`). Se
+  llega a él con `updateProduct` (`price: 0`) sobre el descontinuado, que se acepta: la regla del
+  precio cero solo protege a los `active`.
+- `reactivateProduct` sobre un `discontinued` **sin imágenes** (`PRODUCT_HAS_NO_IMAGES`, `422`) **no
+  es alcanzable** por la superficie: a `discontinued` solo se llega desde `active`, que siempre
+  conserva al menos una imagen (`LAST_IMAGE_OF_ACTIVE_PRODUCT`), y la galería de un descontinuado ya
+  no se toca (`PRODUCT_DISCONTINUED`). La guarda es defensiva y no tiene escenario.
 - `publishProduct` con `productId` inexistente → `404` (`PRODUCT_NOT_FOUND`).
 - `unpublishProduct` / `discontinueProduct` / `reactivateProduct` con `productId` inexistente →
   `404` (`PRODUCT_NOT_FOUND`).
@@ -284,7 +318,8 @@ alcanza este flujo, y las cuatro transiciones declaradas se ejercitan en los pas
 ### FL-PRD-030: borrado de un borrador y su vía de baja
 
 **Given**: el flujo crea `b1`, `c1`, el producto `p1` en `draft` (nunca publicado, `sku: "SKU-030"`)
-con una imagen, y el producto `p2` publicado y luego despublicado (`slugFrozen: true`). Credencial
+con una imagen, y el producto `p2` con una imagen, publicado y luego despublicado
+(`slugFrozen: true`). Credencial
 con rol `catalog-admin`.
 
 **When**: `deleteProduct` — `DELETE /api/v1/management/products/{p1}`
@@ -313,31 +348,42 @@ con rol `catalog-admin`.
 
 ### FL-PRD-040: dos ediciones concurrentes del mismo producto
 
-**Given**: el flujo crea `b1`, `c1` y el producto `p1` (`name: "Silla S1"`, `price: 149.00`). Se lee
-`p1` con `getProduct` **dos veces**, obteniendo dos lecturas con el mismo `lockVersion`.
+**Given**: el flujo crea `b1`, `c1` y el producto `p1` (`name: "Silla S1"`, `price: 149.00`, marca
+`b1`, categoría `c1`). Se lee `p1` con `getProduct` y se anota su `lockVersion` (`v0`).
 
-**When**: dos `updateProduct` sobre `p1` **a la vez**, cada uno partiendo de su lectura: uno con
-`name: "Silla S1 Azul"` y otro con `price: 159.00`.
+**When**: dos `updateProduct` sobre `p1` lanzadas **a la vez**, como carrera: la **A** con
+`name: "Silla S1 Azul"`, `price: 149.00` y la **B** con `name: "Silla S1"`, `price: 159.00` (las dos
+con `brandId: b1` y `categoryId: c1`, porque la entrada es la representación completa).
 
 **Then**:
-1. Exactamente una de las dos responde `200`.
-2. La otra responde `409` con `code: CONCURRENT_MODIFICATION` — nadie pisa en silencio el cambio ajeno.
-3. `getProduct` sobre `p1` devuelve el estado de la ganadora: o `name: "Silla S1 Azul"` con
-   `price: 149.00`, o `name: "Silla S1"` con `price: 159.00`. Nunca una mezcla de los dos.
-4. Su `lockVersion` es **exactamente uno** mayor que el de las lecturas del `Given`.
-5. En `productEvents` hay **exactamente un** `ProductUpdated` de `p1`, coherente con la ganadora.
+1. Cada una responde `200` o `409` con `code: CONCURRENT_MODIFICATION`, y **al menos una** responde
+   `200`. Ninguna responde otra cosa.
+2. `getProduct` sobre `p1` devuelve **entera** la ficha de una de las dos: o `name: "Silla S1 Azul"`
+   con `price: 149.00`, o `name: "Silla S1"` con `price: 159.00`. Si solo una respondió `200`, es la
+   suya. Nunca una mezcla: ni `"Silla S1 Azul"` con `159.00` ni la ficha del `Given` sin cambios.
+3. Su `lockVersion` es `v0` más **el número de respuestas `200`** (`domain` declara que avanza
+   exactamente una vez por escritura confirmada): la que pierde el conflicto no lo mueve.
+4. En `productEvents` hay **tantos** `ProductUpdated` de `p1` como respuestas `200`, y el último
+   coincide con la ficha del paso 2.
 
-**Notas de determinación**: el `Then` no depende de quién gane. Las aserciones 4 y 5 son las que no
-admiten disyunción y las que hacen que el escenario pueda fallar.
+**Notas de determinación**: el diseño no manda la versión leída en la petición (la regla del control
+de versión en `updateProduct`), así que el conflicto **solo** aparece cuando las dos escrituras se
+solapan de verdad; si el servidor las serializa, las dos responden `200` y prevalece la segunda. Por
+eso el `Then` no fija cuántas ganan. Lo que sí fija, y lo que hace que pueda fallar, son las
+aserciones 3 y 4: una escritura que responde `409` y aun así sube la versión o publica su evento, o
+una que responde `200` sin dejar rastro, rompe la cuenta. Dos ediciones **sucesivas** partiendo de la
+misma lectura no son este escenario: las dos responden `200` y gana la última.
 
 ### FL-PRD-050: listado de back-office — orden, paginación y filtros
 
 **Given**: el flujo crea `b1` (`"Acme"`), `b2` (`"Globex"`), `c1` (`"Laptops"`), `c2` (`"Monitores"`)
-y **25** productos: `p1..p10` de `b1`/`c1`, `p11..p20` de `b2`/`c2`, `p21..p25` de `b1`/`c2`. De
-ellos, `p1..p5` se publican (`active`), `p6` se publica y se descontinúa, y el resto queda en `draft`.
-Primero se crean los 25 en orden y **después** se aplican las transiciones, en este orden: `p1..p5`
-se publican, luego `p6` se publica y se descontinúa. Cada transición actualiza `updatedAt`, así que
-`p6` (la última mutación) es el de `updatedAt` más reciente. Credencial con rol `catalog-editor`.
+y **25** productos, cada `pN` con `sku: "SKU-00NN"` (`p1` → `SKU-0001`, `p25` → `SKU-0025`):
+`p1..p10` de `b1`/`c1` con `name: "Laptop N"`, `p11..p20` de `b2`/`c2` con `name: "Monitor N"` y
+`p21..p25` de `b1`/`c2` con `name: "Monitor N"`. Ningún otro producto existe. El orden de las
+mutaciones es este, y es el que fija `updatedAt`: (1) se crean los 25 en orden; (2) se sube **una**
+imagen (`addProductImage`) a cada uno de `p1..p6`, en ese orden; (3) `p1..p5` se publican (`active`);
+(4) `p6` se publica y se descontinúa. El resto queda en `draft`. Así `p6` (la última mutación) es el
+de `updatedAt` más reciente. Credencial con rol `catalog-editor`.
 
 **When**: `listProducts` — `GET /api/v1/management/products`
 
@@ -368,12 +414,14 @@ se publican, luego `p6` se publica y se descontinúa. Cada transición actualiza
 **When**: `GET /api/v1/management/products?status=active&brandId={b1}&categoryId={c1}&name=lap`
 
 **Then**:
-9. Solo salen productos que cumplen **todos** los filtros a la vez (AND): los `active` de `b1` en
-   `c1` cuyo nombre contiene `"lap"`.
-10. `GET ...?name=LAP` y `GET ...?name=láp` devuelven el mismo `totalElements`.
+9. Solo salen productos que cumplen **todos** los filtros a la vez (AND): exactamente `p1..p5`,
+   `totalElements: 5`. `p6..p10` casan marca, categoría y nombre pero no el `status`; `p21..p25`
+   casan la marca pero no la categoría ni el nombre.
+10. Con los mismos filtros, `...&name=LAP` y `...&name=láp` devuelven también `totalElements: 5`.
 11. `GET ...?brandId=<uuid inexistente>` responde `200` con `items` vacío y `totalElements: 0` — un
     filtro sin correspondencia no es un error.
-12. `GET ...?sku=SKU-0001` devuelve el producto de ese sku, o la página vacía si no existe.
+12. `GET ...?sku=SKU-0001` devuelve exactamente `p1` (`totalElements: 1`); `GET ...?sku=SKU-9999`
+    responde `200` con `items` vacío.
 
 **Notas de determinación (coste)**: el listado resuelve `brand`, `category` e `images` por elemento.
 El trabajo de la operación **no crece con el tamaño de la página**: se compara `size=2` con `size=20`
@@ -417,8 +465,10 @@ nunca fijando un número absoluto de consultas.
 10. `getProduct` trae exactamente **una** imagen con `primary: true`, y es `img3`; la que lo era ha
     dejado de serlo en la misma transacción.
 11. Se publica un `ProductUpdated` cuyo `primaryImageUrl` es el `image` de `img3`.
-12. Repetir el mismo `When` responde `204` y no cambia nada: marcar como principal la que ya lo es no
-    es un error.
+12. Repetir el mismo `When` responde `204`, `getProduct` devuelve la galería idéntica y `img3` sigue
+    siendo la principal: marcar como principal la que ya lo es no es un error. Sí publica un
+    segundo `ProductUpdated` (el evento anuncia el resultado de la escritura, no que algo haya
+    cambiado), con el mismo `primaryImageUrl` que el del paso 11.
 
 **When**: `reorderProductImages` — `PUT /api/v1/management/products/{p1}/images/order` con
 `{ "imageIds": ["{img3}", "{img1}", "{img2}"] }`
@@ -452,6 +502,9 @@ nunca fijando un número absoluto de consultas.
 3. La imagen existe y es de ese producto → `PRODUCT_IMAGE_NOT_FOUND` (`404`).
 4. Si el producto está `active`, no es la última de su galería → `LAST_IMAGE_OF_ACTIVE_PRODUCT` (`409`).
 
+**Orden de evaluación** (`setPrimaryProductImage`): el mismo que `removeProductImage` en sus tres
+primeras guardas — `PRODUCT_NOT_FOUND`, `PRODUCT_DISCONTINUED`, `PRODUCT_IMAGE_NOT_FOUND`.
+
 **Casos borde**:
 - Subir una undécima imagen → `422` (`TOO_MANY_PRODUCT_IMAGES`).
 - Subir un `image/jpeg` de 6 MB → `413` (`FILE_TOO_LARGE`).
@@ -460,6 +513,8 @@ nunca fijando un número absoluto de consultas.
 - `addProductImage` con `productId` inexistente → `404` (`PRODUCT_NOT_FOUND`).
 - `removeProductImage` con `imageId` de **otro** producto → `404` (`PRODUCT_IMAGE_NOT_FOUND`).
 - `setPrimaryProductImage` con `imageId` inexistente → `404` (`PRODUCT_IMAGE_NOT_FOUND`).
+- `removeProductImage` o `setPrimaryProductImage` sobre un producto `discontinued` con un `imageId`
+  que no es suyo → `409` (`PRODUCT_DISCONTINUED`): la guarda 2 precede a la 3.
 - Sobre un producto **publicado** con una sola imagen, `removeProductImage` → `409`
   (`LAST_IMAGE_OF_ACTIVE_PRODUCT`); sobre el mismo producto en `draft`, `204`.
 - `reorderProductImages` con una lista que **omite** una imagen del producto → `422`
@@ -472,20 +527,28 @@ nunca fijando un número absoluto de consultas.
 
 ### FL-IMG-010: la galería de un producto descontinuado no se toca
 
-**Given**: el flujo crea `b1`, `c1` y el producto `p1` con dos imágenes, lo publica y lo descontinúa.
-Credencial con rol `catalog-editor`.
+**Given**: el flujo crea `b1`, `c1` y el producto `p1` con dos imágenes (`img1`, la `primary`, e
+`img2`), lo publica y lo descontinúa. Credencial con rol `catalog-editor`.
 
-**When**: las cuatro operaciones de galería sobre `p1`
+**When**: las cuatro operaciones de galería sobre `p1`, cada una con una entrada que sería válida si
+el producto no estuviera descontinuado
 
 **Then**:
-1. `addProductImage` → `409` con `code: PRODUCT_DISCONTINUED`.
-2. `removeProductImage` → `409` con `code: PRODUCT_DISCONTINUED`.
-3. `setPrimaryProductImage` → `409` con `code: PRODUCT_DISCONTINUED`.
-4. `reorderProductImages` → `409` con `code: PRODUCT_DISCONTINUED`.
+1. `addProductImage` (un `image/jpeg` de 120 KB) → `409` con `code: PRODUCT_DISCONTINUED`.
+2. `removeProductImage` de `img2` → `409` con `code: PRODUCT_DISCONTINUED`.
+3. `setPrimaryProductImage` de `img2` → `409` con `code: PRODUCT_DISCONTINUED`.
+4. `reorderProductImages` con `["{img2}", "{img1}"]` → `409` con `code: PRODUCT_DISCONTINUED`.
 5. `getProduct` sobre `p1` sigue trayendo sus dos imágenes intactas, con el mismo orden y la misma
    principal que antes del `When`.
-6. `updateProduct` sobre `p1` responde `200`: la ficha sí se edita, la galería no.
-7. En `productEvents` no aparece ningún `ProductUpdated` derivado de los cuatro rechazos.
+6. En `productEvents` **no aparece ningún** `ProductUpdated` nuevo: se cuentan los de `p1` justo
+   antes del `When` y el recuento no ha cambiado. Un rechazo no publica nada.
+
+**When**: `updateProduct` sobre `p1` (la ficha completa, con `name: "Monitor M27 Discontinuado"`)
+
+**Then**:
+7. Responde `200`: la ficha de un descontinuado sí se edita, su galería no.
+8. Y **ahora sí** aparece un `ProductUpdated` de `p1`: es el de esta edición, no el de ninguno de los
+   cuatro rechazos, que se contaron antes.
 
 ### FL-IMG-020: idempotencia de la subida de una imagen
 
@@ -531,7 +594,8 @@ escenario solo enumeraría desenlaces admisibles y no podría fallar.
 
 ### FL-BRD-001: alta, edición y borrado de una marca
 
-**Given**: no existe ninguna marca. Credencial con rol `catalog-admin`.
+**Given**: no existe ninguna marca. Existe la categoría `c0` (`name: "General"`), que el flujo
+necesita para dar de alta un producto. Credencial con rol `catalog-admin`.
 
 **When**: `createBrand` — `POST /api/v1/management/brands`, `Idempotency-Key: k-brd-1`
 
@@ -556,7 +620,7 @@ escenario solo enumeraría desenlaces admisibles y no podría fallar.
 6. El cuerpo **no** trae `description`: la entrada es la representación completa y la reseña se vació.
 7. Se publica un `BrandUpdated` en `taxonomyEvents` con el nombre y el slug nuevos.
 
-**When**: se crea un producto `p1` con `brandId: b1` y se intenta
+**When**: se crea un producto `p1` con `brandId: b1` y `categoryId: c0`, y se intenta
 `deleteBrand` — `DELETE /api/v1/management/brands/{b1}`
 
 **Then**:
@@ -611,7 +675,8 @@ misma petición con la misma clave.
 **Then**:
 4. O las dos devuelven la misma respuesta de creación, o una devuelve `201` y la otra `409` con
    `code: IDEMPOTENCY_KEY_IN_PROGRESS`.
-5. `GET /api/v1/brands?name=Initech` devuelve **exactamente una** marca, sea quien sea el ganador.
+5. `GET /api/v1/brands` (sin filtros: `listBrands` no los tiene) trae `totalElements: 2` y
+   **exactamente una** marca de `name: "Initech"` (la otra es `"Globex"`), sea quien sea el ganador.
 6. En `taxonomyEvents` hay **exactamente un** `BrandCreated` de `"Initech"`.
 
 ---
@@ -620,7 +685,8 @@ misma petición con la misma clave.
 
 ### FL-CAT-001: alta, edición y borrado de una categoría
 
-**Given**: no existe ninguna categoría. Credencial con rol `catalog-admin`.
+**Given**: no existe ninguna categoría. Existe la marca `b0` (`name: "Genérica"`), que el flujo
+necesita para dar de alta un producto. Credencial con rol `catalog-admin`.
 
 **When**: `createCategory` — `POST /api/v1/management/categories`, `Idempotency-Key: k-cat-1`
 
@@ -639,10 +705,12 @@ misma petición con la misma clave.
 `{ "name": "Portátiles", "description": "Gama completa." }`
 
 **Then**:
-5. Status `200`, `name: "Portátiles"`, `slug: "portatiles"` — el slug pierde el acento.
+5. Status `200`, `name: "Portátiles"`, `slug: "portatiles"` — la `á` se translitera a `a`, no se
+   descarta.
 6. Se publica un `CategoryUpdated` con el nombre y el slug nuevos.
 
-**When**: se crea un producto en `c1` y se intenta `deleteCategory`
+**When**: se crea un producto `p1` con `categoryId: c1` y `brandId: b0`, y se intenta
+`deleteCategory`
 
 **Then**:
 7. Status `409` con `code: CATEGORY_IN_USE`.
@@ -682,11 +750,12 @@ la misma clave; y después **dos peticiones a la vez** con la clave `k-cat-race`
 
 **Then**:
 1. El reintento secuencial devuelve el mismo status y el mismo cuerpo, con el mismo `id`.
-2. `GET /api/v1/categories?...` refleja **una sola** categoría `"Monitores"`.
+2. `GET /api/v1/categories` (sin filtros: `listCategories` no los tiene) trae `totalElements: 1`,
+   la categoría `"Monitores"`.
 3. En la carrera, o las dos devuelven la misma respuesta, o una devuelve `201` y la otra `409`
    (`IDEMPOTENCY_KEY_IN_PROGRESS`).
-4. Existe **exactamente una** categoría `"Teclados"`, y en `taxonomyEvents` **un solo**
-   `CategoryCreated` de ese nombre.
+4. `GET /api/v1/categories` trae `totalElements: 2` y **exactamente una** categoría de
+   `name: "Teclados"`, y en `taxonomyEvents` hay **un solo** `CategoryCreated` de ese nombre.
 
 ---
 
@@ -746,8 +815,10 @@ cae en la ventana en la que todavía no lo está, que es donde vive el fallo rea
 (`"Laptops"`, slug `laptops`), `c2` (`"Monitores"`, slug `monitores`) y **25** productos con una
 imagen cada uno: `q1..q22` publicados (`active`), `q23` en `draft`, `q24` `discontinued` y `q25` en
 `draft`. Entre los publicados, `q1` (`"Laptop A"`, `b1`/`c1`, `price: 700.00`), `q2`
-(`"Laptop B"`, `b1`/`c1`, `price: 1200.00`), `q3` (`"Monitor C"`, `b2`/`c2`, `price: 300.00`). **Sin
-credencial**: la tienda es anónima.
+(`"Laptop B"`, `b1`/`c1`, `price: 1200.00`), `q3` (`"Monitor C"`, `b2`/`c2`, `price: 300.00`); los
+otros 19 (`q4..q22`) son `"Teclado N"` de `b2`/`c2` con `price: 50.00`, y ninguno contiene `"laptop"`
+en el nombre ni cae en el rango de precio de los filtros de abajo. Ningún otro producto existe.
+**Sin credencial**: la tienda es anónima.
 
 **When**: `listPublicProducts` — `GET /api/v1/products`
 
@@ -774,15 +845,16 @@ credencial**: la tienda es anónima.
 **When**: los filtros, de uno en uno y combinados
 
 **Then**:
-10. `?categorySlug=laptops` devuelve solo productos de `c1`.
-11. `?brandSlug=acme` devuelve solo productos de `b1`.
-12. `?name=laptop` devuelve `"Laptop A"` y `"Laptop B"`; `?name=LAPTOP` y `?name=láptop` devuelven
-    el mismo `totalElements`.
-13. `?minPrice=500&maxPrice=1200` incluye `q2` (`1200.00`, extremo **inclusivo**) y `q1` (`700.00`),
-    y excluye `q3` (`300.00`).
+10. `?categorySlug=laptops` devuelve exactamente `q1` y `q2` (`totalElements: 2`): son los únicos
+    `active` de `c1`.
+11. `?brandSlug=acme` devuelve exactamente `q1` y `q2` (`totalElements: 2`).
+12. `?name=laptop` devuelve exactamente `"Laptop A"` y `"Laptop B"` (`totalElements: 2`);
+    `?name=LAPTOP` y `?name=láptop` devuelven también `totalElements: 2`.
+13. `?minPrice=500&maxPrice=1200` devuelve exactamente `q1` (`700.00`) y `q2` (`1200.00`, extremo
+    **inclusivo**), `totalElements: 2`: excluye `q3` (`300.00`) y los `q4..q22` (`50.00`).
 14. `?minPrice=700&maxPrice=700` incluye `q1`: los dos extremos son inclusivos.
-15. `?categorySlug=laptops&brandSlug=acme&name=laptop&minPrice=1000` devuelve solo `q2`: los filtros
-    se combinan con **AND**.
+15. `?categorySlug=laptops&brandSlug=acme&name=laptop&minPrice=1000` devuelve solo `q2`
+    (`totalElements: 1`): los filtros se combinan con **AND**, y `q1` cae por el precio.
 16. `?categorySlug=no-existe` responde `200` con `items` vacío y `totalElements: 0` — no es un error.
 17. `?brandSlug=no-existe` responde igual.
 
@@ -800,7 +872,8 @@ forma, no contra un número absoluto.
 **Given**: el flujo crea `b1` (`"Acme"`), `c1` (`"Laptops"`) y tres productos con una imagen cada
 uno: `q1` publicado (`name: "Laptop Pro 14"`, slug `laptop-pro-14`, `price: 1299.00`,
 `description: "Portátil de 14 pulgadas."`), `q2` en `draft` (slug `teclado-k1`) y `q3`
-`discontinued` (slug `monitor-viejo`). **Sin credencial**.
+`discontinued` (slug `monitor-viejo`). Y un cuarto, `q4`, publicado y **sin** `description`
+(`name: "Ratón R1"`, slug `raton-r1`, `price: 19.90`). **Sin credencial**.
 
 **When**: `getPublicProduct` — `GET /api/v1/products/laptop-pro-14`
 
@@ -813,7 +886,9 @@ uno: `q1` publicado (`name: "Laptop Pro 14"`, slug `laptop-pro-14`, `price: 1299
    `updatedBy`.
 4. `images` trae un elemento con la proyección **P-IMG** y `primary: true`, y su `image` es
    alcanzable sin credencial.
-5. Un producto sin `description` devuelve el cuerpo **sin la clave** `description`, no con `null`.
+5. `GET /api/v1/products/raton-r1` responde `200` y su cuerpo **no trae la clave** `description`,
+   ni siquiera como `null`: `q4` no tiene descripción. Su `images`, en cambio, sí viaja, con su
+   único elemento.
 
 **Casos borde**:
 - `GET /api/v1/products/teclado-k1` (borrador) → `404` con `code: PRODUCT_NOT_FOUND`: la tienda no
@@ -864,17 +939,23 @@ declarada y se vuelve a leer **dentro del TTL** después de cada mutación.
 5. Vía `ProductStatusChanged`: tras `discontinueProduct`, la relectura responde `404`
    (`PRODUCT_NOT_FOUND`) — la ficha cacheada no sobrevive a la salida del catálogo.
 
-**When**: **retención** — con `q1` publicado otra vez y su ficha recién leída (caché poblada), se
-sustituye el objeto de su imagen en el bucket conservando la misma clave, que **no** es ninguna de
-las vías de `invalidatedBy`, y se vuelve a leer dentro del TTL.
+**When**: **retención** — con `q1` publicado otra vez, se lee su ficha **dos veces seguidas** dentro
+del TTL, sin ninguna mutación entre medias; y una tercera vez pasado el TTL.
 
 **Then**:
-6. La relectura devuelve **el mismo cuerpo** que antes de la sustitución, con el mismo `image`: se
-   sirve el valor cacheado.
-7. Pasado el TTL, la lectura vuelve a reflejar el estado real.
+6. Las dos respuestas dentro del TTL son idénticas, y el servidor informa de que la segunda **se
+   sirvió de la caché**: un acierto para esa clave, sin volver al almacén.
+7. Pasada la ventana de 60 s, la siguiente lectura ya **no** es un acierto: la entrada caducó, y la
+   respuesta vuelve a construirse desde el estado real.
 
-**Notas de determinación**: la aserción 6 es la única que distingue una caché sana de un servicio que
-no cachea nada — sin ella, todas las de invalidación pasarían igual sin caché alguna.
+**Notas de determinación**: la retención de esta caché **no** se puede observar comparando cuerpos.
+Toda vía por la que la ficha cambia —`updateProduct`, la galería, la marca, la categoría, el
+estado— está declarada en `invalidatedBy`, que es justo lo que se quiere de ella, y sustituir el
+objeto de la imagen en el bucket con la misma clave no cambia ningún campo del cuerpo (el `image` es
+una URL estable). Por eso la aserción 6 se afirma sobre la **señal del servidor**, como el «ningún
+evento abandonado» de FL-OBX-001: el escenario la nombra como lo que es —un acierto de caché para esa
+clave—, nunca por el nombre de la métrica, que es del generador. Sin ella, un servicio que no cachea
+nada pasaría todas las aserciones de invalidación.
 
 ### FL-CCH-010: invalidación y retención de la ficha M2M
 
@@ -893,12 +974,16 @@ releyendo dentro del TTL.
 5. Vía `ProductStatusChanged`: tras `discontinueProduct`, la relectura sigue respondiendo `200` con
    `status: "discontinued"` — a diferencia de la tienda, el M2M sí resuelve los descontinuados.
 
-**When**: **retención** — se sustituye el objeto de la imagen en el bucket con la misma clave (vía no
-declarada en `invalidatedBy`) y se relee dentro del TTL.
+**When**: **retención** — se lee la ficha **dos veces seguidas** dentro del TTL sin mutación entre
+medias, y una tercera vez pasado el TTL.
 
 **Then**:
-6. La relectura devuelve el mismo cuerpo cacheado.
-7. Pasado el TTL, refleja el estado real.
+6. Las dos lecturas dentro del TTL devuelven el mismo cuerpo, y el servidor informa de que la segunda
+   se sirvió de la caché.
+7. Pasada la ventana, la siguiente lectura ya no es un acierto y se construye desde el estado real.
+
+**Notas de determinación**: las mismas que en FL-CCH-001 — la retención se afirma sobre la señal del
+servidor porque toda vía que cambia la ficha está en `invalidatedBy`.
 
 ---
 
@@ -907,8 +992,9 @@ declarada en `invalidatedBy`) y se relee dentro del TTL.
 ### FL-SRV-001: ficha de producto para otro servidor
 
 **Given**: el flujo crea `b1` (`"Acme"`), `c1` (`"Laptops"`), el producto `q1` publicado
-(`sku: "SKU-M01"`, `price: 1299.00`) con una imagen, `q2` en `draft` y `q3` `discontinued`.
-Credencial de máquina del cliente `orders-service`, con el scope `product:read`.
+(`sku: "SKU-M01"`, `price: 1299.00`) con una imagen, `q2` en `draft` y `q3`, que se crea con una
+imagen, se publica y se descontinúa. Credencial de máquina del cliente `orders-service`, con el
+scope `product:read`.
 
 **When**: `getProductForServices` — `GET /api/v1/services/products/{q1}`
 
@@ -934,14 +1020,18 @@ Credencial de máquina del cliente `orders-service`, con el scope `product:read`
   no es todavía un artículo del catálogo.
 - `productId` inexistente → `404` (`PRODUCT_NOT_FOUND`).
 - **Sin credencial** → `401`.
-- Con credencial de máquina **sin** el scope `product:read` → `403`.
+- Con credencial de **usuario** (rol `catalog-admin`) → `403`: el endpoint es `level: service` y solo
+  lo alcanza una credencial de máquina, por mucho que el rol humano tenga `product:read`. Los tres
+  `serviceClients` que el diseño declara tienen el scope, así que no hay identidad de máquina sin él
+  que aprovisionar: este es el caso que ejercita la guarda.
 - Con un token de máquina emitido para **otra audiencia** → `403`: el token es legítimo, pero no está
   emitido para este servicio.
 
 ### FL-SRV-010: resolución por lote
 
-**Given**: el flujo crea `b1`, `c1` y cinco productos: `q1` (`sku: "SKU-B01"`), `q2`
-(`sku: "SKU-B02"`) y `q3` (`sku: "SKU-B03"`) publicados, `q4` en `draft`, `q5` `discontinued`.
+**Given**: el flujo crea `b1`, `c1` y cinco productos, cada uno con **una** imagen (los publicados
+la necesitan para salir de `draft`): `q1` (`sku: "SKU-B01"`), `q2` (`sku: "SKU-B02"`) y `q3`
+(`sku: "SKU-B03"`) publicados, `q4` en `draft`, y `q5`, publicado y después descontinuado.
 Credencial de máquina del cliente `cart-service`.
 
 **When**: `listProductsBatchForServices` — `GET /api/v1/services/products` con los ids de
@@ -967,8 +1057,8 @@ Credencial de máquina del cliente `cart-service`.
 - Lista con 101 ids → `422` (`TOO_MANY_IDS`).
 - Lista con exactamente 100 ids → `200`.
 - Un id que no es un uuid → `400`.
-- **Sin credencial** → `401`; con credencial de máquina sin `product:read` → `403`; con token de otra
-  audiencia → `403`.
+- **Sin credencial** → `401`; con credencial de **usuario** → `403` (el endpoint es
+  `level: service`, como en FL-SRV-001); con token de máquina de otra audiencia → `403`.
 
 **Notas de determinación (coste)**: la operación resuelve `brand`, `category` e `images` de cada
 elemento del lote. El trabajo **no crece con el tamaño de la lista**: se compara un lote de 2 ids con
@@ -1022,7 +1112,10 @@ siempre. El escenario habla del **canal lógico**, nunca del broker ni de cómo 
 **Notas de determinación**: la aserción 2 es la que lo hace algo más que una prueba de la señal: sin
 ella, un relay que ignorase su propio presupuesto reintentaría para siempre una fila ya dada por
 perdida y el escenario pasaría igual. El escenario habla del **presupuesto de reintentos**, nunca de
-su número ni del nombre de la métrica.
+su número ni del nombre de la métrica: el diseño declara que existe y que el evento que lo agota se
+da por abandonado y se señala (comentario de `publishing.reliability` en `messaging`), y cuántos
+intentos son lo fija el generador. `reliability: outbox` promete que un cambio confirmado no se queda
+sin anunciar por una caída del canal —eso es FL-OBX-001—, no que ningún evento se abandone jamás.
 
 ---
 
@@ -1030,7 +1123,8 @@ su número ni del nombre de la métrica.
 
 ### FL-SEC-001: quién puede llamar a qué
 
-**Given**: el flujo crea `b1`, `c1` y un producto `p1` en `draft` con una imagen. Se dispone de tres
+**Given**: el flujo crea `b1`, `c1`, un producto `p1` en `draft` con una imagen, y un producto `q0`
+**publicado** (con su imagen), que es el sujeto de las llamadas públicas del final. Se dispone de tres
 identidades: sin credencial, credencial de usuario con rol `catalog-editor`, y credencial de usuario
 con rol `catalog-admin`.
 
@@ -1051,21 +1145,30 @@ con rol `catalog-admin`.
 7. Ninguna produce efecto observable: la marca no se crea, el producto no se borra, y no se publica
    ningún evento.
 
-**When**: las operaciones de producto y galería se llaman con credencial de `catalog-editor`
+**When**: las doce operaciones de producto y galería se llaman con credencial de `catalog-editor`,
+**en esta secuencia** sobre `p1` (en `draft`, con su imagen `img1`), que es la que deja a cada una en
+un estado de partida que cumple sus precondiciones
 
 **Then**:
-8. `createProduct`, `updateProduct`, `publishProduct`, `unpublishProduct`, `discontinueProduct`,
-   `reactivateProduct`, `addProductImage`, `removeProductImage`, `setPrimaryProductImage`,
-   `reorderProductImages`, `getProduct` y `listProducts` responden su status de éxito: el editor
+8. Las doce responden su status de éxito, en este orden: `getProduct` (`200`), `listProducts`
+   (`200`), `updateProduct` (`200`), `addProductImage` (`201`, deja `img2`),
+   `setPrimaryProductImage` de `img2` (`204`), `reorderProductImages` con `["{img2}", "{img1}"]`
+   (`204`), `removeProductImage` de `img1` (`204`; `p1` sigue en `draft`, así que la última imagen no
+   está protegida), `publishProduct` (`200`), `discontinueProduct` (`200`), `reactivateProduct`
+   (`200`), `unpublishProduct` (`200`) y `createProduct` con un `sku` nuevo (`201`): el editor
    alcanza `product:read` y `product:write`.
-9. Las mismas llamadas con credencial de `catalog-admin` responden igual: el admin alcanza todo lo
-   del editor.
+9. La **misma secuencia**, con credencial de `catalog-admin` y sobre un producto `p2` recién creado
+   (en `draft`, con una imagen, `sku` propio y claves de idempotencia propias), responde exactamente
+   los mismos status: el admin alcanza todo lo del editor. Se parte de un producto nuevo porque el
+   paso anterior dejó a `p1` en otro estado y sin `img1`, y repetir sobre él no probaría el permiso
+   sino el estado.
 
 **When**: las cuatro operaciones públicas se llaman **sin credencial**
 
 **Then**:
-10. `listPublicProducts`, `getPublicProduct`, `listBrands` y `listCategories` responden `200`: son el
-    escaparate.
+10. `listPublicProducts`, `getPublicProduct` (sobre el slug de `q0`, que sigue `active`: los demás
+    productos del flujo acabaron en `draft` y la tienda no los revela), `listBrands` y
+    `listCategories` responden `200`: son el escaparate.
 11. Una llamada a `/api/v1/services/products/{p1}` con credencial de **usuario** (no de máquina) sin
     el scope `product:read` responde `403`.
 
@@ -1089,7 +1192,7 @@ con rol `catalog-admin`.
 
 ### FL-SEC-020: petición normal cross-origin
 
-**Given**: la misma política, y un producto `q1` publicado.
+**Given**: la misma política, y un producto `q1` publicado (creado con una imagen, que es lo que le permite salir de `draft`).
 
 **When**: `getPublicProduct` — `GET /api/v1/products/{slug de q1}` desde un origen web, con la
 cabecera de origen.
