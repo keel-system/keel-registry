@@ -1,121 +1,63 @@
 # Capa domain — modelado del dominio: value types, entidades, relaciones, ciclo de vida e invariantes.
 # Cero tecnología: nada de tablas, ORMs ni frameworks.
 
-types:
-  SKU:
-    base: string
-    description: Identificador comercial único e inmutable del producto, tal como lo conoce el back-office.
-    constraints: { pattern: "^[A-Z0-9][A-Z0-9-]{2,31}$" }
-
-  Slug:
-    base: string
-    description: Identificador legible para URLs públicas, derivado del nombre.
-    constraints: { pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", maxLength: 140 }
-
-  Price:
-    base: decimal
-    # scale: 2 es una restricción de VALIDACIÓN, no una regla de redondeo. El servicio no hace
-    # aritmética sobre el precio: lo almacena y lo devuelve tal cual llegó. Un importe con más de
-    # dos decimales se rechaza; nunca se redondea a dos.
-    description: >
-      Importe de venta al público en la divisa única de la tienda. La escala de dos decimales se
-      valida, no se ajusta: un importe con más decimales se rechaza en vez de redondearse, y el
-      servicio nunca aplica ninguna regla de redondeo porque no calcula nada sobre el precio.
-    constraints: { min: 0, scale: 2 }
-
-  ProductStatus:
-    description: Situación comercial del producto.
-    values: [draft, active, discontinued]
+# Value types reutilizables: escalares, enums nominales o value objects compuestos.
+# types:
+#   SKU:                                  # escalar: tipo base + restricciones
+#     base: string
+#     constraints: { pattern: "^[A-Z0-9]{4,20}$" }
+#   ProductStatus:                        # enum nominal, reutilizable en entidades y payloads
+#     values: [draft, active, retired]
+#   Money:                                # value object compuesto, sin identidad propia
+#     description: Importe con su moneda.
+#     fields:
+#       amount:   { type: decimal, required: true, constraints: { min: 0, scale: 2 } }
+#       currency: { type: string, required: true, constraints: { pattern: "^[A-Z]{3}$" } }
 
 entities:
-  Brand:
-    description: Fabricante o marca comercial bajo la que se vende un producto.
-    fields:
-      id:          { type: uuid, id: true, generated: true }
-      name:        { type: string, required: true, unique: true, constraints: { maxLength: 80 } }
-      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case; si el slug resultante ya existe, la escritura se rechaza." }
-      description: { type: text, constraints: { maxLength: 1000 }, description: Reseña de la marca para la ficha pública. }
-    invariants:
-      - Una marca no puede eliminarse mientras exista algún producto que la referencie.
-      - Dos marcas no pueden tener el mismo name ignorando mayúsculas y acentos.
+  # Product:
+  #   description: Artículo publicable en el catálogo.
+  #   fields:
+  #     id:       { type: uuid, id: true, generated: true }
+  #     sku:      { type: SKU, required: true, unique: true }
+  #     name:     { type: string, required: true, constraints: { maxLength: 120 } }
+  #     price:    { type: Money, required: true }
+  #     slug:     { type: string, computed: Se deriva del name normalizado a kebab-case. }
+  #     apiToken: { type: string, sensitive: true }
+  #     photo:    { type: file, bucket: productImages }   # archivo en un bucket de la capa storage
+  #     status:   { type: ProductStatus, default: draft }  # default debe ser uno de los values del enum
+  #     origin:   { type: enum, values: [manual, import], default: manual }   # enum inline, sin nombre reutilizable
+  #     tags:     { type: string, list: true, constraints: { maxItems: 10 } }
+  #                                         # colección de valores SIN identidad propia (si la tienen: entidad hija
+  #                                         # + relations). Excluyente con id/unique/generated y con type: file
+  #     discounts: { type: Discount, list: true, description: Descuentos vigentes del producto. }
+  #     lockVersion: { type: int, generated: true }
+  #                                         # nombre RESERVADO, solo en la raíz de un agregado y solo si persistence
+  #                                         # declara consistency.optimisticLocking: declared (ver docs/dsl/persistence.md)
+  #     createdAt: { type: timestamp, generated: true }
+  #     updatedAt: { type: timestamp, generated: true }
+  #                                         # nombres RESERVADOS, solo si persistence declara audit.timestamps: declared
+  #     createdBy: { type: string, generated: true }
+  #     updatedBy: { type: string, generated: true }
+  #                                         # nombres RESERVADOS, solo si persistence declara audit.authorship: declared
+  #   relations:
+  #     catalog: { entity: Catalog, cardinality: many-to-one, required: true, description: Catálogo al que pertenece. }
+  #   lifecycle:                          # solo las transiciones listadas son válidas
+  #     field: status
+  #     transitions:
+  #       draft:   [active, retired]
+  #       active:  [retired]
+  #       retired: []                     # estado terminal explícito
+  #   invariants:
+  #     - Un producto active siempre tiene price mayor que cero.
 
-  Category:
-    description: Agrupación comercial por la que el consumidor navega el catálogo.
-    fields:
-      id:          { type: uuid, id: true, generated: true }
-      name:        { type: string, required: true, unique: true, constraints: { maxLength: 80 } }
-      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case; si el slug resultante ya existe, la escritura se rechaza." }
-      description: { type: text, constraints: { maxLength: 1000 }, description: Texto de cabecera de la categoría en la tienda. }
-    invariants:
-      - Una categoría no puede eliminarse mientras exista algún producto que la referencie.
-      - Dos categorías no pueden tener el mismo name ignorando mayúsculas y acentos.
-
-  Product:
-    description: Artículo vendible del catálogo, con su ficha comercial y su precio de venta.
-    fields:
-      id:          { type: uuid, id: true, generated: true }
-      sku:         { type: SKU, required: true, unique: true }
-      name:        { type: string, required: true, constraints: { maxLength: 140 } }
-      slug:        { type: Slug, unique: true, computed: "Se deriva del name normalizado a kebab-case, con sufijo numérico si colisiona; se recalcula solo mientras slugFrozen es falso." }
-      description: { type: text, constraints: { maxLength: 4000 }, description: Descripción comercial larga que la tienda muestra en la ficha. }
-      price:       { type: Price, required: true }
-      status:      { type: ProductStatus, default: draft }
-      # Estado interno: no viaja en ningún output ni payload de evento (sensitive), pero hay que
-      # persistirlo porque el congelado del slug sobrevive a un unpublish (active → draft).
-      # generated y no computed a propósito: no se deriva de ningún otro campo, es historia. Un
-      # producto en draft con el pestillo echado es indistinguible de uno que nunca se publicó
-      # mirando status, name o slug; recalcularlo desde status reabriría el slug al despublicar.
-      slugFrozen:  { type: boolean, default: false, sensitive: true, generated: true, description: "Pestillo interno: mientras es falso el slug sigue al name; cuando se echa, el slug queda fijo para siempre." }
-      lockVersion: { type: int, generated: true }
-      createdAt:   { type: timestamp, generated: true }
-      updatedAt:   { type: timestamp, generated: true }
-      createdBy:   { type: string, generated: true }
-      updatedBy:   { type: string, generated: true }
-    relations:
-      brand:    { entity: Brand, cardinality: many-to-one, required: true, description: Marca bajo la que se vende el producto. }
-      category: { entity: Category, cardinality: many-to-one, required: true, description: Categoría comercial a la que pertenece. }
-      images:   { entity: ProductImage, cardinality: one-to-many, description: "Imágenes del producto, dentro de su propio agregado; como máximo 10." }
-    lifecycle:
-      field: status
-      transitions:
-        draft:        [active]
-        active:       [draft, discontinued]
-        discontinued: [active]
-    invariants:
-      - El sku es inmutable una vez creado el producto.
-      - Un producto en estado active tiene price mayor que cero.
-      - Un producto en estado active tiene al menos una imagen.
-      - Solo los productos en estado active son visibles en la superficie pública del catálogo.
-      - "slugFrozen nunca pasa de verdadero a falso: una vez que el producto alcanza active por primera vez, queda echado aunque después se despublique o se descatalogue."
-      - Mientras slugFrozen es falso el slug se recalcula al cambiar el name; en cuanto es verdadero, el slug no vuelve a cambiar.
-      - Un producto en estado discontinued no admite cambios en su ficha ni en su galería de imágenes.
-      - Un producto tiene como máximo 10 imágenes en su galería.
-      - "Un producto solo puede eliminarse mientras está en draft y con slugFrozen en falso: en cuanto alcanza active por primera vez su ficha se conserva siempre, aunque después se despublique y vuelva a draft."
-
-  ProductImage:
-    description: Imagen de la ficha de un producto, con su orden de presentación.
-    fields:
-      id:        { type: uuid, id: true, generated: true }
-      file:      { type: file, bucket: productImages, required: true }
-      altText:   { type: string, required: true, constraints: { maxLength: 160 }, description: Texto alternativo para accesibilidad y SEO. }
-      position:  { type: int, required: true, constraints: { min: 0 }, description: Orden de presentación dentro de la galería del producto. }
-      isPrimary: { type: boolean, default: false, description: Marca la imagen que representa al producto en listados y resultados de búsqueda. }
-    relations:
-      product: { entity: Product, cardinality: many-to-one, required: true, description: Producto al que pertenece la imagen. }
-    invariants:
-      - Dos imágenes del mismo producto no comparten position.
-      - Un producto con al menos una imagen tiene exactamente una imagen con isPrimary verdadero.
-
-# Fronteras de consistencia: el producto y sus imágenes cambian juntos; marca y categoría son agregados
-# aparte, referenciados por id desde el producto.
-aggregates:
-  Product:
-    description: El producto posee sus imágenes; se modifican en la misma transacción.
-    root: Product
-    entities: [ProductImage]
-  Brand:
-    description: La marca es su propia frontera; los productos la referencian por id.
-    root: Brand
-  Category:
-    description: La categoría es su propia frontera; los productos la referencian por id.
-    root: Category
+# Agregados (opcional): fronteras de consistencia — raíz + entidades internas que cambian juntas en la misma transacción.
+# Entre agregados se referencia solo la raíz, por id. Con per-aggregate en persistence, este bloque es obligatorio.
+# aggregates:
+#   Order:
+#     description: Un pedido y sus líneas cambian siempre juntos.
+#     root: Order
+#     entities: [OrderLine]               # la raíz es miembro implícito, no se repite
+#   Catalog:
+#     root: Catalog
+#     entities: [Product]
