@@ -137,7 +137,8 @@ usuario con rol `catalog-editor`.
    `updatedAt` se verifican por forma y rango.
 8. `getProduct` — `GET /api/v1/management/products/{id}` responde `200` con el mismo cuerpo.
 9. Se publica **exactamente un** `ProductCreated` en el canal `productEvents`, con
-   `productId` (el devuelto), `sku: "SKU-001"`, `name: "Laptop Pro 14"`, `slug: "laptop-pro-14"`,
+   `productId` (el devuelto), `sku: "SKU-001"`, `name: "Laptop Pro 14"`,
+   `description: "Portátil de 14 pulgadas."`, `slug: "laptop-pro-14"`,
    `price: 1299.00`, `status: "draft"`, `brandId: "b1"`, `brandName: "Acme"`, `categoryId: "c1"`,
    `categoryName: "Laptops"`. El payload **no** trae `primaryImageUrl`: el producto no tiene imágenes.
 
@@ -328,8 +329,9 @@ admiten disyunción y las que hacen que el escenario pueda fallar.
 **Given**: el flujo crea `b1` (`"Acme"`), `b2` (`"Globex"`), `c1` (`"Laptops"`), `c2` (`"Monitores"`)
 y **25** productos: `p1..p10` de `b1`/`c1`, `p11..p20` de `b2`/`c2`, `p21..p25` de `b1`/`c2`. De
 ellos, `p1..p5` se publican (`active`), `p6` se publica y se descontinúa, y el resto queda en `draft`.
-Cada producto se creó en orden, así que `p25` es el de `updatedAt` más reciente. Credencial con rol
-`catalog-editor`.
+Primero se crean los 25 en orden y **después** se aplican las transiciones, en este orden: `p1..p5`
+se publican, luego `p6` se publica y se descontinúa. Cada transición actualiza `updatedAt`, así que
+`p6` (la última mutación) es el de `updatedAt` más reciente. Credencial con rol `catalog-editor`.
 
 **When**: `listProducts` — `GET /api/v1/management/products`
 
@@ -337,7 +339,8 @@ Cada producto se creó en orden, así que `p25` es el de `updatedAt` más recien
 1. Status `200` y el sobre `{items, page, size, totalElements, totalPages}`.
 2. `page: 0`, `size: 20`, `totalElements: 25`, `totalPages: 2`.
 3. `items` trae 20 elementos, cada uno con la proyección **P-MGMT**.
-4. El orden es `updatedAt` descendente, con el `id` como desempate: el primer elemento es `p25`.
+4. El orden es `updatedAt` descendente, con el `id` como desempate: el primer elemento es `p6`
+   (la última mutación del Given).
 5. Se devuelven productos en los **tres** estados: entre los `items` hay `status` `draft`, `active` y
    `discontinued`.
 
