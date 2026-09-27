@@ -3,7 +3,6 @@ name: keel-docs
 description: Genera la documentación derivada de un servicio (openapi.yaml, asyncapi.yaml, colecciones Postman y el panel visual overview.html) a partir de sus artefactos Keel validados. Usar cuando un cliente consuma la API, cuando haga falta el contrato formal de eventos, o cuando el diseñador quiera revisar el servicio de un vistazo. Para el contrato servidor-a-servidor en prosa, ver /keel-integrate.
 ---
 
-
 # /keel-docs — documentación derivada del diseño
 
 Produce los **contratos formales** del servicio (HTTP y asíncrono), las colecciones para probarlos y
@@ -67,7 +66,7 @@ Valida el resultado con `npx --yes @redocly/cli@latest lint docs/<service.name>/
 Formato exacto, plantillas y checklist en `references/postman-collection-guide.md` (léela antes de escribirlas). Dos archivos:
 
 - **`postman/<service.name>-collection.json`** — **se regenera siempre**. Una carpeta por flujo `FL-*` de `specs/<servicio>/validation-scenarios.md` con una request por escenario (felices y de error; nombre `FL-XXX · <letra> — <título> (<status>)`) cuyo script `test` asserta el status del Then; más una carpeta «Operaciones» con una request por endpoint de `api` no cubierto por los flujos (body de ejemplo desde el input de la operación). `{{baseUrl}}` como variable de colección; con capa `security`, header `Authorization: Bearer {{token_<rol-kebab>}}` según `access`.
-- **`postman/auth-collection.json`** — **idempotente: si ya existe, no lo toques** (puede tener ajustes manuales del equipo); solo repórtalo. Una request de token por rol usado (`security.roles` / roles de los flujos), cada una con `pm.globals.set('token_<rol-kebab>', ...)`; si hay `serviceClients`, además una request `client_credentials` por cliente máquina (`pm.globals.set('token_<cliente-kebab>', ...)`) con sus scopes como variable. El endpoint de token y las credenciales van como **variables de colección** (`{{tokenUrl}}`, `{{clientId}}`…): el diseño es agnóstico de proveedor; quien importa la colección las rellena según su stack (la guía documenta los valores típicos).
+- **`postman/auth-collection.json`** — **idempotente: si ya existe, no lo toques** (puede tener ajustes manuales del equipo); solo repórtalo. Una request de token por rol usado (`security.roles` / roles de los flujos), cada una con `pm.globals.set('token_<rol-kebab>', ...)`; si hay `serviceClients`, además una request `client_credentials` por cliente máquina (`pm.globals.set('token_<cliente-kebab>', ...)`) con sus scopes como variable. El endpoint de token y las credenciales van como **variables de colección** (`{{tokenUrl}}`, `{{clientId}}`…): el diseño es agnóstico de proveedor; el generador emite el environment que las rellena para su stack (la guía fija los nombres de variable, que son contrato).
 
 ### 3. `asyncapi.yaml` — el contrato de los eventos
 
