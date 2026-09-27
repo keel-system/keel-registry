@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.0 -->
+<!-- keel:version 0.1.1 -->
 <!--
   Visor de contratos Keel — plantilla de forma fija, común a OpenAPI y AsyncAPI.
   NO edites el markup, el CSS ni el JS al generar. Copia este archivo tal cual y sustituye
@@ -107,7 +107,7 @@ var KEEL_SPEC = {
   "openapi": "3.1.0",
   "info": {
     "title": "catalog",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Gestiona el catálogo comercial —productos con sus imágenes, marcas y categorías—, lo expone filtrable al público de la tienda, lo sirve a otros servidores por contrato y publica sus altas y cambios como eventos.\n\nContrato HTTP derivado del diseño Keel. Tres superficies separadas por prefijo de ruta:\n\n- `/public/...` — escaparate: sin autenticación, solo productos `active`.\n- `/internal/...` — otros servidores: credencial de máquina (client credentials) con el scope `product:read`; devuelve productos en cualquier estado.\n- el resto — gestión de la tienda: token de usuario con el permiso de la operación (`x-keel-access`).\n\nToda mutación con efecto hacia fuera exige la cabecera `Idempotency-Key`. Un campo sin valor viaja como `null`, nunca omitido. Los importes viajan como número con escala 2 y un importe con más decimales se rechaza. El host, el proveedor de identidad y el motor de persistencia se deciden al generar, no aquí.",
     "license": {
       "name": "Apache-2.0",
@@ -880,7 +880,7 @@ var KEEL_SPEC = {
       "post": {
         "operationId": "retireProduct",
         "summary": "Retira definitivamente un producto del catálogo. Es un estado terminal: no vuelve.",
-        "description": "Retira definitivamente un producto del catálogo. Es un estado terminal: no vuelve.\n\n**Reglas**:\n\n- El producto retirado conserva todos sus datos e imágenes; sigue siendo resoluble por los servidores que lo consumen.\n- El motivo, si se indica, viaja en el evento para que el consumidor pueda explicar la baja.\n\n**Publica**: `ProductStatusChanged` (outbox).",
+        "description": "Retira definitivamente un producto del catálogo. Es un estado terminal: no vuelve.\n\n**Reglas**:\n\n- El producto retirado conserva todos sus datos e imágenes; sigue siendo resoluble por los servidores que lo consumen.\n- El motivo, si se indica, viaja en el evento para que el consumidor pueda explicar la baja.\n- Sin motivo, la petición puede llegar sin cuerpo o con un objeto vacío; ambas formas son equivalentes.\n\n**Publica**: `ProductStatusChanged` (outbox).",
         "tags": [
           "gestión — productos"
         ],
@@ -896,7 +896,7 @@ var KEEL_SPEC = {
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
@@ -993,7 +993,7 @@ var KEEL_SPEC = {
       "post": {
         "operationId": "addProductImage",
         "summary": "Añade una imagen a la ficha de un producto.",
-        "description": "Añade una imagen a la ficha de un producto.\n\n**Reglas**:\n\n- La imagen se añade al final, en la primera position libre.\n- La primera imagen de un producto queda siempre marcada como principal, se pida o no.\n- Si se pide main, la imagen que fuera principal hasta entonces deja de serlo.\n- El binario se guarda antes de confirmar la imagen; si la confirmación falla, el binario queda sin referencia y nunca hay una imagen que apunte a un archivo inexistente.\n\n**Publica**: `ProductUpdated` (outbox).",
+        "description": "Añade una imagen a la ficha de un producto.\n\n**Reglas**:\n\n- La imagen se añade al final, en la primera position libre.\n- La primera imagen de un producto queda siempre marcada como principal, se pida o no.\n- Si se pide main, la imagen que fuera principal hasta entonces deja de serlo.\n- El formato se comprueba por el contenido del binario (su firma), no solo por el tipo declarado en la petición; un archivo cuyo contenido no corresponde a un formato admitido, o no coincide con el tipo declarado, se rechaza como UNSUPPORTED_CONTENT_TYPE.\n- El binario se guarda antes de confirmar la imagen; si la confirmación falla, el binario queda sin referencia y nunca hay una imagen que apunte a un archivo inexistente.\n\n**Publica**: `ProductUpdated` (outbox).",
         "tags": [
           "gestión — productos"
         ],
@@ -1117,7 +1117,7 @@ var KEEL_SPEC = {
             }
           },
           "415": {
-            "description": "`UNSUPPORTED_CONTENT_TYPE` — El formato de la imagen no está entre los admitidos.",
+            "description": "`UNSUPPORTED_CONTENT_TYPE` — El formato de la imagen no está entre los admitidos, o el contenido del archivo no coincide con el tipo declarado.",
             "content": {
               "application/json": {
                 "schema": {

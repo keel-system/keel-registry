@@ -61,7 +61,10 @@ findings:
   - id: REV-STORAGE-UPLOAD-ERRORS
     scope: storage
     verdict: ok
-    note: addProductImage declara FILE_TOO_LARGE (413) y UNSUPPORTED_CONTENT_TYPE (415).
+    note: >
+      addProductImage declara FILE_TOO_LARGE (413) y UNSUPPORTED_CONTENT_TYPE (415). Desde 0.1.1
+      el formato se comprueba por la firma del binario, no solo por el tipo declarado: el bucket es
+      público y no debe servir contenido disfrazado de imagen.
 
 # Análisis de huecos (paso 4b de /keel-design), v0.1.0. Diez hallazgos, todos decididos.
 coverage:

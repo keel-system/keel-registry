@@ -3688,6 +3688,45 @@
               }
             }
           ]
+        },
+        {
+          "name": "FL-IMG-002 · G — Contenido que no coincide con el tipo declarado (415)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-manager}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{p2}}/images",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "anim.gif",
+                  "contentType": "image/jpeg"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 415', () => pm.response.to.have.status(415));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -4221,6 +4260,30 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-LCY-001 · K — Retirar sin motivo y sin cuerpo (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_catalog-admin}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{p2}}/retire"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
@@ -5637,7 +5700,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.1.0"
+      "value": "0.1.1"
     },
     {
       "key": "webOrigin",

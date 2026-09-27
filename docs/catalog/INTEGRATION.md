@@ -1,6 +1,6 @@
 ---
 service: catalog
-version: 0.1.0
+version: 0.1.1
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -80,7 +80,7 @@ Errores comunes a los dos endpoints, además de los propios de cada uno:
 
 Los errores sin `code` de negocio llevan el cuerpo de error del servicio sin un código que distinga el caso: se distinguen por el status.
 
-**Convenciones del payload.** Un campo sin valor viaja como `null`, nunca se omite. `price.amount` es un número con escala 2 y `price.currency` es un código ISO 4217; el catálogo opera en una sola moneda. `images[].file` es la **URL absoluta** de la imagen, de lectura anónima. `images` viaja siempre ordenada por `position` ascendente, y exactamente una imagen lleva `main: true` cuando hay alguna.
+**Convenciones del payload.** Un campo sin valor viaja como `null`, nunca se omite. `price.amount` es un número con escala 2 y `price.currency` es un código ISO 4217; el catálogo opera en una sola moneda, la que fija su despliegue (parámetro `currency`); todos los productos de un mismo catálogo la comparten. `images[].file` es la **URL absoluta** de la imagen, de lectura anónima. `images` viaja siempre ordenada por `position` ascendente, y exactamente una imagen lleva `main: true` cuando hay alguna.
 
 ### getProductForServices
 

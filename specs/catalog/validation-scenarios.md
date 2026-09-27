@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.1.0. Contrato de validación para la fase de generación.
+> specs/catalog v0.1.1. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -12,14 +12,14 @@ Valen para **todo** el servicio y ningún escenario las repite.
 - **Identificadores**: `id` de productos, marcas, categorías e imágenes se verifican por forma (uuid) y por reutilización simbólica dentro del flujo (`b1`, `c1`, `p1`, `i1`…), jamás por valor literal.
 - **Autoría** (`createdBy`, `updatedBy`): es el identificador del principal del token con el que se hizo la petición. Qué claim lo da depende del proveedor de identidad, así que se verifica **por reutilización**: dos peticiones con el mismo token producen el mismo valor, y dos tokens de usuarios distintos, valores distintos. Nunca por valor literal.
 - **Dinero**: `price.amount` viaja como **número JSON** y se compara numéricamente con escala 2 (`49.90` y `49.9` son el mismo valor). Un importe de **entrada** con más de 2 decimales se **rechaza** con `400` (`scalePolicy: reject`), nunca se redondea. `price.currency` es código ISO 4217.
-- **Moneda del catálogo**: es un parámetro de despliegue; el entorno de prueba lo configura a **`EUR`**. Todo `price` válido de este documento lleva `currency: "EUR"`.
+- **Moneda del catálogo**: es el parámetro de despliegue `currency` del manifiesto; los perfiles de prueba corren con su `testValue`, **`EUR`**. Todo `price` válido de este documento lleva `currency: "EUR"`.
 - **SKU**: se acepta en mayúsculas o minúsculas y se devuelve **siempre en mayúsculas**; la unicidad es exacta sobre el valor normalizado (`tshirt-01` colisiona con `TSHIRT-01`).
 - **Mayúsculas y acentos** (`compare`/`match` en el YAML): la unicidad de `Brand.name` y `Category.name` es **insensible a mayúsculas y acentos** (`Acmé` colisiona con `ACME`). Los filtros `name` de los listados coinciden por **contenido** e ignoran mayúsculas y acentos (`cami` encuentra `Camiseta Básica` y `CAMISÉTA`).
 - **Forma del cuerpo de error**: la impone el generador (en keel-spring, `{timestamp, status, error, code, message, details}` más `correlationId`). Los escenarios solo fijan el **`code`** y el **status**; el texto del mensaje **no es contrato**. Un error de forma de la petición (`400` por constraint o campo requerido) no lleva `code` de negocio.
-- **Sobre de paginación**: el canónico del DSL, `{ items, page, size, totalElements, totalPages }`, con query params `page` (base 0) y `size`. `defaultSize` 24, `maxSize` 100; un `size` mayor se **recorta** a 100, no da error.
+- **Sobre de paginación**: el canónico del DSL, `{ items, page, size, totalElements, totalPages }`, con query params `page` (base 0) y `size`. `defaultSize` 24, `maxSize` 100; un `size` mayor se **recorta** a 100, no da error. Una colección **sin ningún elemento** responde `items: []`, `totalElements: 0` y **`totalPages: 0`** (no 1). Una página pedida más allá de la última de una colección no vacía responde `items: []` con los `totalElements` y `totalPages` de la colección.
 - **Orden de las colecciones**: el `sort` declarado de cada operación, con **desempate por `id` ascendente** siempre. `images` viaja siempre ordenada por `position` ascendente.
 - **Archivos**: `productImages` es `public`, así que en las **respuestas HTTP** `images[].file` es una **URL absoluta** que responde `200` a un `GET` anónimo con el binario subido y su content-type. En los **eventos** `images[].file` es la **clave** del objeto (una cadena no vacía que no es una URL), no la URL.
-- **Subida de imágenes**: `addProductImage` recibe `multipart/form-data` con una parte `file` (el binario) y los campos `altText` y `main` como partes de texto.
+- **Subida de imágenes**: `addProductImage` recibe `multipart/form-data` con una parte `file` (el binario) y los campos `altText` y `main` como partes de texto. El formato se comprueba por la **firma del binario**, no solo por el content-type de la parte `file`: el contenido tiene que ser JPEG, PNG o WebP **y** coincidir con el tipo declarado.
 - **Cabecera de idempotencia**: `Idempotency-Key`, **obligatoria** en las 13 operaciones que declaran `idempotency`; sin ella, `400 IDEMPOTENCY_KEY_REQUIRED`. La misma clave con el mismo cuerpo reproduce la respuesta original (mismo status, mismo cuerpo, sin segundo efecto ni segundo evento); con otro cuerpo, `409 IDEMPOTENCY_KEY_REUSED`; dos a la vez, una puede recibir `409 IDEMPOTENCY_KEY_IN_PROGRESS`.
 - **Cabecera `Location`**: la llevan las tres creaciones con `201` (`createProduct`, `createBrand`, `createCategory`) con la URI de la petición más el `id` devuelto. En un reintento idempotente de una creación, la respuesta reproducida lleva **también** la misma `Location`. `addProductImage` responde `200` con la ficha del producto (no crea un recurso direccionable propio), así que no hay `Location` que afirmar.
 - **Concurrencia**: `optimisticLocking: all`. Dos escrituras concurrentes sobre la misma raíz producen conflicto `409 CONCURRENT_MODIFICATION`, nunca un último-gana silencioso. El cliente no envía versión: el conflicto solo es observable bajo una carrera real.
@@ -48,7 +48,7 @@ Derivadas del YAML; todo `Then` que enumere un cuerpo se refiere a ellas y **no 
 
 ## Aislamiento y orden de ejecución
 
-Cada flujo `FL-*` arranca con el servicio **reseteado** (sin marcas, categorías, productos, imágenes ni eventos en los canales) y construye su `Given` **por la API** dentro del propio flujo. Los escenarios de un flujo se ejecutan en orden y encadenan estado; ningún flujo depende de otro. Salvo que se diga otra cosa, las operaciones de gestión se llaman con el token de `u-manager` y cada mutación con idempotencia lleva una `Idempotency-Key` nueva.
+Cada flujo `FL-*` arranca con el servicio **reseteado** (sin marcas, categorías, productos, imágenes ni eventos en los canales) y construye su `Given` **por la API** dentro del propio flujo. Los escenarios de un flujo se ejecutan en orden y encadenan estado; ningún flujo depende de otro. Salvo que se diga otra cosa, las operaciones de gestión se llaman con el token de `u-manager`, **excepto `retireProduct`, que exige `catalog-admin` y se llama siempre con el token de `u-admin`** (también cuando retira dentro de un `Given`), y cada mutación con idempotencia lleva una `Idempotency-Key` nueva.
 
 ## Matriz de cobertura
 
@@ -411,7 +411,7 @@ Espejo del bloque de marcas sobre `Category`, con su canal `taxonomyEvents` y su
 
 ### FL-PRD-010: edición de producto
 
-**Given**: marcas `b1` (`Acme`) y `b2` (`Zeta`), categorías `c1` y `c2`, todas activas; marca `b3` y categoría `c3` desactivadas; producto `p1` (`TS-01`, `19.90 EUR`, `b1`, `c1`, `description: "Algodón."`) creado con el token de `u-manager`; canal `productEvents` purgado.
+**Given**: marcas `b1` (`Acme`) y `b2` (`Zeta`), categorías `c1` y `c2`, todas activas; marca `b3` y categoría `c3` desactivadas; producto `p1` (`sku: "TS-01"`, `name: "Camiseta Básica"`, `19.90 EUR`, `b1`, `c1`, `description: "Algodón."`, sin imágenes) creado con el token de `u-manager`; canal `productEvents` purgado.
 
 **When**: `updateProduct` — `PATCH /api/v1/products/p1` con el token de `u-admin`
 ```json
@@ -428,7 +428,7 @@ Espejo del bloque de marcas sobre `Category`, con su canal `taxonomyEvents` y su
 
 **Ramas condicionales**:
 - La marca asignada se desactiva después (`deactivateBrand b2`): un `PATCH` con `{ "brandId": "b2", "name": "Camiseta Zeta" }` responde `200` (no cambia la marca, así que no se comprueba su actividad). Un `PATCH` que cambia a la marca inactiva `b3` responde `422 BRAND_INACTIVE`; a la categoría inactiva `c3`, `422 CATEGORY_INACTIVE`.
-- Con `p1` publicado (`active`), `{ "price": { "amount": 0, "currency": "EUR" } }` → `422 PRICE_NOT_POSITIVE`. Con `p1` en `draft`, el mismo cuerpo responde `200` con `amount: 0`.
+- Se añade a `p1` una imagen `i1` (`front.jpg`) y se publica (`active`): `{ "price": { "amount": 0, "currency": "EUR" } }` → `422 PRICE_NOT_POSITIVE`. Tras `unpublishProduct p1` (de vuelta a `draft`), el mismo cuerpo responde `200` con `amount: 0`.
 
 **Orden de evaluación**:
 1. `Idempotency-Key` → `IDEMPOTENCY_KEY_REQUIRED` (`400`).
@@ -474,8 +474,8 @@ Espejo del bloque de marcas sobre `Category`, con su canal `taxonomyEvents` y su
 3. `?status=draft` → `p2`. `?status=retired` → `p3`.
 4. `?name=camiseta` → `p3`, `p1`. `?brandId=b2` → `p2`, `p3`. `?categoryId=c1&brandId=b2` → `p3`.
 5. `?minPrice=10.00&maxPrice=25.00` → `p3`, `p1` (extremos incluidos).
-6. `?categoryId=` con un uuid inexistente → `items: []`, `totalElements: 0`.
-7. `?size=1` → `p2`, `totalPages: 3`; `?size=1&page=3` → `items: []`; `?size=999` → `size: 100`.
+6. `?categoryId=` con un uuid inexistente → `items: []`, `totalElements: 0`, `totalPages: 0`.
+7. `?size=1` → `p2`, `totalPages: 3`; `?size=1&page=3` → `items: []`, `totalElements: 3`, `totalPages: 3`; `?size=999` → `size: 100`.
 8. **Coste**: una página de 3 productos con marca, categoría e imágenes embebidas no cuesta más consultas al almacén que una de 1.
 
 **Casos borde**:
@@ -515,12 +515,13 @@ Espejo del bloque de marcas sobre `Category`, con su canal `taxonomyEvents` y su
 3. No retirado → `PRODUCT_RETIRED` (`409`).
 4. Menos de 10 imágenes → `IMAGE_LIMIT_REACHED` (`409`).
 5. Tamaño ≤ 5 MB → `FILE_TOO_LARGE` (`413`).
-6. Formato JPEG, PNG o WebP → `UNSUPPORTED_CONTENT_TYPE` (`415`).
+6. Formato JPEG, PNG o WebP por la firma del binario, y coincidente con el tipo declarado → `UNSUPPORTED_CONTENT_TYPE` (`415`).
 
 **Casos borde**:
 - Una undécima imagen → `409 IMAGE_LIMIT_REACHED`; siguen 10 y no hay evento.
 - **Precedencia**: undécima imagen de 6 MB → `409 IMAGE_LIMIT_REACHED`.
 - Sobre otro producto `p2` con 0 imágenes: un JPEG de 6 MB → `413 FILE_TOO_LARGE`; un GIF de 10 KB → `415 UNSUPPORTED_CONTENT_TYPE`; un PDF de 6 MB → `413 FILE_TOO_LARGE` (precedencia 5 sobre 6). En los tres, `p2` sigue sin imágenes.
+- **Firma**: sobre `p2`, un GIF de 10 KB enviado con content-type `image/jpeg` → `415 UNSUPPORTED_CONTENT_TYPE`; un PNG válido de 10 KB enviado como `image/jpeg` → `415 UNSUPPORTED_CONTENT_TYPE` (el contenido no coincide con el tipo declarado); un texto plano de 1 KB enviado como `image/png` → `415 UNSUPPORTED_CONTENT_TYPE`. En los tres, `p2` sigue sin imágenes y no hay evento.
 - `productId` inexistente → `404 PRODUCT_NOT_FOUND`.
 - Sin `Idempotency-Key` → `400 IDEMPOTENCY_KEY_REQUIRED`.
 
@@ -591,6 +592,7 @@ Espejo del bloque de marcas sobre `Category`, con su canal `taxonomyEvents` y su
 
 **Casos borde**:
 - `publishProduct`, `unpublishProduct` y `retireProduct` sobre uuid inexistente → `404 PRODUCT_NOT_FOUND`.
+- **Sin motivo**: `retireProduct` sobre otro producto `p2` en `draft` **sin cuerpo** → `200`, `status: "retired"`, `ProductStatusChanged` con `reason: null`; sobre `p3` en `draft` con cuerpo `{}` → la misma respuesta y el mismo evento (formas equivalentes).
 
 ### FL-LCY-002: precondiciones de publicación
 
@@ -616,14 +618,14 @@ Espejo del bloque de marcas sobre `Category`, con su canal `taxonomyEvents` y su
 
 ### FL-LCY-003: un producto retirado ya no admite cambios
 
-**Given**: `p1` retirado desde `draft` (`retireProduct` sin `reason`) con una imagen `i1`.
+**Given**: `p1` (`sku: "LCY-03"`, `name: "Producto Retirado"`, `19.90 EUR`, marca `b1`, categoría `c1`) con una imagen `i1` (`altText: "Frontal"`, `position: 0`, `main: true`), retirado desde `draft` con `POST /api/v1/products/p1/retire` **sin cuerpo**; canal `productEvents` purgado **antes** de la retirada, así que solo contiene su `ProductStatusChanged`.
 
 **When**: `updateProduct p1` con `{ "name": "Otro" }`
 
 **Then**:
-1. `409 PRODUCT_RETIRED`; sin evento.
+1. `409 PRODUCT_RETIRED`; ningún evento además del de la retirada.
 2. `addProductImage`, `updateProductImage i1` y `removeProductImage i1` sobre `p1` → `409 PRODUCT_RETIRED`.
-3. El `ProductStatusChanged` de la retirada llevó `productId: p1`, `sku` de `p1`, `previousStatus: "draft"`, `status: "retired"`, `reason: null`.
+3. El `ProductStatusChanged` de la retirada llevó `productId: p1`, `sku: "LCY-03"`, `previousStatus: "draft"`, `status: "retired"`, `reason: null`.
 4. `getProductForServices p1` con la credencial de máquina del cliente `orders` → `200` con `status: "retired"`.
 
 **Casos borde**:
@@ -649,7 +651,7 @@ Espejo del bloque de marcas sobre `Category`, con su canal `taxonomyEvents` y su
 4. `?categoryId=c1` → `p1`, `p2`. `?brandId=b1` → `p1`, `p3`. `?categoryId=c1&brandId=b1` → `p1`.
 5. `?name=CAMISÉTA` → `p1`, `p2`; `?name=tecnica` → `p2` (contenido, sin mayúsculas ni acentos).
 6. `?minPrice=10.00&maxPrice=25.00` → `p1`, `p2` (extremos incluidos). `?minPrice=25.01` → `p3`.
-7. `?categoryId=` con un uuid inexistente → `200`, `items: []`, `totalElements: 0`.
+7. `?categoryId=` con un uuid inexistente → `200`, `items: []`, `totalElements: 0`, `totalPages: 0`.
 
 **Casos borde**:
 - `?minPrice=30&maxPrice=10` → `400 INVALID_PRICE_RANGE`.

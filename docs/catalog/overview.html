@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.0 -->
+<!-- keel:version 0.1.1 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,10 +188,10 @@
 const KEEL = {
   "service": {
     "name": "catalog",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Gestiona el catálogo comercial —productos con sus imágenes, marcas y categorías—, lo expone filtrable al público de la tienda, lo sirve a otros servidores por contrato y publica sus altas y cambios como eventos.",
     "domain": "commerce",
-    "generatedAt": "2026-09-21"
+    "generatedAt": "2026-09-27"
   },
   "links": [
     {
@@ -230,9 +230,7 @@ const KEEL = {
       "description": "Características, decisiones y ficha de reutilización."
     }
   ],
-  "gaps": [
-    "La moneda del catálogo es un parámetro de despliegue: el diseño no declara cómo se configura, y el servidor generado tiene que exponerlo."
-  ],
+  "gaps": [],
   "capabilities": [
     {
       "id": "persistence",
@@ -841,7 +839,8 @@ const KEEL = {
       },
       "rules": [
         "El producto retirado conserva todos sus datos e imágenes; sigue siendo resoluble por los servidores que lo consumen.",
-        "El motivo, si se indica, viaja en el evento para que el consumidor pueda explicar la baja."
+        "El motivo, si se indica, viaja en el evento para que el consumidor pueda explicar la baja.",
+        "Sin motivo, la petición puede llegar sin cuerpo o con un objeto vacío; ambas formas son equivalentes."
       ],
       "errors": [
         {
@@ -1060,6 +1059,7 @@ const KEEL = {
         "La imagen se añade al final, en la primera position libre.",
         "La primera imagen de un producto queda siempre marcada como principal, se pida o no.",
         "Si se pide main, la imagen que fuera principal hasta entonces deja de serlo.",
+        "El formato se comprueba por el contenido del binario (su firma), no solo por el tipo declarado en la petición; un archivo cuyo contenido no corresponde a un formato admitido, o no coincide con el tipo declarado, se rechaza como UNSUPPORTED_CONTENT_TYPE.",
         "El binario se guarda antes de confirmar la imagen; si la confirmación falla, el binario queda sin referencia y nunca hay una imagen que apunte a un archivo inexistente."
       ],
       "errors": [
@@ -1091,7 +1091,7 @@ const KEEL = {
         {
           "code": "UNSUPPORTED_CONTENT_TYPE",
           "http": 415,
-          "when": "El formato de la imagen no está entre los admitidos."
+          "when": "El formato de la imagen no está entre los admitidos, o el contenido del archivo no coincide con el tipo declarado."
         },
         {
           "code": "IDEMPOTENCY_KEY_IN_PROGRESS",

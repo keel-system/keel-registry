@@ -1,6 +1,6 @@
-reviewedAt: 0.1.0
-passes: 3
-scenariosSha256: d5149440b0b860a4e8e4cb513862b58730b4eb779ca709c07903d4377857f324
+reviewedAt: 0.1.1
+passes: 2
+scenariosSha256: 7ea9307118574a3e6e7908fb18bd853596ca0597abc10e9aa7e7e72f0c9fac60
 flows:
   - id: FL-BRD-001
     sha256: 711286ae007ca69e1198953a30a41295201355636cd62297272240d45facf9e5
@@ -31,27 +31,27 @@ flows:
   - id: FL-PRD-002
     sha256: 4f49e3e78c06e690af5f147af640f41608d88831de04dd5cbce13f93fc1462e7
   - id: FL-PRD-010
-    sha256: b5b779e093a533acd78d29e48f465cb37a09e31336b983793bab9716a6724859
+    sha256: 1feb667f73d4f335da37dcaf7726a8e4288bc722c88bf397fe1bb731e8b3bd5a
   - id: FL-PRD-011
     sha256: b3cfcab34baeb0fae65b6909310b54d36cf868c55a26f97a1861e7b6ca99fdc2
   - id: FL-PRD-040
-    sha256: 0fd5cda3e6e97f6d9754f93823b02f76f47cd052c57b4058908c02d2ff0086b6
+    sha256: e57ea297d941c79f1e2c28199f5699e6b27f5dab3639255d23894d2cdc572e77
   - id: FL-IMG-001
     sha256: 4775c3036ead3fddcc4d5e1eaafd5a3949689bfabf0dbb923ff459e9c0e564da
   - id: FL-IMG-002
-    sha256: 88ecb60904bfbc245b33a11132144facd26f3cd34f1b45a52b1da19b31a93af2
+    sha256: fbb86168028fd6ca4519e5165cef59d91427949720fa2e278cbcd761a7ae4736
   - id: FL-IMG-003
     sha256: 43fb54a46a93d7e922489445ecf027a3ba44d26b0a9e463fee79fc8862ba2f77
   - id: FL-IMG-004
     sha256: abf7031e9032b75fe774ae9f93c3ceedea36d7aca59f237d164951aa06c20715
   - id: FL-LCY-001
-    sha256: f34f710c7090f4109fb30d8904c79bbbfafe5e4361f735fae79431f725f1a831
+    sha256: 088d8ee9a632cc130388c531aff92b98d434ba35ca3ce84aac20f7ff662da3f0
   - id: FL-LCY-002
     sha256: 3daf6eb5b3c5f119f413eeac1b499e071e9da96a5324c5a6d159fa3344b1f6a6
   - id: FL-LCY-003
-    sha256: cce4914ec4493efbb9ef679dd62afd3ff6263788ef856e68efe6ecf07c7b50aa
+    sha256: ec618c5afa52a54d8004fb8c67e77412c2b9b5d9aa5ad419ecff049747a63288
   - id: FL-PUB-001
-    sha256: ca9eaffb77dbcb5abc731f605747745ef58db7908b2f6b7315c6bc32ea67f0e2
+    sha256: 3cb55db1b710ec91ea1af3cc30254101fbf2bb40b3f3851af6fc9b9e8f2c2a2b
   - id: FL-PUB-002
     sha256: 7c724b73eff29e07fcdb464b76bf0077cc2ce44bf555c35bf9ca1f584fd792b2
   - id: FL-PUB-003
@@ -187,3 +187,79 @@ findings:
       Nombrar la superficie observable del abandono y la regla «abandonado = no se vuelve a
       publicar» (en las convenciones, si es semántica canónica del outbox), o mover el flujo a
       «Lo que no tiene escenario».
+  - flow: FL-LCY-001
+    resolution: scenario
+    step: "Casos borde 1 y 2"
+    kind: evaluation-order
+    artifact: security.access.rules.retireProduct
+    evidence: >-
+      Los dos casos borde llaman a retireProduct sin decir con qué token, así que según
+      «Aislamiento y orden de ejecución» van con el de u-manager («Salvo que se diga otra cosa,
+      las operaciones de gestión se llaman con el token de u-manager»). security declara
+      retireProduct { level: admin, roles: [catalog-admin], permissions: [product:retire] } y
+      catalog-manager no tiene product:retire; la convención «Precedencia de la seguridad» evalúa
+      el 403 antes que nada. Por eso «retireProduct sobre uuid inexistente → 404 PRODUCT_NOT_FOUND»
+      responde 403, y el caso nuevo «Sin motivo» (p2 sin cuerpo, p3 con {} → 200, retired,
+      ProductStatusChanged con reason null) también responde 403, sin transición ni evento. El
+      Then 7 del mismo flujo sí dice «con token de u-admin», que es lo que falta aquí.
+    proposal: >-
+      Decir «con el token de u-admin» en los dos casos borde, o añadir a la convención de
+      Aislamiento que retireProduct, deleteBrand y deleteCategory se llaman siempre con u-admin
+      (arregla también FL-LCY-003, FL-PRD-040 y FL-PUB-001).
+  - flow: FL-LCY-003
+    resolution: scenario
+    step: "Given"
+    kind: unreachable-given
+    artifact: security.access.rules.retireProduct
+    evidence: >-
+      El Given retira p1 «con POST /api/v1/products/p1/retire sin cuerpo» sin nombrar token, así
+      que por la convención de Aislamiento va con u-manager. retireProduct exige level: admin,
+      rol catalog-admin y permiso product:retire, que catalog-manager no tiene: la llamada
+      responde 403 y p1 queda en draft. Con eso, el When (updateProduct) respondería 200 y no
+      409 PRODUCT_RETIRED, el canal recibiría un ProductUpdated, y el Then 3 (ProductStatusChanged
+      de la retirada) no tendría evento que comprobar.
+    proposal: >-
+      Añadir «con el token de u-admin» a la retirada del Given, o fijar u-admin para
+      retireProduct en la convención de Aislamiento.
+  - flow: FL-PRD-040
+    resolution: scenario
+    step: "Given 3"
+    kind: unreachable-given
+    artifact: security.access.rules.retireProduct
+    evidence: >-
+      El Given deja p3 «retirado» y la convención de Aislamiento construye el Given por la API
+      con u-manager salvo que se diga otra cosa. retireProduct es level: admin con rol
+      catalog-admin y permiso product:retire, que catalog-manager no tiene: p3 se quedaría en
+      draft. Entonces el Then 3 «?status=retired → p3» vuelve vacío y «?status=draft → p2»
+      devuelve p2 y p3. Además, el orden del Then 2 (p2, p3, p1) depende de que la retirada de p3
+      sea una escritura, y con el 403 no lo es.
+    proposal: >-
+      Decir que p3 se retira con el token de u-admin, o fijar u-admin para retireProduct en la
+      convención de Aislamiento.
+  - flow: FL-PUB-001
+    resolution: scenario
+    step: "Given (p5)"
+    kind: unreachable-given
+    artifact: security.access.rules.retireProduct
+    evidence: >-
+      p5 aparece «retirado» sin decir con qué token. Por la convención de Aislamiento eso es
+      u-manager, y retireProduct (level: admin, catalog-admin, product:retire) lo rechaza con
+      403. En este flujo los Then no cambian, porque un p5 en draft tampoco sale en el
+      escaparate, pero el Then 3 deja de ejercitar el caso retired que dice ejercitar.
+    proposal: >-
+      Decir que p5 se retira con el token de u-admin, o fijar u-admin para retireProduct en la
+      convención de Aislamiento.
+  - flow: FL-PRD-010
+    resolution: scenario
+    step: "Ramas condicionales 2"
+    kind: unreachable-given
+    artifact: use-cases.publishProduct.preconditions
+    evidence: >-
+      La rama dice «Con p1 publicado (active), price 0 → 422 PRICE_NOT_POSITIVE». Desde 0.1.1 el
+      Given fija p1 «sin imágenes», y publishProduct tiene la precondición «al menos una imagen»
+      (PRODUCT_HAS_NO_IMAGES, 409). Si se publica p1 tal como lo deja el Given, se obtiene 409 y
+      p1 no llega a active; la rama no dice que antes se añada una imagen. Después, el «con p1 en
+      draft» de la misma rama tampoco dice que se despublique.
+    proposal: >-
+      Escribir en la rama cómo se llega al estado: «añadida una imagen y publicado p1 → price 0 →
+      422; despublicado → el mismo cuerpo → 200 con amount 0».

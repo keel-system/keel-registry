@@ -114,6 +114,7 @@ operations:
     rules:
       - El producto retirado conserva todos sus datos e imágenes; sigue siendo resoluble por los servidores que lo consumen.
       - El motivo, si se indica, viaja en el evento para que el consumidor pueda explicar la baja.
+      - Sin motivo, la petición puede llegar sin cuerpo o con un objeto vacío; ambas formas son equivalentes.
     errors:
       - { code: PRODUCT_NOT_FOUND, when: "No existe un producto con ese id.", http: 404 }
     emits: [ProductStatusChanged]
@@ -163,6 +164,7 @@ operations:
       - La imagen se añade al final, en la primera position libre.
       - La primera imagen de un producto queda siempre marcada como principal, se pida o no.
       - Si se pide main, la imagen que fuera principal hasta entonces deja de serlo.
+      - El formato se comprueba por el contenido del binario (su firma), no solo por el tipo declarado en la petición; un archivo cuyo contenido no corresponde a un formato admitido, o no coincide con el tipo declarado, se rechaza como UNSUPPORTED_CONTENT_TYPE.
       - El binario se guarda antes de confirmar la imagen; si la confirmación falla, el binario queda sin referencia y nunca hay una imagen que apunte a un archivo inexistente.
     errors:
       - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.", http: 400 }
@@ -170,7 +172,7 @@ operations:
       - { code: PRODUCT_RETIRED, when: "El producto está retirado y ya no admite cambios.", http: 409 }
       - { code: IMAGE_LIMIT_REACHED, when: "El producto ya tiene 10 imágenes.", http: 409 }
       - { code: FILE_TOO_LARGE, when: "La imagen supera el tamaño máximo admitido por el bucket.", http: 413 }
-      - { code: UNSUPPORTED_CONTENT_TYPE, when: "El formato de la imagen no está entre los admitidos.", http: 415 }
+      - { code: UNSUPPORTED_CONTENT_TYPE, when: "El formato de la imagen no está entre los admitidos, o el contenido del archivo no coincide con el tipo declarado.", http: 415 }
     emits: [ProductUpdated]
 
   updateProductImage:

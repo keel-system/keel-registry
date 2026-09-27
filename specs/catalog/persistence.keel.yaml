@@ -19,6 +19,10 @@ entities:
 
   ProductImage:
     persisted: true
+    # Ninguno de los dos índices únicos tiene error 409 propio, a propósito: el cliente no
+    # puede provocar el choque. Pedir una position ocupada es legal (el servicio desplaza las
+    # demás) y pedir main desmarca la principal anterior. Si el índice salta, es una carrera
+    # entre dos escrituras sobre el mismo producto: CONCURRENT_MODIFICATION (OBL-CONCURRENCY-CODE).
     indexes:
       - fields: [product, position]
         unique: true

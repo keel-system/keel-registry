@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.1.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.1.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -54,7 +54,7 @@ Un producto nace en `draft`, invisible al público. Se publica cuando está list
 **Del dominio (`Product`)**
 - Un producto `active` tiene al menos una imagen y su `price.amount` es mayor que cero.
 - Un producto con imágenes tiene **exactamente una** marcada como `main`; como máximo 10; dos imágenes no comparten `position`. Las dos unicidades las respalda además el almacén (índices únicos, uno condicionado a `main = true`).
-- El `price.currency` es la **moneda del catálogo**, un parámetro de despliegue único para todo el servicio.
+- El `price.currency` es la **moneda del catálogo**: el parámetro de despliegue `currency` del manifiesto (ISO 4217, `^[A-Z]{3}$`), único para todo el servicio. En producción es obligatorio y no tiene default: un despliegue sin él no arranca. Los perfiles de prueba usan `EUR`.
 
 **De los casos de uso**
 - El `sku` no se modifica nunca: es la referencia estable con la que otros servidores conocen al producto.
@@ -64,6 +64,8 @@ Un producto nace en `draft`, invisible al público. Se publica cuando está list
 - Desactivar una marca o categoría **no** oculta sus productos: los quita del menú de filtros y bloquea asignaciones nuevas, nada más.
 - Borrar una marca o categoría solo se puede sin productos asociados. Ante una carrera con un alta, gana una de las dos operaciones y la otra falla con su error; nunca queda un producto huérfano.
 - Imágenes: la primera es siempre principal; al marcar otra como principal, la anterior deja de serlo; reordenar desplaza las demás sin dejar huecos; borrar la principal promueve a la que queda en `position 0`; no se puede dejar sin imágenes a un producto `active`.
+- Formato de imagen: se comprueba por la **firma del binario**, no solo por el tipo declarado; un contenido que no es JPEG/PNG/WebP o que no coincide con el tipo declarado es `415 UNSUPPORTED_CONTENT_TYPE`.
+- Choques en los índices únicos de imágenes (`position` y `main`): el cliente no puede provocarlos, porque el servicio desplaza posiciones y desmarca la principal anterior; si saltan, es una carrera y responde `409 CONCURRENT_MODIFICATION`.
 - Binarios: se suben **antes** de confirmar la imagen y se borran **después** de confirmar su baja. Un fallo a mitad deja como mucho un archivo huérfano, nunca una ficha que apunte a un archivo inexistente.
 - El escaparate responde `404` a un producto que no está `active`, igual que a uno que no existe. Un filtro por una categoría o marca inexistente devuelve una página vacía, no un error.
 
@@ -77,7 +79,7 @@ API REST bajo `/api/v1`. Paginación offset: 24 por página, tope 100.
 | `createProduct` | `POST /products` → 201 | Idempotency-Key; emite `ProductCreated` |
 | `updateProduct` | `PATCH /products/{id}` | Idempotency-Key; emite `ProductUpdated` |
 | `publishProduct` / `unpublishProduct` | `POST /products/{id}/publish` · `/unpublish` | transición; emite `ProductStatusChanged` |
-| `retireProduct` | `POST /products/{id}/retire` | solo `catalog-admin`; `reason` opcional viaja en el evento |
+| `retireProduct` | `POST /products/{id}/retire` | solo `catalog-admin`; `reason` opcional viaja en el evento; sin motivo, el cuerpo puede omitirse o ser `{}` |
 | `getProduct`, `listProducts` | `GET /products/{id}` · `GET /products` | cualquier estado; filtros de escaparate + `status`; orden `updatedAt desc` |
 | `addProductImage` | `POST /products/{productId}/images` → 200 | multipart; devuelve la ficha del producto |
 | `updateProductImage` | `PATCH /products/{productId}/images/{imageId}` | texto alternativo, posición, principal |
@@ -117,6 +119,7 @@ Devuelven el producto **en cualquier estado, incluido `retired`**: un pedido de 
 | Marcas y categorías | Campo `active`; borrado solo sin productos | Desactivar es la salida real sin perder histórico; borrar con productos dejaría huérfanos | Cascada (arrastra el catálogo); referencia opcional |
 | Desactivar | No oculta los productos | Es una decisión de escaparate; la visibilidad depende solo del `status` del producto | Ocultar en cascada (desaparecen productos sin que ningún evento lo explique) |
 | Moneda | `Money` con moneda + moneda única de catálogo, `422 CURRENCY_NOT_SUPPORTED` | El importe nunca viaja desnudo, y el filtro de precio es correcto por construcción | Importe sin moneda; multi-moneda en el filtro |
+| Moneda como parámetro (0.1.1) | `parameters.currency` obligatorio en producción, sin default, `testValue: EUR` | Configuración, variable de entorno y cotas quedan escritas en el diseño; un despliegue que la olvide no arranca en vez de vender en una moneda que nadie eligió | Default `EUR` (arranca siempre, con un valor implícito) |
 | Mín. 1 imagen / máx. 10 | Invariantes de publicación y de tamaño | El escaparate nunca muestra un hueco; la respuesta del lote M2M tiene techo | Imagen opcional; sin límite |
 | §3.4 Superficie M2M | Operaciones propias (`…ForServices`), cualquier estado, lote ≤ 100 | Los contratos de máquina y de pantalla evolucionan distinto; el consumidor necesita resolver productos retirados | Reutilizar los endpoints públicos (`audience: both`); solo `active` |
 | §3.3 Caché | Ninguna, en ninguna query | El diseñador prefiere frescura inmediata en precios y publicación; si hace falta, CDN por delante sin tocar el contrato | Caché de 5 min en la ficha (precio rancio); 60 s en menús |
@@ -129,6 +132,9 @@ Devuelven el producto **en cualquier estado, incluido `retired`**: un pedido de 
 | §3.1 Fiabilidad | `outbox` | Un despliegue del broker no puede dejar a un replicante con precios viejos para siempre | `best-effort` |
 | §3.7 Frontera | `per-aggregate` | Ninguna operación cruza agregados, así que no se acepta inconsistencia nueva; el evento confirma con su agregado | `per-operation` |
 | §3.10 Bucket | `public`, JPEG/PNG/WebP, 5 MB | Fotos de escaparate, cacheables en CDN; 5 MB corta originales de cámara sin procesar | `private` con URL firmada (10 firmas por visita) |
+| Formato de imagen (0.1.1) | Comprobado por la firma del binario además del tipo declarado; mismo `415` | El bucket es público: servir contenido disfrazado de imagen desde el dominio del catálogo es un riesgo, y el cliente no tiene por qué ser honesto con el Content-Type | Confiar solo en el Content-Type declarado |
+| Choques de índice en imágenes (0.1.1) | Sin error 409 propio: carrera → `CONCURRENT_MODIFICATION` | Pedir una `position` ocupada o `main` son peticiones legales que el servicio reparte; el choque solo existe bajo carrera, y un código propio prometería un error de cliente que no puede darse | `MAIN_PRODUCT_IMAGE_ALREADY_EXISTS` y un código de posición (minor) |
+| Retirada sin motivo (0.1.1) | Cuerpo opcional: sin cuerpo o `{}` equivalen | `reason` es el único campo y es opcional; exigir un `{}` vacío es fricción sin información | Cuerpo obligatorio |
 | Roles | `catalog-manager` / `catalog-admin` | El corte está en lo irreversible: retirar y borrar | Un solo rol; tres con lectura |
 | M2M | Consumidores `orders` y `cart`, identidad del llamante no participa | El catálogo no tiene datos por consumidor | Acotar por consumidor (multi-inquilino) |
 | Carreras de borrado | Nunca un producto huérfano | La referencia es obligatoria y el almacén la hace cumplir | Aceptar la ventana |

@@ -5,11 +5,19 @@ keel: "2.15"
 
 service:
   name: catalog
-  version: 0.1.0
+  version: 0.1.1
   # keel validate trata cualquier description que empiece por "TODO" como placeholder pendiente.
   description: "Gestiona el catálogo comercial —productos con sus imágenes, marcas y categorías—, lo expone filtrable al público de la tienda, lo sirve a otros servidores por contrato y publica sus altas y cambios como eventos."
   domain: commerce
   # basedOn: billing@1.2.0         # linaje: diseño@versión del que se derivó (lo escribe `keel new --from`)
+
+parameters:
+  currency:
+    type: string
+    description: "Moneda en la que opera el catálogo (ISO 4217). Todo price de Product va en ella; el servicio no convierte divisas."
+    constraints: { pattern: "^[A-Z]{3}$" }
+    testValue: EUR
+    requiredInProduction: true   # en producción viene del entorno, sin default: un despliegue que lo olvide no arranca
 
 conventions:
   nulls: include     # un campo sin valor viaja como null, en respuestas y en eventos
