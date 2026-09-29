@@ -8,6 +8,115 @@
   },
   "designs": [
     {
+      "slug": "catalog",
+      "family": "catalog",
+      "variant": null,
+      "service": {
+        "name": "catalog",
+        "version": "0.1.0",
+        "dsl": "2.17",
+        "domain": "commerce",
+        "basedOn": null,
+        "description": "Gestiona el catálogo comercial —productos con sus imágenes, marcas y categorías—, lo expone filtrable al público de la tienda, lo sirve a otros servidores por contrato y publica las altas y cambios de producto como eventos."
+      },
+      "metadata": {
+        "family": "catalog",
+        "summary": "Catálogo comercial de productos con marcas, categorías planas e imágenes (hasta 10, con portada y orden). Tres superficies separadas: gestión protegida por rol con auditoría de autoría y fechas en el contrato, tienda pública filtrable por categoría, marca, nombre y rango de precio, y contrato servidor-a-servidor por id y por lote. Publica altas y cambios como foto completa del producto con versión monotónica, por outbox, para que otros servidores mantengan su copia.\n",
+        "maturity": "draft",
+        "tags": [
+          "commerce",
+          "catalog",
+          "product",
+          "brand",
+          "category",
+          "images",
+          "storage",
+          "lifecycle",
+          "events",
+          "outbox",
+          "m2m",
+          "batch",
+          "idempotency",
+          "optimistic-locking",
+          "audit",
+          "pagination",
+          "search",
+          "cors"
+        ],
+        "author": "keel",
+        "license": "Apache-2.0"
+      },
+      "layers": [
+        "domain",
+        "use-cases",
+        "api",
+        "security",
+        "messaging",
+        "persistence",
+        "storage"
+      ],
+      "counts": {
+        "entities": 4,
+        "types": 5,
+        "aggregates": 3,
+        "operations": 28,
+        "commands": 16,
+        "queries": 12,
+        "endpoints": 28,
+        "roles": 2,
+        "serviceClients": 2,
+        "publishedEvents": 2,
+        "subscriptions": 0,
+        "persistedEntities": 4,
+        "buckets": 1
+      },
+      "status": {
+        "ok": true,
+        "pending": 0,
+        "errors": 0
+      },
+      "derivatives": {
+        "fresh": 9,
+        "stale": 0,
+        "unstamped": 0,
+        "missing": 0,
+        "orphan": 0,
+        "notApplicable": 0
+      },
+      "docs": {
+        "design": "docs/catalog/DESIGN.md",
+        "overview": "docs/catalog/overview.html",
+        "openapiViewer": "docs/catalog/openapi.html",
+        "asyncapiViewer": "docs/catalog/asyncapi.html",
+        "integration": "docs/catalog/INTEGRATION.md"
+      },
+      "files": [
+        "specs/catalog/service.keel.yaml",
+        "specs/catalog/domain.keel.yaml",
+        "specs/catalog/use-cases.keel.yaml",
+        "specs/catalog/api.keel.yaml",
+        "specs/catalog/security.keel.yaml",
+        "specs/catalog/messaging.keel.yaml",
+        "specs/catalog/persistence.keel.yaml",
+        "specs/catalog/storage.keel.yaml",
+        "specs/catalog/design.yaml",
+        "specs/catalog/decisions.yaml",
+        "specs/catalog/review.yaml",
+        "specs/catalog/flow-review.yaml",
+        "specs/catalog/gaps.yaml",
+        "specs/catalog/validation-scenarios.md",
+        "docs/catalog/DESIGN.md",
+        "docs/catalog/openapi.yaml",
+        "docs/catalog/openapi.html",
+        "docs/catalog/asyncapi.yaml",
+        "docs/catalog/asyncapi.html",
+        "docs/catalog/postman/catalog-collection.json",
+        "docs/catalog/overview.html",
+        "docs/catalog/INTEGRATION.md",
+        "docs/catalog/postman/auth-collection.json"
+      ]
+    },
+    {
       "slug": "notifications",
       "family": "notifications",
       "variant": null,
@@ -213,6 +322,12 @@
     }
   ],
   "families": [
+    {
+      "name": "catalog",
+      "designs": [
+        "catalog"
+      ]
+    },
     {
       "name": "notifications",
       "designs": [

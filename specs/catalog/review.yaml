@@ -1,0 +1,109 @@
+reviewedBy: keel-design-review
+reviewedAt: 0.1.0
+findings:
+  - id: REV-DOMAIN-VAGUE-INVARIANT
+    scope: domain.entities.Product.invariants
+    verdict: fixed
+    note: >-
+      Corregido por decisión del diseñador. (1) La invariante de posiciones se reescribió como «las posiciones
+      de las imágenes de un producto son exactamente 0..n-1, sin huecos ni repeticiones». (2) El parámetro
+      currency declara en su description que se fija en el primer despliegue y no cambia nunca (cambiarla es
+      una migración de datos fuera del servicio), y que solo admite monedas de 2 decimales.
+  - id: REV-DOMAIN-INVARIANT-IS-TRANSITION
+    scope: domain.entities.Product.invariants
+    verdict: ok
+    note: >-
+      Ninguna invariante describe un paso de X a Y. La más cercana, «Un producto retired no admite cambios de
+      datos ni de imágenes», es una guarda por estado, no una transición: el lifecycle ya declara retired: []
+      (terminal), y los cambios de datos e imágenes están guardados por PRODUCT_RETIRED en updateProduct,
+      addProductImage, updateProductImage y removeProductImage. Las dos de publicación («active tiene al menos
+      una imagen», «active tiene price.amount > 0») son estados, sostenidos por las preconditions de
+      publishProduct y por LAST_IMAGE_OF_PUBLISHED_PRODUCT / PRICE_NOT_POSITIVE.
+  - id: REV-DOMAIN-PROMISED-STATE
+    scope: domain
+    verdict: ok
+    note: >-
+      Recorridos los verbos de conservación, ocultación y marcado. «Nunca se borra» (Brand.active,
+      Category.active): no hay ninguna operación de borrado, la baja es el campo active. «Queda inactiva / deja de
+      ofrecerse como filtro»: active + la rule de listPublicBrands/listPublicCategories. «El producto retirado
+      conserva todos sus datos e imágenes; sigue siendo resoluble» (retireProduct): status retired, terminal, y
+      getProductForServices/getProductsBatch devuelven cualquier estado. «Nunca desaparece de la copia del
+      consumidor» (ProductUpdated): el payload lleva status. «Responde igual que uno inexistente»
+      (getPublishedProduct): se decide por status. «No se refresca si luego se renombra» (NamedRef.name): es
+      foto del evento, no estado propio. Todo lo prometido tiene campo o transición que lo sostiene.
+  - id: REV-USECASES-INTERNAL-REPEAT
+    scope: use-cases
+    verdict: ok
+    note: >-
+      Commands sin idempotency: updateBrand/updateCategory/updateProduct/updateProductImage fijan valores
+      absolutos (repetir deja lo mismo; los dos últimos además tienen su aceptación en decisions.yaml por
+      CHK-USECASES-REPEATABLE-ESCAPES); deactivate/reactivate de marca y categoría son idempotentes por rule
+      («ya inactiva no es un error; se responde sin cambios»); publishProduct, unpublishProduct y retireProduct
+      tienen transitions como guarda; removeProductImage actúa sobre un imageId concreto, así que el reintento
+      no puede quitar otra imagen. Ninguno suma, cobra ni acumula por dentro. Las altas (createBrand,
+      createCategory, createProduct, addProductImage) llevan client-key. Residual sin daño: el reintento de un
+      removeProductImage ya aplicado responde 404 IMAGE_NOT_FOUND.
+  - id: REV-USECASES-GUARD-ORDER
+    scope: use-cases
+    verdict: ok
+    note: >-
+      Ninguna rule fija un orden entre rechazos, así que no hay orden declarado que pueda ser inimplementable.
+      Las rules que condicionan una guarda dependen de datos disponibles cuando toca: la de updateProduct
+      («BRAND_INACTIVE y CATEGORY_INACTIVE solo se comprueban cuando la petición asigna una marca o categoría
+      distinta de la actual») necesita el producto cargado, que ya exige PRODUCT_NOT_FOUND; la de addProductImage
+      (firma del binario, binario guardado antes de confirmar) no ordena errores entre sí. La precedencia cuando
+      coinciden varios rechazos (p. ej. sku duplicado + marca inactiva en createProduct, o PATCH nulo sobre un
+      producto retirado) no está escrita, pero eso es la unidad 2 del análisis de huecos, no esta pregunta.
+  - id: REV-API-DELETE-BODY
+    scope: api.endpoints.removeProductImage
+    verdict: ok
+    note: >-
+      removeProductImage es DELETE con successStatus 200 y output Product (ficha completa). El cuerpo está a
+      propósito y el diseño lo explica en el comentario de api.keel.yaml («devuelven la ficha completa: cambian
+      posiciones y portada de las demás»): las rules renumeran las posiciones restantes y reasignan la portada
+      a la de position 0, que es exactamente el estado vecino que el cliente necesita ver.
+  - id: REV-SEC-M2M-AUDIENCE
+    scope: security.authentication.serviceAuth
+    verdict: ok
+    note: >-
+      serviceAuth declara validateAudience: true con audience: catalog; un token client-credentials emitido
+      para orders o cart hacia otro servicio no vale aquí. Las dos operaciones M2M (getProductForServices,
+      getProductsBatch) son level: service con scope product:read-internal.
+  - id: REV-SEC-RESOURCE-SCOPE
+    scope: security.roles
+    verdict: ok
+    note: >-
+      Los roles son globales y la prosa lo dice así: catalog-admin «gestiona el catálogo completo»,
+      catalog-editor «mantiene las fichas de producto», sin ninguna mención a «sus» productos, marcas o
+      categorías. No hay inquilinos ni alcance por recurso: OBL-CALLER-IDENTITY en decisions.yaml lo deja por
+      escrito («la credencial decide si se puede preguntar, no qué se ve»). Ninguna operación declara 403 por
+      recurso.
+  - id: REV-MSG-MISSING-CHANNEL
+    scope: messaging.publishing.events
+    verdict: ok
+    note: >-
+      ProductCreated y ProductUpdated declaran channel: productEvents, un canal lógico sin tecnología con su
+      description. El servicio no tiene subscriptions.
+  - id: REV-PERSIST-MISSING-INDEX
+    scope: persistence.entities.Product.indexes
+    verdict: fixed
+    note: >-
+      Corregido: Product añade los índices [name], [categoryId, name] y [brandId, name], que sostienen
+      searchProducts de gestión sin filtro de status (listado por defecto y filtros por marca o categoría).
+  - id: REV-STORAGE-PUBLIC-SENSITIVE
+    scope: storage.buckets.productImages
+    verdict: accepted
+    note: >-
+      productImages guarda fotos de producto (image/jpeg, png, webp), no datos personales ni documentos
+      privados. El hallazgo residual, que la imagen de un producto en draft (o retirado) sea legible por quien
+      tenga su URL, está aceptado en decisions.yaml (structural 3.10, storage.buckets.productImages.visibility:
+      «se acepta que la imagen de un producto todavía en borrador sea accesible... las claves no son
+      secuenciales»). Nota para el análisis de huecos (unidad 10): addProductImage y removeProductImage aceptan
+      por rule dejar binarios huérfanos, que en un bucket público siguen servidos, y ningún mecanismo los limpia.
+  - id: REV-STORAGE-UPLOAD-ERRORS
+    scope: use-cases.addProductImage
+    verdict: ok
+    note: >-
+      La única operación que sube al bucket, addProductImage, declara FILE_TOO_LARGE (413) y
+      UNSUPPORTED_CONTENT_TYPE (415), este último también para la firma que no casa con el tipo declarado, en
+      coherencia con maxSizeMb: 5 y allowedContentTypes del bucket.

@@ -1,0 +1,199 @@
+# Decisiones del diseño: estructurales (tomadas por el diseñador, catálogo de /keel-design)
+# y obligaciones aceptadas por escrito (docs/design-obligations.md).
+# No forma parte del DSL: registra qué se decidió, qué se descartó y por qué.
+
+structural:
+  - section: '3.2'
+    scope: use-cases.createProduct.idempotency
+    chosen: client-key 86400
+    discarded: sin idempotencia (apoyarse solo en la unicidad del sku)
+    reason: >-
+      El panel de gestión reintenta tras un timeout; sin clave, el reintento recibe un 409 por sku
+      aunque el alta sí se hizo, y el gestor no sabe si su producto existe. Con la clave recibe la
+      respuesta original y no se publica un segundo ProductCreated.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.createBrand.idempotency
+    chosen: client-key 86400
+    discarded: sin idempotencia (apoyarse solo en la unicidad del name)
+    reason: Mismo criterio que el alta de producto; el diseñador lo quiere homogéneo en las cuatro altas.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.createCategory.idempotency
+    chosen: client-key 86400
+    discarded: sin idempotencia (apoyarse solo en la unicidad del name)
+    reason: Mismo criterio que el alta de producto; el diseñador lo quiere homogéneo en las cuatro altas.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.addProductImage.idempotency
+    chosen: client-key 86400
+    discarded: sin idempotencia
+    reason: >-
+      Una imagen no tiene clave natural: sin clave, el reintento de una subida crea una segunda imagen
+      idéntica en la ficha y consume uno de los 10 huecos.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases.searchPublishedProducts.cache
+    chosen: sin caché
+    discarded: caché con TTL
+    reason: >-
+      Un cambio de precio o una retirada tienen que verse al instante en la tienda. Con marca y
+      categoría embebidas, la caché exigiría publicar también eventos de marca y categoría para
+      invalidarla; el coste no compensa en esta fase.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases.getPublishedProduct.cache
+    chosen: sin caché
+    discarded: caché 60s invalidada por ProductCreated/ProductUpdated y eventos de marca/categoría
+    reason: Mismo criterio que la búsqueda pública; un precio viejo en la ficha es un precio mal cobrado.
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.endpoints.getProductForServices.audience
+    chosen: services
+    discarded: reutilizar getPublishedProduct con audience both; no exponer (solo eventos)
+    reason: >-
+      Operación M2M propia: la ficha pública oculta draft y retired, y el servidor de pedidos necesita
+      resolver productos ya retirados. Así el contrato con los servidores evoluciona aparte del de la tienda.
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.endpoints.getProductsBatch.audience
+    chosen: services
+    discarded: audience both sobre la búsqueda pública; no exponer
+    reason: El consumidor necesita N productos de golpe por id y en cualquier estado; ninguna operación de usuarios tiene esa forma.
+    since: 0.1.0
+  - section: '3.8'
+    scope: api.pagination
+    chosen: offset, defaultSize 20, maxSize 100
+    discarded: sin paginar; 24/96 para rejillas
+    reason: >-
+      Productos, marcas y categorías de gestión crecen sin cota conocida. Las listas públicas de marcas
+      y categorías activas (filtros de la tienda) no se paginan: son decenas o pocos cientos y el filtro
+      las necesita enteras; si llegaran a miles, se revisa con /keel-evolve.
+    since: 0.1.0
+  - section: '3.1'
+    scope: messaging.publishing.reliability
+    chosen: outbox
+    discarded: best-effort
+    reason: >-
+      Si un cambio de producto confirma con el broker caído, el diseñador no acepta que el evento se
+      pierda: la copia del consumidor se quedaría con un precio o un estado viejo sin que nadie lo vea.
+    since: 0.1.0
+  - section: '3.7'
+    scope: persistence.consistency.transactionalBoundary
+    chosen: per-aggregate
+    discarded: per-operation
+    reason: >-
+      Ninguna operación escribe dos agregados: cada una cambia un producto con sus imágenes, una marca
+      o una categoría, más su fila de outbox. No hay mitad que pueda quedar colgada. Se acepta que dar
+      de alta un producto a la vez que se desactiva su marca pueda dejar el producto creado (la marca
+      se leyó activa): el producto existente sigue siendo válido, como cualquier producto previo a la baja.
+    since: 0.1.0
+  - section: '3.9'
+    scope: persistence.consistency.optimisticLocking
+    chosen: declared
+    discarded: none (último gana)
+    reason: >-
+      El diseñador no acepta que un cambio de precio de un gestor pise en silencio el de otro: conflicto
+      409 CONCURRENT_MODIFICATION. Los cuatro PATCH reciben la version que el gestor leyó, así que el
+      conflicto cubre también la edición sobre una pantalla vieja, no solo el choque simultáneo. Es declared y no all porque lockVersion se declara en las tres raíces
+      (Product, Brand, Category): viaja como version en los eventos para que el consumidor descarte los
+      que le llegan desordenados. Se comporta igual que all.
+    since: 0.1.0
+  - section: '3.9b'
+    scope: persistence.audit.timestamps
+    chosen: declared
+    discarded: all (solo en la base)
+    reason: Las fechas de alta y modificación forman parte del contrato de gestión; se excluyen de la tienda pública y del contrato M2M.
+    since: 0.1.0
+  - section: '3.9b'
+    scope: persistence.audit.authorship
+    chosen: declared
+    discarded: all (solo en la base); none
+    reason: >-
+      El diseñador pidió created_by y updated_by como requisito: el panel de gestión muestra quién creó
+      y quién modificó cada producto, marca y categoría. No viajan a la tienda pública, ni al contrato
+      M2M, ni en los eventos: quién editó es dato interno de la tienda.
+    since: 0.1.0
+  - section: '3.10'
+    scope: storage.buckets.productImages.visibility
+    chosen: public
+    discarded: private con URL firmada
+    reason: >-
+      Material de catálogo pensado para verse, servido por URL directa y cacheable. Se acepta que la
+      imagen de un producto todavía en borrador sea accesible para quien tenga su URL; las claves no
+      son secuenciales, así que no se pueden recorrer.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases (commands sin alta)
+    chosen: sin clave de idempotencia
+    discarded: Idempotency-Key en todos los commands
+    reason: >-
+      Ninguno duplica efecto al repetirse: publish, unpublish y retire son transiciones irrepetibles, los
+      PATCH llevan version obligatoria y (des)activar fija un valor absoluto. El coste aceptado es un error
+      engañoso en el reintento de algo ya aplicado (409, o 404 al quitar una imagen ya quitada): el gestor
+      recarga y ve el cambio hecho.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases (resto de queries)
+    chosen: sin caché
+    discarded: caché de 5 min en las listas públicas de marcas y categorías
+    reason: >-
+      Todo se lee fresco. Marcas y categorías no publican eventos, así que una caché solo podría acotarse
+      por TTL; si hace falta, se pone una CDN delante sin tocar el contrato.
+    since: 0.1.0
+
+decisions:
+  - id: CHK-USECASES-REPEATABLE-ESCAPES
+    scope: use-cases.updateProduct
+    reason: >-
+      El PATCH fija valores absolutos: repetirlo deja el producto igual y, como un cambio nulo no publica
+      ProductUpdated, el reintento no emite un segundo evento. El riesgo residual (un reintento tardío que
+      pisa la edición de otro gestor) lo frena el bloqueo optimista. Decidido por el diseñador.
+    since: 0.1.0
+  - id: CHK-USECASES-REPEATABLE-ESCAPES
+    scope: use-cases.updateProductImage
+    reason: Mismo criterio que updateProduct; altText, position y main son valores absolutos.
+    since: 0.1.0
+  - id: CHK-API-QUERY-NOT-GET
+    scope: api.endpoints.getProductsBatch.method
+    reason: >-
+      Lectura por POST con cuerpo {ids}: hasta 100 uuids son unos 3.7 KB en la URL, y hay proxies que
+      cortan entre 2 y 8 KB. Decidido por el diseñador.
+    since: 0.1.0
+  - id: OBL-IDEM-RACE-CODE
+    scope: use-cases
+    reason: >-
+      El diseñador acepta el código canónico 409 IDEMPOTENCY_KEY_IN_PROGRESS para dos peticiones
+      simultáneas con la misma clave: es el mismo en todo servicio Keel y el integrador lo reconoce.
+    since: 0.1.0
+  - id: OBL-IDEM-REUSE-CODE
+    scope: use-cases
+    reason: >-
+      El diseñador acepta el código canónico 409 IDEMPOTENCY_KEY_REUSED para una clave reutilizada con
+      un cuerpo distinto, por la misma homogeneidad entre servicios Keel.
+    since: 0.1.0
+  - id: OBL-CONCURRENCY-CODE
+    scope: persistence
+    reason: >-
+      Una escritura sobre una versión obsoleta de Product, Brand o Category responde el canónico
+      409 CONCURRENT_MODIFICATION; el gestor reacciona igual en los tres casos (recargar y reintentar).
+    since: 0.1.0
+  - id: OBL-CALLER-IDENTITY
+    scope: security
+    reason: >-
+      La identidad del llamante no entra en el trabajo. El catálogo no tiene inquilinos: orders y cart
+      reciben el mismo producto para el mismo id; la credencial decide si se puede preguntar, no qué se
+      ve. Las operaciones de gestión atribuyen la autoría por la auditoría (createdBy/updatedBy desde el
+      principal autenticado), nunca por un campo del cuerpo.
+    since: 0.1.0
+
+falsePositives:
+  - id: CHK-USECASES-EXCLUDE-CROSSES-AGGREGATE
+    match: "no hay campos anidados que excluir"
+    reason: >-
+      Las operaciones que excluyen brand.* y category.* declaran embed [brand, category], así que la
+      marca y la categoría viajan anidadas con sus campos propios (docs/dsl/use-cases.md § embed). El
+      detector (keel-core crossrefs.js checkExcludePath) no mira embed y da la relación por serializada
+      por id. El exclude es intencional: la auditoría y el lockVersion de la marca y la categoría no salen
+      en la tienda pública ni en el contrato M2M.
+    since: 0.1.0

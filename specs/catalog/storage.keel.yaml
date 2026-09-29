@@ -1,0 +1,8 @@
+# Capa storage — buckets lógicos de archivos, agnósticos del proveedor.
+
+buckets:
+  productImages:
+    description: "Fotos de producto que se muestran en la ficha y en el listado de la tienda."
+    visibility: public
+    allowedContentTypes: [image/jpeg, image/png, image/webp]
+    maxSizeMb: 5

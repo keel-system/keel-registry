@@ -1,0 +1,302 @@
+reviewedBy: keel-gap-sweep
+reviewedAt: 0.1.0
+
+coverage:
+  - class: 1
+    units: [Product]
+    result: findings
+  - class: 2
+    units: [createBrand, updateBrand, deactivateBrand, reactivateBrand, createCategory, updateCategory, deactivateCategory, reactivateCategory, createProduct, updateProduct, publishProduct, unpublishProduct, retireProduct, addProductImage, updateProductImage, removeProductImage]
+    result: findings
+  - class: 3
+    units: [Brand, Category, Product, ProductImage]
+    result: findings
+  - class: 4
+    units: [createBrand, updateBrand, deactivateBrand, reactivateBrand, createCategory, updateCategory, deactivateCategory, reactivateCategory, createProduct, updateProduct, publishProduct, unpublishProduct, retireProduct, addProductImage, updateProductImage, removeProductImage]
+    result: findings
+  - class: 5
+    units: [getBrand, listBrands, getCategory, listCategories, getProduct, searchProducts, searchPublishedProducts, getPublishedProduct, listPublicBrands, listPublicCategories, getProductForServices, getProductsBatch]
+    result: findings
+  - class: 6
+    units: [Brand, Category, Product, ProductImage]
+    result: findings
+  - class: 7
+    units: [publishing.ProductCreated, publishing.ProductUpdated]
+    result: findings
+  - class: 9
+    units: [createBrand, updateBrand, deactivateBrand, reactivateBrand, getBrand, listBrands, createCategory, updateCategory, deactivateCategory, reactivateCategory, getCategory, listCategories, createProduct, updateProduct, publishProduct, unpublishProduct, retireProduct, getProduct, searchProducts, addProductImage, updateProductImage, removeProductImage, searchPublishedProducts, getPublishedProduct, listPublicBrands, listPublicCategories, getProductForServices, getProductsBatch]
+    result: clean
+  - class: 10
+    units: [productImages]
+    result: findings
+  - class: 11
+    units: [getProductForServices, getProductsBatch, serviceClients.orders, serviceClients.cart]
+    result: clean
+  - class: 12
+    units: [service]
+    result: findings
+  - class: 14
+    units: [Brand, Category, Product, ProductImage]
+    result: findings
+  - class: 15
+    units: [createBrand, updateBrand, deactivateBrand, reactivateBrand, getBrand, listBrands, createCategory, updateCategory, deactivateCategory, reactivateCategory, getCategory, listCategories, createProduct, updateProduct, publishProduct, unpublishProduct, retireProduct, getProduct, searchProducts, addProductImage, updateProductImage, removeProductImage, searchPublishedProducts, getPublishedProduct, listPublicBrands, listPublicCategories, getProductForServices, getProductsBatch]
+    result: findings
+  - class: 16
+    units: ['3.1', '3.2', '3.3', '3.4', '3.7', '3.8', '3.9', '3.9b', '3.10']
+    result: findings
+
+findings:
+  # ---------------------------------------------------------------- 1. Alcanzabilidad
+  - class: 1
+    unit: Product
+    what: >-
+      No se dice qué pasa con una transición prohibida: publishProduct sobre un active o un retired,
+      unpublishProduct sobre un draft o un retired, retireProduct sobre un retired. Ninguna de las tres
+      declara error de estado. Puede ser el canónico 409 INVALID_STATE_TRANSITION, PRODUCT_RETIRED (el
+      que usan updateProduct y las operaciones de imágenes) o una respuesta idempotente sin cambios,
+      como deactivateBrand y reactivateBrand. Tampoco se fija qué ve el cliente cuando además falla otra
+      guarda (un retired sin imágenes al que se intenta publicar).
+    severity: gap
+    state: decided
+    reason: >-
+      Transición no declarada → 409 INVALID_STATE_TRANSITION (canónico) en publishProduct, unpublishProduct y retireProduct; el estado se comprueba justo después de PRODUCT_NOT_FOUND, antes que imágenes y precio. Hace además irrepetible cada transición.
+
+  # ---------------------------------------------------------------- 2. Guardas ↔ errores
+  - class: 2
+    unit: publishProduct
+    what: >-
+      No se dice si se puede publicar un draft cuya marca o categoría se desactivó después de crearlo.
+      Las rules de deactivateBrand/deactivateCategory solo hablan de productos nuevos y de productos ya
+      publicados, y publishProduct no comprueba BRAND_INACTIVE ni CATEGORY_INACTIVE.
+    severity: risk
+    state: decided
+    reason: >-
+      Se puede publicar: la desactivación de marca o categoría solo impide asignarlas a otro producto. Escrito como rule en publishProduct.
+  - class: 2
+    unit: updateProduct
+    what: >-
+      Una misma invariante (un active tiene price.amount > 0) da dos códigos y dos status:
+      PRICE_NOT_POSITIVE 422 en updateProduct y PRODUCT_PRICE_NOT_POSITIVE 409 en publishProduct. No
+      consta que la diferencia sea deliberada.
+    severity: risk
+    state: decided
+    reason: >-
+      Un solo código para la invariante: PRODUCT_PRICE_NOT_POSITIVE 409 en updateProduct y publishProduct; PRICE_NOT_POSITIVE desaparece.
+  - class: 2
+    unit: addProductImage
+    what: >-
+      Tal como está el orden, PRODUCT_NOT_FOUND, PRODUCT_RETIRED e IMAGE_LIMIT_REACHED van antes que
+      FILE_TOO_LARGE. Pero el tamaño de un multipart suele rechazarse antes de resolver el producto. El
+      diseño no dice si ese orden es contrato (hay que leer el binario entero para comprobarlo) o si
+      FILE_TOO_LARGE puede adelantarse.
+    severity: risk
+    state: decided
+    reason: >-
+      El tamaño y el formato del archivo se comprueban antes que el producto (rule en addProductImage); FILE_TOO_LARGE y UNSUPPORTED_CONTENT_TYPE preceden a PRODUCT_NOT_FOUND en la lista de errores.
+
+  # ---------------------------------------------------------------- 3. Determinación del estado
+  - class: 3
+    unit: Product
+    what: >-
+      No se dice si lockVersion y updatedAt/updatedBy del Product cambian cuando solo cambian sus
+      imágenes (addProductImage, updateProductImage, removeProductImage). Esas operaciones escriben filas
+      de ProductImage y no la raíz. Si la versión no sube, el ProductUpdated resultante lleva la misma
+      version que el anterior y el consumidor lo descarta según la regla de su propio payload.
+    severity: gap
+    state: decided
+    reason: >-
+      Invariante en Product: la lockVersion sube con cualquier cambio del agregado, también cuando solo cambian sus imágenes; el ProductUpdated de imágenes lleva versión nueva.
+
+  # ---------------------------------------------------------------- 4. Concurrencia
+  - class: 4
+    unit: updateProduct
+    what: >-
+      El bloqueo optimista no cubre la edición a partir de una versión vieja, que es lo que dice perseguir
+      la decisión 3.9 ("un cambio de precio de un gestor no pisa en silencio el de otro"). lockVersion
+      "lo lleva la infraestructura, nunca el cliente", y ningún input ni ninguna cabecera (If-Match no
+      está en cors.allowedHeaders) trae la versión que vio el gestor. Un PATCH hecho sobre una ficha que
+      se leyó hace diez minutos gana sin conflicto. Pasa igual en updateBrand, updateCategory y
+      updateProductImage, y tampoco se sostiene lo que dice la aceptación de
+      CHK-USECASES-REPEATABLE-ESCAPES sobre el reintento tardío.
+    severity: gap
+    state: decided
+    reason: >-
+      Los cuatro PATCH (updateProduct, updateBrand, updateCategory, updateProductImage) reciben version obligatoria (la lockVersion leída); si no coincide → 409 CONCURRENT_MODIFICATION, declarado en sus errors.
+  - class: 4
+    unit: addProductImage
+    what: >-
+      Asignar la position siguiente, comprobar el límite de 10 y reasignar la principal son lecturas
+      seguidas de escritura sobre las filas hijas. Si la raíz no cambia de versión (ver el hallazgo de
+      clase 3 sobre Product), dos altas simultáneas pueden repetir position o dejar 11 imágenes, y el
+      índice [productId, position] no es unique. Lo mismo vale para las renumeraciones de
+      updateProductImage y removeProductImage.
+    severity: gap
+    state: decided
+    reason: >-
+      addProductImage sube la lockVersion del producto: dos altas simultáneas no pueden repetir position ni superar el tope, la que pierde responde 409 CONCURRENT_MODIFICATION (declarado).
+
+  # ---------------------------------------------------------------- 5. Consultas
+  - class: 5
+    unit: searchProducts
+    what: >-
+      El orden no es total: sort [name:asc] sobre un campo que no es único y sin desempate declarado. Dos
+      productos con el mismo nombre pueden saltar de página o repetirse al paginar con offset.
+    severity: gap
+    state: decided
+    reason: >-
+      sort: [name:asc, id:asc] explícito; el id es desempate total. Entre nombres que solo difieren en mayúsculas o acentos el orden relativo no es contrato (convención de los escenarios).
+  - class: 5
+    unit: searchPublishedProducts
+    what: >-
+      El orden no es total: sort [name:asc] sin desempate por id o sku, con Product.name no único. Esto
+      afecta a la paginación de la tienda.
+    severity: gap
+    state: decided
+    reason: >-
+      sort: [name:asc, id:asc] explícito, igual que searchProducts.
+
+  # ---------------------------------------------------------------- 6. Agregados
+  - class: 6
+    unit: Product
+    what: >-
+      Un producto dado de alta por error (un sku con una errata) no puede borrarse ni cambiar de sku:
+      solo se retira, y el sku queda ocupado para siempre por un producto retired. No se dice si eso es
+      aceptable o si hace falta borrar un draft que nunca se publicó.
+    severity: risk
+    state: decided
+    reason: >-
+      El sku se corrige en updateProduct mientras el producto nunca se publicó (firstPublishedAt null, campo computed fijado por la primera publicación); después es inmutable → 409 PRODUCT_SKU_IMMUTABLE. Colisión → PRODUCT_SKU_ALREADY_EXISTS.
+
+  # ---------------------------------------------------------------- 7. Eventos
+  - class: 7
+    unit: publishing.ProductUpdated
+    what: >-
+      Renombrar o desactivar una marca o categoría no publica nada, y NamedRef.name "no se refresca": la
+      copia del consumidor guarda el nombre viejo hasta que ese producto vuelva a cambiar. La descripción
+      del evento promete un upsert sin llamar a nadie, y no se dice si el consumidor puede tolerar
+      nombres de marca o categoría obsoletos sin límite de tiempo.
+    severity: risk
+    state: accepted
+    reason: >-
+      El diseñador eligió que el evento lleve id y nombre de marca y categoría sabiendo que un renombrado no publica nada: las copias guardan el nombre viejo hasta el siguiente cambio de cada producto. El dato fresco está en el endpoint M2M, que resuelve la marca al leer.
+  - class: 7
+    unit: publishing.ProductCreated
+    what: >-
+      En los eventos, images.file viaja como key y no como URL, aunque el bucket es público. El
+      consumidor que quiera pintar la imagen sin llamar al catálogo necesita saber cómo se forma la URL a
+      partir de la key, y el diseño no lo dice.
+    severity: risk
+    state: accepted
+    reason: >-
+      Regla fija de Keel: en los eventos un campo file viaja como key. El bucket es público, así que la URL es la base pública del bucket (dato de despliegue que se comunica al consumidor) más la key; INTEGRATION.md lo documentará, y el consumidor que no quiera conocer la base resuelve el producto por el endpoint M2M, que trae URLs absolutas.
+
+  # ---------------------------------------------------------------- 10. Archivos
+  - class: 10
+    unit: productImages
+    what: >-
+      Los binarios huérfanos (fallo al confirmar en addProductImage o al borrar en removeProductImage)
+      se quedan sin que nadie los limpie. Como el bucket es público, una imagen quitada de la ficha sigue
+      servida en su URL de forma indefinida si falló su borrado, y el diseño no prevé ningún barrido ni
+      reintento.
+    severity: risk
+    state: accepted
+    reason: >-
+      Sin limpieza de binarios huérfanos: el bucket guarda material de catálogo sin datos personales, la baja ya intenta borrar el binario y solo queda huérfano si ese borrado falla. Coste aceptado: algo de almacenamiento y una URL que sigue resolviendo.
+
+  # ---------------------------------------------------------------- 12. Zonas grises
+  - class: 12
+    unit: service
+    what: >-
+      Falta la colación del orden por name (listBrands, listCategories, searchProducts,
+      searchPublishedProducts, listPublicBrands, listPublicCategories). No se dice si "Árbol" va antes o
+      después de "Zeta", ni si las mayúsculas cuentan. La unicidad sí fija ignore-case-accents; el orden
+      no, y cada motor ordena distinto.
+    severity: gap
+    state: decided
+    reason: >-
+      Contrato de orden: por name y desempate por id; el orden relativo entre nombres que solo difieren en mayúsculas o acentos no es contrato y los escenarios no lo afirman (convención de determinación en validation-scenarios.md).
+  - class: 12
+    unit: service
+    what: >-
+      Money.amount fija scale 2, pero el parámetro currency admite cualquier código ISO 4217. Con JPY (0
+      decimales) o KWD (3), la escala del importe no coincide con la de la moneda, y no se dice si el
+      parámetro se restringe o si la escala depende de la moneda.
+    severity: gap
+    state: decided
+    reason: >-
+      El parámetro currency solo admite monedas de 2 decimales y es inmutable tras el primer despliegue (description del parámetro en el manifiesto); Money mantiene scale 2 con scalePolicy reject.
+  - class: 12
+    unit: service
+    what: >-
+      No hay convención de ausencia en las respuestas: un description o un altText sin valor, ¿se omite o
+      viaja como null? Tampoco se dice si los timestamps de gestión van en UTC.
+    severity: gap
+    state: decided
+    reason: >-
+      conventions.nulls: include en el manifiesto (un campo sin valor viaja como null, en respuestas y eventos; las colecciones vacías como []). Los timestamps viajan en ISO-8601 UTC (convención de los escenarios).
+  - class: 12
+    unit: service
+    what: >-
+      Product.name no se recorta de espacios (Brand.name y Category.name sí), así que "   " o " Camiseta"
+      pasan minLength 1. Tampoco se fija si el texto de los mensajes de error forma parte del contrato ni
+      en qué idioma va.
+    severity: gap
+    state: decided
+    reason: >-
+      Product.name se recorta de espacios en createProduct y updateProduct, como los nombres de marca y categoría. El message del cuerpo de error es texto libre no contractual; el contrato es code + status (convención de los escenarios).
+
+  # ---------------------------------------------------------------- 14. Persistencia
+  - class: 14
+    unit: ProductImage
+    what: >-
+      La invariante "dos imágenes del mismo producto no comparten position" no la sostiene ningún índice
+      único: el índice [productId, position] no es unique. Solo la garantiza el orden de las escrituras.
+    severity: risk
+    state: accepted
+    reason: >-
+      No se declara índice único [productId, position]: la renumeración desplaza posiciones dentro de la misma transacción y un único por fila puede chocar a mitad de sentencia en algunos motores. La invariante la sostiene el agregado: toda escritura de imágenes sube la lockVersion del producto, así que dos escrituras concurrentes no pueden confirmar ambas.
+  - class: 14
+    unit: Product
+    what: >-
+      searchProducts sin filtro de status ordena por name, y ningún índice lo sostiene: todos los índices
+      de Product empiezan por status. Es una colección de gestión paginada que crece sin cota.
+    severity: risk
+    state: decided
+    reason: >-
+      Índices [name], [categoryId, name] y [brandId, name] añadidos a Product para searchProducts sin filtro de status.
+
+  # ---------------------------------------------------------------- 15. Superficie HTTP
+  - class: 15
+    unit: addProductImage
+    what: >-
+      Responde 201 con la ficha del Product, de modo que el id del output es el del producto y no el de
+      la imagen creada. La cabecera Location que emite el generador apuntaría a un recurso equivocado, y
+      el cliente no recibe el imageId nuevo de forma directa: tiene que deducirlo de la lista de images.
+    severity: gap
+    state: decided
+    reason: >-
+      addProductImage devuelve la ficha del producto; Location apunta a la lectura del agregado (/admin/products/{productId}), como fija docs/dsl/api.md para un alta que añade a la colección de un agregado. La imagen nueva es la que queda en la última position (rule), así el cliente obtiene su imageId.
+
+  # ---------------------------------------------------------------- 16. Decisiones sin dueño
+  - class: 16
+    unit: '3.2'
+    what: >-
+      decisions.yaml → structural solo registra la idempotencia de las cuatro altas. No consta que se
+      preguntara por los commands que no la llevan: updateBrand, updateCategory, deactivate/reactivate
+      de marca y categoría, publishProduct, unpublishProduct, retireProduct y removeProductImage. Los dos
+      PATCH tienen aceptación en decisions, pero no entrada estructural. Con un reintento tras un
+      timeout, removeProductImage responde IMAGE_NOT_FOUND 404 aunque la baja se hizo.
+    severity: gap
+    state: decided
+    reason: >-
+      Preguntado al diseñador: el resto de commands no llevan clave de idempotencia. Ninguno duplica efecto (transiciones irrepetibles, PATCH con version, (des)activar absoluto); el reintento de uno ya aplicado recibe 409 o 404 y el gestor recarga. Registrado en decisions.yaml (3.2).
+  - class: 16
+    unit: '3.3'
+    what: >-
+      La decisión de caché solo está registrada para searchPublishedProducts y getPublishedProduct.
+      Faltan las demás queries, incluidas listPublicBrands y listPublicCategories (públicas, sin paginar,
+      las candidatas naturales) y las dos M2M.
+    severity: gap
+    state: decided
+    reason: >-
+      Preguntado al diseñador: ninguna query del servicio lleva caché; marcas y categorías no publican eventos y solo podrían acotarse por TTL. Registrado en decisions.yaml (3.3).

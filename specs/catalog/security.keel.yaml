@@ -1,0 +1,73 @@
+# Capa security — autenticación y autorización, por operación.
+# Tres públicos: gestores de la tienda (usuarios con rol), consumidores anónimos de la tienda
+# y servidores consumidores (clientes máquina con scopes).
+
+authentication:
+  protocol: oidc
+  tokenLocation: header
+  serviceAuth:
+    protocol: client-credentials
+    validateAudience: true
+    audience: catalog
+
+roles:
+  catalog-admin:  { description: "Gestiona el catálogo completo: productos, retiradas, marcas y categorías." }
+  catalog-editor: { description: "Mantiene las fichas de producto y sus imágenes, y las publica o despublica; no retira productos ni toca marcas ni categorías." }
+
+permissions:
+  catalog:read:          { description: "Leer desde la gestión productos en cualquier estado, marcas y categorías." }
+  product:write:         { description: "Crear y modificar productos y sus imágenes, y publicarlos o despublicarlos." }
+  product:retire:        { description: "Retirar definitivamente un producto." }
+  taxonomy:write:        { description: "Crear, modificar, desactivar y reactivar marcas y categorías." }
+  product:read-internal: { description: "Resolver productos por id o por lote desde otro servidor, en cualquier estado." }
+
+roleGrants:
+  catalog-admin:  [catalog:read, product:write, product:retire, taxonomy:write]
+  catalog-editor: [catalog:read, product:write]
+
+serviceClients:
+  orders: { description: "Servidor de pedidos: resuelve los productos de un pedido, también los ya retirados.", scopes: [product:read-internal] }
+  cart:   { description: "Servidor de carrito: resuelve los productos de un carrito para pintarlo y validarlo.", scopes: [product:read-internal] }
+
+access:
+  default: { level: required, permissions: [catalog:read] }
+  rules:
+    # Marcas y categorías — gestión
+    createBrand:        { level: required, permissions: [taxonomy:write] }
+    updateBrand:        { level: required, permissions: [taxonomy:write] }
+    deactivateBrand:    { level: required, permissions: [taxonomy:write] }
+    reactivateBrand:    { level: required, permissions: [taxonomy:write] }
+    getBrand:           { level: required, permissions: [catalog:read] }
+    listBrands:         { level: required, permissions: [catalog:read] }
+    createCategory:     { level: required, permissions: [taxonomy:write] }
+    updateCategory:     { level: required, permissions: [taxonomy:write] }
+    deactivateCategory: { level: required, permissions: [taxonomy:write] }
+    reactivateCategory: { level: required, permissions: [taxonomy:write] }
+    getCategory:        { level: required, permissions: [catalog:read] }
+    listCategories:     { level: required, permissions: [catalog:read] }
+    # Productos e imágenes — gestión
+    createProduct:      { level: required, permissions: [product:write] }
+    updateProduct:      { level: required, permissions: [product:write] }
+    publishProduct:     { level: required, permissions: [product:write] }
+    unpublishProduct:   { level: required, permissions: [product:write] }
+    retireProduct:      { level: required, permissions: [product:retire] }
+    getProduct:         { level: required, permissions: [catalog:read] }
+    searchProducts:     { level: required, permissions: [catalog:read] }
+    addProductImage:    { level: required, permissions: [product:write] }
+    updateProductImage: { level: required, permissions: [product:write] }
+    removeProductImage: { level: required, permissions: [product:write] }
+    # Tienda — pública
+    searchPublishedProducts: { level: public }
+    getPublishedProduct:     { level: public }
+    listPublicBrands:        { level: public }
+    listPublicCategories:    { level: public }
+    # Servidor a servidor
+    getProductForServices: { level: service, scopes: [product:read-internal] }
+    getProductsBatch:      { level: service, scopes: [product:read-internal] }
+
+cors:
+  description: "Consumido desde el navegador por la tienda y por el panel de gestión."
+  allowCredentials: false
+  allowedHeaders: [Authorization, Content-Type, Idempotency-Key]
+  exposedHeaders: [X-Correlation-Id, Location]
+  maxAgeSeconds: 3600

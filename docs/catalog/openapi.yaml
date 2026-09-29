@@ -1,0 +1,3668 @@
+openapi: 3.1.0
+info:
+  title: catalog
+  version: 0.1.0
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+  description: |-
+    Gestiona el catálogo comercial —productos con sus imágenes, marcas y categorías—, lo expone filtrable al público de la tienda, lo sirve a otros servidores por contrato y publica las altas y cambios de producto como eventos.
+
+    Contrato HTTP derivado del diseño Keel. Tres superficies separadas por prefijo de ruta:
+
+    - `/admin/...` — gestión de la tienda: token de usuario con el permiso de la operación (roles `catalog-editor` y `catalog-admin`).
+    - `/products`, `/brands`, `/categories` — la tienda, pública y sin credencial: solo lo publicado, sin versión ni auditoría.
+    - `/internal/...` — otros servidores: credencial de máquina con el scope `product:read-internal`.
+
+    **Moneda única**: todo `price` va en la moneda del catálogo (parámetro de despliegue `currency`, ISO 4217 de 2 decimales); otra moneda responde `422 CURRENCY_NOT_SUPPORTED`. Un importe con más de 2 decimales se rechaza (`400`), no se redondea.
+
+    **Nulos**: un campo sin valor viaja como `null`; una colección vacía, como `[]`. Los instantes son ISO-8601 en UTC.
+
+    **Concurrencia**: los `PATCH` exigen `version` (la `lockVersion` leída); si no es la vigente responden `409 CONCURRENT_MODIFICATION`.
+
+    **Imágenes**: en las respuestas, `file` es la URL absoluta del objeto en el bucket público `productImages`.
+servers:
+- url: '{baseUrl}'
+  description: El host y el puerto son parámetro de despliegue, nunca dato de diseño.
+  variables:
+    baseUrl:
+      default: http://localhost:8080
+      description: Raíz del servicio desplegado.
+tags:
+- name: Marcas — gestión
+  description: Alta, edición y (des)activación de marcas; rol catalog-admin para escribir.
+- name: Categorías — gestión
+  description: Alta, edición y (des)activación de categorías planas; rol catalog-admin para escribir.
+- name: Productos — gestión
+  description: Ciclo de vida del producto en cualquier estado; catalog-editor edita y publica, catalog-admin retira.
+- name: Imágenes — gestión
+  description: Subida, orden, portada y baja de las imágenes de un producto (hasta 10).
+- name: Tienda (público)
+  description: 'Lo publicado, sin credencial: búsqueda filtrable, ficha y filtros de marcas y categorías.'
+- name: Servidor a servidor
+  description: Resolución de productos por id o por lote, en cualquier estado, con credencial de máquina.
+paths:
+  /api/v1/admin/brands:
+    post:
+      operationId: createBrand
+      summary: Da de alta una marca, activa desde el primer momento.
+      tags:
+      - Marcas — gestión
+      description: |-
+        - El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.
+        - La marca nace siempre activa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBrandRequest'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: 'Clave del intento, generada por el cliente. Se recuerda 24 h: un reintento con la misma clave
+          devuelve la respuesta original sin repetir el efecto. Sin ella: `400 IDEMPOTENCY_KEY_REQUIRED`.'
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+      responses:
+        '201':
+          description: Recurso creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+          headers:
+            Location:
+              description: Ruta de lectura del recurso creado (para una imagen, la ficha del producto).
+              schema:
+                type: string
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no
+            puede garantizar que un reintento no repita el efecto.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+                IDEMPOTENCY_KEY_REQUIRED:
+                  summary: 'La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
+                    que un reintento no repita el '
+                  value:
+                    status: 400
+                    code: IDEMPOTENCY_KEY_REQUIRED
+                    message: La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
+                      que un reintento no repita el efecto.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '409':
+          description: '`BRAND_NAME_ALREADY_EXISTS` — Ya existe una marca con ese nombre, sin distinguir mayúsculas
+            ni acentos.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma Idempotency-Key está en curso; reintentar
+            más tarde.
+
+            `IDEMPOTENCY_KEY_REUSED` — La Idempotency-Key ya se usó con un cuerpo distinto.
+
+            `CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y
+            reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                BRAND_NAME_ALREADY_EXISTS:
+                  summary: Ya existe una marca con ese nombre, sin distinguir mayúsculas ni acentos.
+                  value:
+                    status: 409
+                    code: BRAND_NAME_ALREADY_EXISTS
+                    message: Ya existe una marca con ese nombre, sin distinguir mayúsculas ni acentos.
+                IDEMPOTENCY_KEY_IN_PROGRESS:
+                  summary: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                  value:
+                    status: 409
+                    code: IDEMPOTENCY_KEY_IN_PROGRESS
+                    message: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                IDEMPOTENCY_KEY_REUSED:
+                  summary: La Idempotency-Key ya se usó con un cuerpo distinto.
+                  value:
+                    status: 409
+                    code: IDEMPOTENCY_KEY_REUSED
+                    message: La Idempotency-Key ya se usó con un cuerpo distinto.
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - taxonomy:write
+      x-keel-roles:
+      - catalog-admin
+      x-keel-idempotency:
+        keySource: client-key
+        ttlSeconds: 86400
+    get:
+      operationId: listBrands
+      summary: Lista las marcas para la gestión, activas e inactivas.
+      tags:
+      - Marcas — gestión
+      description: |-
+        - Los filtros son acumulativos; los ausentes no restringen.
+      parameters:
+      - name: active
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: name
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 80
+        description: Casa por `contains`, comparación `ignore-case-accents`.
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+        description: Página, base 0.
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 20
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedBrand'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - catalog:read
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+  /api/v1/admin/brands/{id}:
+    patch:
+      operationId: updateBrand
+      summary: Modifica el nombre o la descripción de una marca.
+      tags:
+      - Marcas — gestión
+      description: |-
+        - Solo se modifican los campos presentes en la petición; un campo ausente conserva su valor.
+        - description enviada a null se vacía; name enviado a null es una petición mal formada.
+        - El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.
+        - La version enviada tiene que ser la lockVersion actual; si no lo es, no se aplica nada.
+        - Se puede modificar una marca inactiva.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBrandRequest'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                BRAND_NOT_FOUND:
+                  summary: No existe una marca con ese id.
+                  value:
+                    status: 404
+                    code: BRAND_NOT_FOUND
+                    message: No existe una marca con ese id.
+        '409':
+          description: '`CONCURRENT_MODIFICATION` — La version enviada no es la lockVersion actual: otro cambio
+            se confirmó después de que el gestor leyera el recurso.
+
+            `BRAND_NAME_ALREADY_EXISTS` — Otra marca ya tiene ese nombre, sin distinguir mayúsculas ni acentos.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CONCURRENT_MODIFICATION:
+                  summary: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de que
+                    el gestor leyera el recurso.'
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de
+                      que el gestor leyera el recurso.'
+                BRAND_NAME_ALREADY_EXISTS:
+                  summary: Otra marca ya tiene ese nombre, sin distinguir mayúsculas ni acentos.
+                  value:
+                    status: 409
+                    code: BRAND_NAME_ALREADY_EXISTS
+                    message: Otra marca ya tiene ese nombre, sin distinguir mayúsculas ni acentos.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - taxonomy:write
+      x-keel-roles:
+      - catalog-admin
+    get:
+      operationId: getBrand
+      summary: Recupera una marca por su id para la gestión, activa o no.
+      tags:
+      - Marcas — gestión
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                BRAND_NOT_FOUND:
+                  summary: No existe una marca con ese id.
+                  value:
+                    status: 404
+                    code: BRAND_NOT_FOUND
+                    message: No existe una marca con ese id.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - catalog:read
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+  /api/v1/admin/brands/{id}/deactivate:
+    post:
+      operationId: deactivateBrand
+      summary: 'Desactiva una marca: deja de admitir productos nuevos y de ofrecerse como filtro al público.'
+      tags:
+      - Marcas — gestión
+      description: |-
+        - Desactivar una marca ya inactiva no es un error; se responde con la marca sin cambios.
+        - Los productos que ya pertenecen a la marca no cambian; siguen visibles si están publicados.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                BRAND_NOT_FOUND:
+                  summary: No existe una marca con ese id.
+                  value:
+                    status: 404
+                    code: BRAND_NOT_FOUND
+                    message: No existe una marca con ese id.
+        '409':
+          description: '`CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente
+            relee y reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - taxonomy:write
+      x-keel-roles:
+      - catalog-admin
+  /api/v1/admin/brands/{id}/reactivate:
+    post:
+      operationId: reactivateBrand
+      summary: Vuelve a activar una marca desactivada.
+      tags:
+      - Marcas — gestión
+      description: |-
+        - Reactivar una marca ya activa no es un error; se responde con la marca sin cambios.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                BRAND_NOT_FOUND:
+                  summary: No existe una marca con ese id.
+                  value:
+                    status: 404
+                    code: BRAND_NOT_FOUND
+                    message: No existe una marca con ese id.
+        '409':
+          description: '`CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente
+            relee y reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - taxonomy:write
+      x-keel-roles:
+      - catalog-admin
+  /api/v1/admin/categories:
+    post:
+      operationId: createCategory
+      summary: Da de alta una categoría, activa desde el primer momento.
+      tags:
+      - Categorías — gestión
+      description: |-
+        - El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.
+        - La categoría nace siempre activa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: 'Clave del intento, generada por el cliente. Se recuerda 24 h: un reintento con la misma clave
+          devuelve la respuesta original sin repetir el efecto. Sin ella: `400 IDEMPOTENCY_KEY_REQUIRED`.'
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+      responses:
+        '201':
+          description: Recurso creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          headers:
+            Location:
+              description: Ruta de lectura del recurso creado (para una imagen, la ficha del producto).
+              schema:
+                type: string
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no
+            puede garantizar que un reintento no repita el efecto.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+                IDEMPOTENCY_KEY_REQUIRED:
+                  summary: 'La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
+                    que un reintento no repita el '
+                  value:
+                    status: 400
+                    code: IDEMPOTENCY_KEY_REQUIRED
+                    message: La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
+                      que un reintento no repita el efecto.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '409':
+          description: '`CATEGORY_NAME_ALREADY_EXISTS` — Ya existe una categoría con ese nombre, sin distinguir
+            mayúsculas ni acentos.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma Idempotency-Key está en curso; reintentar
+            más tarde.
+
+            `IDEMPOTENCY_KEY_REUSED` — La Idempotency-Key ya se usó con un cuerpo distinto.
+
+            `CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y
+            reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CATEGORY_NAME_ALREADY_EXISTS:
+                  summary: Ya existe una categoría con ese nombre, sin distinguir mayúsculas ni acentos.
+                  value:
+                    status: 409
+                    code: CATEGORY_NAME_ALREADY_EXISTS
+                    message: Ya existe una categoría con ese nombre, sin distinguir mayúsculas ni acentos.
+                IDEMPOTENCY_KEY_IN_PROGRESS:
+                  summary: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                  value:
+                    status: 409
+                    code: IDEMPOTENCY_KEY_IN_PROGRESS
+                    message: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                IDEMPOTENCY_KEY_REUSED:
+                  summary: La Idempotency-Key ya se usó con un cuerpo distinto.
+                  value:
+                    status: 409
+                    code: IDEMPOTENCY_KEY_REUSED
+                    message: La Idempotency-Key ya se usó con un cuerpo distinto.
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - taxonomy:write
+      x-keel-roles:
+      - catalog-admin
+      x-keel-idempotency:
+        keySource: client-key
+        ttlSeconds: 86400
+    get:
+      operationId: listCategories
+      summary: Lista las categorías para la gestión, activas e inactivas.
+      tags:
+      - Categorías — gestión
+      description: |-
+        - Los filtros son acumulativos; los ausentes no restringen.
+      parameters:
+      - name: active
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: name
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 80
+        description: Casa por `contains`, comparación `ignore-case-accents`.
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+        description: Página, base 0.
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 20
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedCategory'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - catalog:read
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+  /api/v1/admin/categories/{id}:
+    patch:
+      operationId: updateCategory
+      summary: Modifica el nombre o la descripción de una categoría.
+      tags:
+      - Categorías — gestión
+      description: |-
+        - Solo se modifican los campos presentes en la petición; un campo ausente conserva su valor.
+        - description enviada a null se vacía; name enviado a null es una petición mal formada.
+        - El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.
+        - La version enviada tiene que ser la lockVersion actual; si no lo es, no se aplica nada.
+        - Se puede modificar una categoría inactiva.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CATEGORY_NOT_FOUND:
+                  summary: No existe una categoría con ese id.
+                  value:
+                    status: 404
+                    code: CATEGORY_NOT_FOUND
+                    message: No existe una categoría con ese id.
+        '409':
+          description: '`CONCURRENT_MODIFICATION` — La version enviada no es la lockVersion actual: otro cambio
+            se confirmó después de que el gestor leyera el recurso.
+
+            `CATEGORY_NAME_ALREADY_EXISTS` — Otra categoría ya tiene ese nombre, sin distinguir mayúsculas ni acentos.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CONCURRENT_MODIFICATION:
+                  summary: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de que
+                    el gestor leyera el recurso.'
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de
+                      que el gestor leyera el recurso.'
+                CATEGORY_NAME_ALREADY_EXISTS:
+                  summary: Otra categoría ya tiene ese nombre, sin distinguir mayúsculas ni acentos.
+                  value:
+                    status: 409
+                    code: CATEGORY_NAME_ALREADY_EXISTS
+                    message: Otra categoría ya tiene ese nombre, sin distinguir mayúsculas ni acentos.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - taxonomy:write
+      x-keel-roles:
+      - catalog-admin
+    get:
+      operationId: getCategory
+      summary: Recupera una categoría por su id para la gestión, activa o no.
+      tags:
+      - Categorías — gestión
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CATEGORY_NOT_FOUND:
+                  summary: No existe una categoría con ese id.
+                  value:
+                    status: 404
+                    code: CATEGORY_NOT_FOUND
+                    message: No existe una categoría con ese id.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - catalog:read
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+  /api/v1/admin/categories/{id}/deactivate:
+    post:
+      operationId: deactivateCategory
+      summary: 'Desactiva una categoría: deja de admitir productos nuevos y de ofrecerse como filtro al público.'
+      tags:
+      - Categorías — gestión
+      description: |-
+        - Desactivar una categoría ya inactiva no es un error; se responde con la categoría sin cambios.
+        - Los productos que ya pertenecen a la categoría no cambian; siguen visibles si están publicados.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CATEGORY_NOT_FOUND:
+                  summary: No existe una categoría con ese id.
+                  value:
+                    status: 404
+                    code: CATEGORY_NOT_FOUND
+                    message: No existe una categoría con ese id.
+        '409':
+          description: '`CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente
+            relee y reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - taxonomy:write
+      x-keel-roles:
+      - catalog-admin
+  /api/v1/admin/categories/{id}/reactivate:
+    post:
+      operationId: reactivateCategory
+      summary: Vuelve a activar una categoría desactivada.
+      tags:
+      - Categorías — gestión
+      description: |-
+        - Reactivar una categoría ya activa no es un error; se responde con la categoría sin cambios.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CATEGORY_NOT_FOUND:
+                  summary: No existe una categoría con ese id.
+                  value:
+                    status: 404
+                    code: CATEGORY_NOT_FOUND
+                    message: No existe una categoría con ese id.
+        '409':
+          description: '`CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente
+            relee y reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - taxonomy:write
+      x-keel-roles:
+      - catalog-admin
+  /api/v1/admin/products:
+    post:
+      operationId: createProduct
+      summary: Da de alta un producto en estado draft, sin imágenes todavía.
+      tags:
+      - Productos — gestión
+      description: |-
+        - El sku se admite en mayúsculas o minúsculas y se normaliza a mayúsculas antes de comprobar su unicidad; se guarda y se devuelve siempre en mayúsculas.
+        - El name se recorta de espacios al principio y al final antes de validar.
+        - El producto nace siempre en estado draft, sin imágenes y con firstPublishedAt a null.
+        - Un price.amount igual a cero se admite en draft; solo impide publicar.
+
+        **Eventos emitidos**: `ProductCreated` (ver `asyncapi.yaml`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: 'Clave del intento, generada por el cliente. Se recuerda 24 h: un reintento con la misma clave
+          devuelve la respuesta original sin repetir el efecto. Sin ella: `400 IDEMPOTENCY_KEY_REQUIRED`.'
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+      responses:
+        '201':
+          description: Recurso creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          headers:
+            Location:
+              description: Ruta de lectura del recurso creado (para una imagen, la ficha del producto).
+              schema:
+                type: string
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no
+            puede garantizar que un reintento no repita el efecto.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+                IDEMPOTENCY_KEY_REQUIRED:
+                  summary: 'La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
+                    que un reintento no repita el '
+                  value:
+                    status: 400
+                    code: IDEMPOTENCY_KEY_REQUIRED
+                    message: La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
+                      que un reintento no repita el efecto.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '409':
+          description: '`PRODUCT_SKU_ALREADY_EXISTS` — Ya existe un producto con ese sku.
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma Idempotency-Key está en curso; reintentar
+            más tarde.
+
+            `IDEMPOTENCY_KEY_REUSED` — La Idempotency-Key ya se usó con un cuerpo distinto.
+
+            `CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y
+            reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_SKU_ALREADY_EXISTS:
+                  summary: Ya existe un producto con ese sku.
+                  value:
+                    status: 409
+                    code: PRODUCT_SKU_ALREADY_EXISTS
+                    message: Ya existe un producto con ese sku.
+                IDEMPOTENCY_KEY_IN_PROGRESS:
+                  summary: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                  value:
+                    status: 409
+                    code: IDEMPOTENCY_KEY_IN_PROGRESS
+                    message: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                IDEMPOTENCY_KEY_REUSED:
+                  summary: La Idempotency-Key ya se usó con un cuerpo distinto.
+                  value:
+                    status: 409
+                    code: IDEMPOTENCY_KEY_REUSED
+                    message: La Idempotency-Key ya se usó con un cuerpo distinto.
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+        '422':
+          description: '`CURRENCY_NOT_SUPPORTED` — La currency del price no es la moneda del catálogo; el servicio
+            opera en una sola moneda y no convierte.
+
+            `BRAND_REFERENCE_NOT_FOUND` — El brandId indicado no existe. Es distinto de BRAND_NOT_FOUND: aquí la
+            marca es un dato de la petición, no el recurso pedido.
+
+            `BRAND_INACTIVE` — La marca indicada está inactiva y no admite productos nuevos.
+
+            `CATEGORY_REFERENCE_NOT_FOUND` — El categoryId indicado no existe. Es distinto de CATEGORY_NOT_FOUND:
+            aquí la categoría es un dato de la petición, no el recurso pedido.
+
+            `CATEGORY_INACTIVE` — La categoría indicada está inactiva y no admite productos nuevos.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CURRENCY_NOT_SUPPORTED:
+                  summary: La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda
+                    y no convierte.
+                  value:
+                    status: 422
+                    code: CURRENCY_NOT_SUPPORTED
+                    message: La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda
+                      y no convierte.
+                BRAND_REFERENCE_NOT_FOUND:
+                  summary: 'El brandId indicado no existe. Es distinto de BRAND_NOT_FOUND: aquí la marca es un dato
+                    de la petición, no el recurso pe'
+                  value:
+                    status: 422
+                    code: BRAND_REFERENCE_NOT_FOUND
+                    message: 'El brandId indicado no existe. Es distinto de BRAND_NOT_FOUND: aquí la marca es un
+                      dato de la petición, no el recurso pedido.'
+                BRAND_INACTIVE:
+                  summary: La marca indicada está inactiva y no admite productos nuevos.
+                  value:
+                    status: 422
+                    code: BRAND_INACTIVE
+                    message: La marca indicada está inactiva y no admite productos nuevos.
+                CATEGORY_REFERENCE_NOT_FOUND:
+                  summary: 'El categoryId indicado no existe. Es distinto de CATEGORY_NOT_FOUND: aquí la categoría
+                    es un dato de la petición, no el '
+                  value:
+                    status: 422
+                    code: CATEGORY_REFERENCE_NOT_FOUND
+                    message: 'El categoryId indicado no existe. Es distinto de CATEGORY_NOT_FOUND: aquí la categoría
+                      es un dato de la petición, no el recurso pedido.'
+                CATEGORY_INACTIVE:
+                  summary: La categoría indicada está inactiva y no admite productos nuevos.
+                  value:
+                    status: 422
+                    code: CATEGORY_INACTIVE
+                    message: La categoría indicada está inactiva y no admite productos nuevos.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - product:write
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+      x-keel-idempotency:
+        keySource: client-key
+        ttlSeconds: 86400
+    get:
+      operationId: searchProducts
+      summary: Lista los productos para la gestión, en cualquier estado, con los filtros de la tienda más el filtro
+        por estado.
+      tags:
+      - Productos — gestión
+      description: |-
+        - Los filtros son acumulativos; los ausentes no restringen.
+        - Un categoryId o brandId que no existe no es un error; la página vuelve vacía.
+        - El rango de precio se aplica sobre price.amount, con ambos extremos incluidos.
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/ProductStatus'
+      - name: sku
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: Casa por `prefix`, comparación `ignore-case`.
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: brandId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: name
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 160
+        description: Casa por `contains`, comparación `ignore-case-accents`.
+      - name: minPrice
+        in: query
+        required: false
+        schema:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+      - name: maxPrice
+        in: query
+        required: false
+        schema:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+        description: Página, base 0.
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 20
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedProduct'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.
+
+            `INVALID_PRICE_RANGE` — minPrice es mayor que maxPrice.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+                INVALID_PRICE_RANGE:
+                  summary: minPrice es mayor que maxPrice.
+                  value:
+                    status: 400
+                    code: INVALID_PRICE_RANGE
+                    message: minPrice es mayor que maxPrice.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - catalog:read
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+  /api/v1/admin/products/{id}:
+    patch:
+      operationId: updateProduct
+      summary: 'Modifica los datos comerciales de un producto: nombre, descripción, precio, marca, categoría y,
+        si nunca se publicó, su sku.'
+      tags:
+      - Productos — gestión
+      description: |-
+        - Solo se modifican los campos presentes en la petición; un campo ausente conserva su valor.
+        - description enviada a null se vacía; sku, name, price, brandId o categoryId enviados a null son una petición mal formada.
+        - BRAND_INACTIVE y CATEGORY_INACTIVE solo se comprueban cuando la petición asigna una marca o una categoría distinta de la actual; reenviar la que ya tiene no falla aunque esté inactiva.
+        - Si ningún valor cambia, se responde con la ficha sin publicar ProductUpdated.
+        - La version enviada tiene que ser la lockVersion actual; si no lo es, no se aplica nada.
+        - El name se recorta de espacios al principio y al final antes de validar.
+        - El sku solo se puede cambiar mientras firstPublishedAt es null (el producto nunca se publicó); se normaliza a mayúsculas antes de comprobar su unicidad. Reenviar el sku que ya tiene no es un cambio y no falla aunque el producto se haya publicado.
+
+        **Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: No existe un producto con ese id.
+                  value:
+                    status: 404
+                    code: PRODUCT_NOT_FOUND
+                    message: No existe un producto con ese id.
+        '409':
+          description: '`PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
+
+            `CONCURRENT_MODIFICATION` — La version enviada no es la lockVersion actual: otro cambio se confirmó
+            después de que el gestor leyera el recurso.
+
+            `PRODUCT_SKU_IMMUTABLE` — Se pide un sku distinto del actual y el producto ya se publicó alguna vez;
+            desde entonces es la referencia estable con la que otros servidores lo conocen.
+
+            `PRODUCT_SKU_ALREADY_EXISTS` — Otro producto ya tiene el sku pedido.
+
+            `PRODUCT_PRICE_NOT_POSITIVE` — El producto está publicado y el nuevo price.amount no es mayor que cero.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_RETIRED:
+                  summary: El producto está retirado y ya no admite cambios.
+                  value:
+                    status: 409
+                    code: PRODUCT_RETIRED
+                    message: El producto está retirado y ya no admite cambios.
+                CONCURRENT_MODIFICATION:
+                  summary: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de que
+                    el gestor leyera el recurso.'
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de
+                      que el gestor leyera el recurso.'
+                PRODUCT_SKU_IMMUTABLE:
+                  summary: Se pide un sku distinto del actual y el producto ya se publicó alguna vez; desde entonces
+                    es la referencia estable con l
+                  value:
+                    status: 409
+                    code: PRODUCT_SKU_IMMUTABLE
+                    message: Se pide un sku distinto del actual y el producto ya se publicó alguna vez; desde entonces
+                      es la referencia estable con la que otros servidores lo conocen.
+                PRODUCT_SKU_ALREADY_EXISTS:
+                  summary: Otro producto ya tiene el sku pedido.
+                  value:
+                    status: 409
+                    code: PRODUCT_SKU_ALREADY_EXISTS
+                    message: Otro producto ya tiene el sku pedido.
+                PRODUCT_PRICE_NOT_POSITIVE:
+                  summary: El producto está publicado y el nuevo price.amount no es mayor que cero.
+                  value:
+                    status: 409
+                    code: PRODUCT_PRICE_NOT_POSITIVE
+                    message: El producto está publicado y el nuevo price.amount no es mayor que cero.
+        '422':
+          description: '`CURRENCY_NOT_SUPPORTED` — La currency del price no es la moneda del catálogo; el servicio
+            opera en una sola moneda y no convierte.
+
+            `BRAND_REFERENCE_NOT_FOUND` — El brandId indicado no existe.
+
+            `BRAND_INACTIVE` — Se asigna una marca distinta de la actual y está inactiva.
+
+            `CATEGORY_REFERENCE_NOT_FOUND` — El categoryId indicado no existe.
+
+            `CATEGORY_INACTIVE` — Se asigna una categoría distinta de la actual y está inactiva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                CURRENCY_NOT_SUPPORTED:
+                  summary: La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda
+                    y no convierte.
+                  value:
+                    status: 422
+                    code: CURRENCY_NOT_SUPPORTED
+                    message: La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda
+                      y no convierte.
+                BRAND_REFERENCE_NOT_FOUND:
+                  summary: El brandId indicado no existe.
+                  value:
+                    status: 422
+                    code: BRAND_REFERENCE_NOT_FOUND
+                    message: El brandId indicado no existe.
+                BRAND_INACTIVE:
+                  summary: Se asigna una marca distinta de la actual y está inactiva.
+                  value:
+                    status: 422
+                    code: BRAND_INACTIVE
+                    message: Se asigna una marca distinta de la actual y está inactiva.
+                CATEGORY_REFERENCE_NOT_FOUND:
+                  summary: El categoryId indicado no existe.
+                  value:
+                    status: 422
+                    code: CATEGORY_REFERENCE_NOT_FOUND
+                    message: El categoryId indicado no existe.
+                CATEGORY_INACTIVE:
+                  summary: Se asigna una categoría distinta de la actual y está inactiva.
+                  value:
+                    status: 422
+                    code: CATEGORY_INACTIVE
+                    message: Se asigna una categoría distinta de la actual y está inactiva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - product:write
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+    get:
+      operationId: getProduct
+      summary: Recupera un producto por su id para la gestión, en cualquier estado.
+      tags:
+      - Productos — gestión
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: No existe un producto con ese id.
+                  value:
+                    status: 404
+                    code: PRODUCT_NOT_FOUND
+                    message: No existe un producto con ese id.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - catalog:read
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+  /api/v1/admin/products/{id}/publish:
+    post:
+      operationId: publishProduct
+      summary: 'Publica un producto en borrador: pasa a active y aparece en la tienda.'
+      tags:
+      - Productos — gestión
+      description: |-
+        - **Precondición**: El producto está en draft.
+        - **Precondición**: El producto tiene al menos una imagen.
+        - **Precondición**: El price.amount del producto es mayor que cero.
+        - La petición no lleva cuerpo.
+        - La primera publicación fija firstPublishedAt; las siguientes lo conservan.
+        - Que la marca o la categoría del producto estén inactivas no impide publicarlo; la desactivación solo impide asignarlas a otro producto.
+
+        **Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).
+
+        **Transición**: `Product` draft → active.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: No existe un producto con ese id.
+                  value:
+                    status: 404
+                    code: PRODUCT_NOT_FOUND
+                    message: No existe un producto con ese id.
+        '409':
+          description: '`INVALID_STATE_TRANSITION` — El producto no está en draft (ya está active, o está retired).
+
+            `PRODUCT_HAS_NO_IMAGES` — El producto no tiene ninguna imagen y no puede publicarse.
+
+            `PRODUCT_PRICE_NOT_POSITIVE` — El precio que ya tiene el producto no es mayor que cero, así que no puede
+            publicarse.
+
+            `CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y
+            reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                INVALID_STATE_TRANSITION:
+                  summary: El producto no está en draft (ya está active, o está retired).
+                  value:
+                    status: 409
+                    code: INVALID_STATE_TRANSITION
+                    message: El producto no está en draft (ya está active, o está retired).
+                PRODUCT_HAS_NO_IMAGES:
+                  summary: El producto no tiene ninguna imagen y no puede publicarse.
+                  value:
+                    status: 409
+                    code: PRODUCT_HAS_NO_IMAGES
+                    message: El producto no tiene ninguna imagen y no puede publicarse.
+                PRODUCT_PRICE_NOT_POSITIVE:
+                  summary: El precio que ya tiene el producto no es mayor que cero, así que no puede publicarse.
+                  value:
+                    status: 409
+                    code: PRODUCT_PRICE_NOT_POSITIVE
+                    message: El precio que ya tiene el producto no es mayor que cero, así que no puede publicarse.
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - product:write
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+  /api/v1/admin/products/{id}/unpublish:
+    post:
+      operationId: unpublishProduct
+      summary: Saca un producto de la tienda devolviéndolo a borrador para corregirlo.
+      tags:
+      - Productos — gestión
+      description: |-
+        - La petición no lleva cuerpo.
+
+        **Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).
+
+        **Transición**: `Product` active → draft.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: No existe un producto con ese id.
+                  value:
+                    status: 404
+                    code: PRODUCT_NOT_FOUND
+                    message: No existe un producto con ese id.
+        '409':
+          description: '`INVALID_STATE_TRANSITION` — El producto no está active (está en draft o retired).
+
+            `CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y
+            reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                INVALID_STATE_TRANSITION:
+                  summary: El producto no está active (está en draft o retired).
+                  value:
+                    status: 409
+                    code: INVALID_STATE_TRANSITION
+                    message: El producto no está active (está en draft o retired).
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - product:write
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+  /api/v1/admin/products/{id}/retire:
+    post:
+      operationId: retireProduct
+      summary: 'Retira definitivamente un producto del catálogo. Es un estado terminal: no vuelve.'
+      tags:
+      - Productos — gestión
+      description: |-
+        - El producto retirado conserva todos sus datos e imágenes; sigue siendo resoluble por los servidores que lo consumen.
+        - La petición no lleva cuerpo.
+
+        **Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).
+
+        **Transición**: `Product` draft, active → retired.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: No existe un producto con ese id.
+                  value:
+                    status: 404
+                    code: PRODUCT_NOT_FOUND
+                    message: No existe un producto con ese id.
+        '409':
+          description: '`INVALID_STATE_TRANSITION` — El producto ya está retired.
+
+            `CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y
+            reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                INVALID_STATE_TRANSITION:
+                  summary: El producto ya está retired.
+                  value:
+                    status: 409
+                    code: INVALID_STATE_TRANSITION
+                    message: El producto ya está retired.
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - product:retire
+      x-keel-roles:
+      - catalog-admin
+  /api/v1/admin/products/{productId}/images:
+    post:
+      operationId: addProductImage
+      summary: Sube una imagen y la añade a la ficha de un producto.
+      tags:
+      - Imágenes — gestión
+      description: |-
+        - El tamaño y el formato del archivo se comprueban antes que el producto; un archivo rechazado nunca llega a mirar el estado del producto.
+        - La imagen se añade al final, en la position siguiente a la última ocupada; es la imagen nueva la que queda en la última position de la ficha devuelta.
+        - Añadir una imagen sube la lockVersion del producto; dos altas simultáneas sobre el mismo producto no pueden repetir position ni superar el tope de 10, y la que pierde responde CONCURRENT_MODIFICATION.
+        - La primera imagen de un producto queda siempre marcada como principal, se pida o no.
+        - Si se pide main, la imagen que fuera principal hasta entonces deja de serlo.
+        - El formato se comprueba por el contenido del binario (su firma), no solo por el tipo declarado en la petición.
+        - El binario se guarda antes de confirmar la imagen; si la confirmación falla, el binario queda sin referencia y nunca hay una imagen que apunte a un archivo inexistente.
+
+        **Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AddProductImageRequest'
+      parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: 'Clave del intento, generada por el cliente. Se recuerda 24 h: un reintento con la misma clave
+          devuelve la respuesta original sin repetir el efecto. Sin ella: `400 IDEMPOTENCY_KEY_REQUIRED`.'
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+      responses:
+        '201':
+          description: Recurso creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          headers:
+            Location:
+              description: Ruta de lectura del recurso creado (para una imagen, la ficha del producto).
+              schema:
+                type: string
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.
+
+            `IDEMPOTENCY_KEY_REQUIRED` — La petición no trae la cabecera Idempotency-Key; sin ella el servicio no
+            puede garantizar que un reintento no repita el efecto.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+                IDEMPOTENCY_KEY_REQUIRED:
+                  summary: 'La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
+                    que un reintento no repita el '
+                  value:
+                    status: 400
+                    code: IDEMPOTENCY_KEY_REQUIRED
+                    message: La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
+                      que un reintento no repita el efecto.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: No existe un producto con ese id.
+                  value:
+                    status: 404
+                    code: PRODUCT_NOT_FOUND
+                    message: No existe un producto con ese id.
+        '409':
+          description: '`PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
+
+            `IMAGE_LIMIT_REACHED` — El producto ya tiene 10 imágenes.
+
+            `CONCURRENT_MODIFICATION` — Otra escritura sobre el mismo producto se confirmó durante el alta (p. ej.
+            otra imagen subida a la vez).
+
+            `IDEMPOTENCY_KEY_IN_PROGRESS` — Otra petición con la misma Idempotency-Key está en curso; reintentar
+            más tarde.
+
+            `IDEMPOTENCY_KEY_REUSED` — La Idempotency-Key ya se usó con un cuerpo distinto.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_RETIRED:
+                  summary: El producto está retirado y ya no admite cambios.
+                  value:
+                    status: 409
+                    code: PRODUCT_RETIRED
+                    message: El producto está retirado y ya no admite cambios.
+                IMAGE_LIMIT_REACHED:
+                  summary: El producto ya tiene 10 imágenes.
+                  value:
+                    status: 409
+                    code: IMAGE_LIMIT_REACHED
+                    message: El producto ya tiene 10 imágenes.
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre el mismo producto se confirmó durante el alta (p. ej. otra imagen
+                    subida a la vez).
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre el mismo producto se confirmó durante el alta (p. ej. otra imagen
+                      subida a la vez).
+                IDEMPOTENCY_KEY_IN_PROGRESS:
+                  summary: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                  value:
+                    status: 409
+                    code: IDEMPOTENCY_KEY_IN_PROGRESS
+                    message: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                IDEMPOTENCY_KEY_REUSED:
+                  summary: La Idempotency-Key ya se usó con un cuerpo distinto.
+                  value:
+                    status: 409
+                    code: IDEMPOTENCY_KEY_REUSED
+                    message: La Idempotency-Key ya se usó con un cuerpo distinto.
+        '413':
+          description: '`FILE_TOO_LARGE` — La imagen supera el tamaño máximo admitido por el bucket.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                FILE_TOO_LARGE:
+                  summary: La imagen supera el tamaño máximo admitido por el bucket.
+                  value:
+                    status: 413
+                    code: FILE_TOO_LARGE
+                    message: La imagen supera el tamaño máximo admitido por el bucket.
+        '415':
+          description: '`UNSUPPORTED_CONTENT_TYPE` — El formato de la imagen no está entre los admitidos, o el contenido
+            del archivo no coincide con el tipo declarado.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNSUPPORTED_CONTENT_TYPE:
+                  summary: El formato de la imagen no está entre los admitidos, o el contenido del archivo no coincide
+                    con el tipo declarado.
+                  value:
+                    status: 415
+                    code: UNSUPPORTED_CONTENT_TYPE
+                    message: El formato de la imagen no está entre los admitidos, o el contenido del archivo no
+                      coincide con el tipo declarado.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - product:write
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+      x-keel-idempotency:
+        keySource: client-key
+        ttlSeconds: 86400
+  /api/v1/admin/products/{productId}/images/{imageId}:
+    patch:
+      operationId: updateProductImage
+      summary: Cambia el texto alternativo, la posición o la condición de principal de una imagen.
+      tags:
+      - Imágenes — gestión
+      description: |-
+        - Solo se modifican los campos presentes en la petición; altText enviado a null se vacía.
+        - La version enviada tiene que ser la lockVersion actual del producto; si no lo es, no se aplica nada.
+        - Si ningún valor cambia, se responde con la ficha sin publicar ProductUpdated.
+        - Al fijar una position, las demás imágenes se desplazan para que las posiciones queden consecutivas desde 0 y sin huecos; una position mayor que la última ocupada coloca la imagen al final.
+        - main a true convierte la imagen en principal y la que lo era deja de serlo.
+
+        **Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductImageRequest'
+      parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: imageId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.
+
+            `IMAGE_NOT_FOUND` — El producto no tiene ninguna imagen con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: No existe un producto con ese id.
+                  value:
+                    status: 404
+                    code: PRODUCT_NOT_FOUND
+                    message: No existe un producto con ese id.
+                IMAGE_NOT_FOUND:
+                  summary: El producto no tiene ninguna imagen con ese id.
+                  value:
+                    status: 404
+                    code: IMAGE_NOT_FOUND
+                    message: El producto no tiene ninguna imagen con ese id.
+        '409':
+          description: '`PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
+
+            `CONCURRENT_MODIFICATION` — La version enviada no es la lockVersion actual: otro cambio se confirmó
+            después de que el gestor leyera el recurso.
+
+            `MAIN_IMAGE_REQUIRED` — Se pide main a false sobre la imagen principal; siempre tiene que haber una,
+            así que se cambia marcando otra como principal.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_RETIRED:
+                  summary: El producto está retirado y ya no admite cambios.
+                  value:
+                    status: 409
+                    code: PRODUCT_RETIRED
+                    message: El producto está retirado y ya no admite cambios.
+                CONCURRENT_MODIFICATION:
+                  summary: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de que
+                    el gestor leyera el recurso.'
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de
+                      que el gestor leyera el recurso.'
+                MAIN_IMAGE_REQUIRED:
+                  summary: Se pide main a false sobre la imagen principal; siempre tiene que haber una, así que
+                    se cambia marcando otra como princi
+                  value:
+                    status: 409
+                    code: MAIN_IMAGE_REQUIRED
+                    message: Se pide main a false sobre la imagen principal; siempre tiene que haber una, así que
+                      se cambia marcando otra como principal.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - product:write
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+    delete:
+      operationId: removeProductImage
+      summary: Quita una imagen de la ficha de un producto.
+      tags:
+      - Imágenes — gestión
+      description: |-
+        - Las imágenes restantes se renumeran para que las posiciones queden consecutivas desde 0.
+        - Si la imagen quitada era la principal, pasa a serlo la que queda en position 0.
+        - El binario se borra del bucket después de confirmar la baja; si ese borrado falla, queda un binario huérfano, nunca una imagen sin binario.
+
+        **Eventos emitidos**: `ProductUpdated` (ver `asyncapi.yaml`).
+      parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: imageId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido.
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido.
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.
+
+            `IMAGE_NOT_FOUND` — El producto no tiene ninguna imagen con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: No existe un producto con ese id.
+                  value:
+                    status: 404
+                    code: PRODUCT_NOT_FOUND
+                    message: No existe un producto con ese id.
+                IMAGE_NOT_FOUND:
+                  summary: El producto no tiene ninguna imagen con ese id.
+                  value:
+                    status: 404
+                    code: IMAGE_NOT_FOUND
+                    message: El producto no tiene ninguna imagen con ese id.
+        '409':
+          description: '`PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
+
+            `LAST_IMAGE_OF_PUBLISHED_PRODUCT` — El producto está publicado y es su única imagen; un producto publicado
+            tiene al menos una.
+
+            `CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y
+            reintenta con la versión nueva.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_RETIRED:
+                  summary: El producto está retirado y ya no admite cambios.
+                  value:
+                    status: 409
+                    code: PRODUCT_RETIRED
+                    message: El producto está retirado y ya no admite cambios.
+                LAST_IMAGE_OF_PUBLISHED_PRODUCT:
+                  summary: El producto está publicado y es su única imagen; un producto publicado tiene al menos
+                    una.
+                  value:
+                    status: 409
+                    code: LAST_IMAGE_OF_PUBLISHED_PRODUCT
+                    message: El producto está publicado y es su única imagen; un producto publicado tiene al menos
+                      una.
+                CONCURRENT_MODIFICATION:
+                  summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
+                    la versión nueva.
+                  value:
+                    status: 409
+                    code: CONCURRENT_MODIFICATION
+                    message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
+                      con la versión nueva.
+      security:
+      - userAuth: []
+      x-keel-permissions:
+      - product:write
+      x-keel-roles:
+      - catalog-admin
+      - catalog-editor
+  /api/v1/products:
+    get:
+      operationId: searchPublishedProducts
+      summary: Busca productos publicados en la tienda, filtrando por categoría, marca, nombre y rango de precio.
+      tags:
+      - Tienda (público)
+      description: |-
+        - Solo devuelve productos en estado active.
+        - Los filtros son acumulativos; los ausentes no restringen.
+        - Un categoryId o brandId que no existe, o que está inactivo, no es un error; se aplica igual.
+        - El rango de precio se aplica sobre price.amount, con ambos extremos incluidos; los importes están en la moneda del catálogo.
+      parameters:
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: brandId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: name
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 160
+        description: Casa por `contains`, comparación `ignore-case-accents`.
+      - name: minPrice
+        in: query
+        required: false
+        schema:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+      - name: maxPrice
+        in: query
+        required: false
+        schema:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+        description: Página, base 0.
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 20
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedProductPublic'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.
+
+            `INVALID_PRICE_RANGE` — minPrice es mayor que maxPrice.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+                INVALID_PRICE_RANGE:
+                  summary: minPrice es mayor que maxPrice.
+                  value:
+                    status: 400
+                    code: INVALID_PRICE_RANGE
+                    message: minPrice es mayor que maxPrice.
+      security: []
+  /api/v1/products/{id}:
+    get:
+      operationId: getPublishedProduct
+      summary: Recupera la ficha pública de un producto publicado.
+      tags:
+      - Tienda (público)
+      description: |-
+        - Un producto en draft o retired responde igual que uno inexistente, para no revelar lo que no está publicado.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPublic'
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto publicado con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: No existe un producto publicado con ese id.
+                  value:
+                    status: 404
+                    code: PRODUCT_NOT_FOUND
+                    message: No existe un producto publicado con ese id.
+      security: []
+  /api/v1/brands:
+    get:
+      operationId: listPublicBrands
+      summary: Lista las marcas activas, para ofrecerlas como filtro en la tienda.
+      tags:
+      - Tienda (público)
+      description: |-
+        - Solo devuelve marcas activas.
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandPublicList'
+      security: []
+  /api/v1/categories:
+    get:
+      operationId: listPublicCategories
+      summary: Lista las categorías activas, para ofrecerlas como filtro en la tienda.
+      tags:
+      - Tienda (público)
+      description: |-
+        - Solo devuelve categorías activas.
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryPublicList'
+      security: []
+  /api/v1/internal/products/{id}:
+    get:
+      operationId: getProductForServices
+      summary: Resuelve un producto por su id para otro servidor, en cualquier estado.
+      tags:
+      - Servidor a servidor
+      description: |-
+        - Devuelve el producto en cualquier estado; el status viaja en la respuesta y el consumidor decide qué hacer con él.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductForServices'
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido (o es un token emitido
+            para otra audiencia).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido (o es un token emitido para otra audiencia).
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido (o es un token emitido para otra
+                      audiencia).
+        '404':
+          description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: No existe un producto con ese id.
+                  value:
+                    status: 404
+                    code: PRODUCT_NOT_FOUND
+                    message: No existe un producto con ese id.
+      security:
+      - serviceAuth: &id001
+        - product:read-internal
+      x-keel-scopes: *id001
+      x-keel-audience: services
+  /api/v1/internal/products/batch:
+    post:
+      operationId: getProductsBatch
+      summary: Resuelve varios productos por sus ids en una sola llamada, para otro servidor.
+      tags:
+      - Servidor a servidor
+      description: |-
+        - Devuelve los productos en cualquier estado.
+        - Los ids que no existen se omiten del resultado sin error; el consumidor casa cada producto por su id, no por su posición.
+        - Un id repetido en la petición aparece una sola vez en el resultado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetProductsBatchRequest'
+      responses:
+        '200':
+          description: Operación completada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductForServicesList'
+        '400':
+          description: '`VALIDATION_ERROR` — La petición no cumple las cotas declaradas del input.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                VALIDATION_ERROR:
+                  summary: La petición no cumple las cotas declaradas del input.
+                  value:
+                    status: 400
+                    code: VALIDATION_ERROR
+                    message: La petición no cumple las cotas declaradas del input.
+        '401':
+          description: '`UNAUTHENTICATED` — Sin credencial válida.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                UNAUTHENTICATED:
+                  summary: Sin credencial válida.
+                  value:
+                    status: 401
+                    code: UNAUTHENTICATED
+                    message: Sin credencial válida.
+        '403':
+          description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido (o es un token emitido
+            para otra audiencia).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ACCESS_DENIED:
+                  summary: La credencial no tiene el permiso o scope exigido (o es un token emitido para otra audiencia).
+                  value:
+                    status: 403
+                    code: ACCESS_DENIED
+                    message: La credencial no tiene el permiso o scope exigido (o es un token emitido para otra
+                      audiencia).
+      security:
+      - serviceAuth: &id002
+        - product:read-internal
+      x-keel-scopes: *id002
+      x-keel-audience: services
+components:
+  securitySchemes:
+    userAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de usuario (OIDC) del proveedor de identidad del despliegue. El permiso exigido por cada
+        operación está en `x-keel-permissions`; los roles que lo conceden, en `x-keel-roles`.
+    serviceAuth:
+      type: oauth2
+      description: Credencial de máquina (OAuth2 client credentials). El `tokenUrl` real es parámetro de despliegue;
+        se valida la audiencia `catalog`, así que un token emitido para otro servicio responde 403.
+      flows:
+        clientCredentials:
+          tokenUrl: https://identity.invalid/oauth2/token
+          scopes:
+            product:read-internal: Resolver productos por id o por lote desde otro servidor, en cualquier estado.
+  schemas:
+    SKU:
+      type: string
+      pattern: ^[A-Z0-9][A-Z0-9_-]{1,31}$
+      description: Referencia comercial única del producto, la que comparten el catálogo y los servidores que lo
+        consumen.
+    Money:
+      type: object
+      required:
+      - amount
+      - currency
+      properties:
+        amount:
+          type: number
+          minimum: 0
+          multipleOf: 0.01
+          description: Importe.
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          description: Moneda del importe en ISO 4217.
+      description: 'Importe con su moneda. El servicio no convierte divisas: todo precio va en la moneda del catálogo.'
+    ProductStatus:
+      type: string
+      enum:
+      - draft
+      - active
+      - retired
+      description: Situación comercial del producto.
+    Brand:
+      type: object
+      required:
+      - id
+      - name
+      - description
+      - active
+      - lockVersion
+      - createdAt
+      - updatedAt
+      - createdBy
+      - updatedBy
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Nombre comercial de la marca.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Texto libre sobre la marca, visible en la tienda.
+        active:
+          type: boolean
+          description: Una marca inactiva no admite productos nuevos ni se ofrece como filtro al público. Nunca
+            se borra.
+        lockVersion:
+          type: integer
+          format: int32
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedBy:
+          type: string
+      description: Marca, proyección de gestión (con versión y auditoría).
+    BrandPublic:
+      type: object
+      required:
+      - id
+      - name
+      - description
+      - active
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Nombre comercial de la marca.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Texto libre sobre la marca, visible en la tienda.
+        active:
+          type: boolean
+          description: Una marca inactiva no admite productos nuevos ni se ofrece como filtro al público. Nunca
+            se borra.
+      description: Marca, proyección pública y M2M (sin versión ni auditoría).
+    Category:
+      type: object
+      required:
+      - id
+      - name
+      - description
+      - active
+      - lockVersion
+      - createdAt
+      - updatedAt
+      - createdBy
+      - updatedBy
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Nombre de la categoría.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Texto libre sobre la categoría, visible en la tienda.
+        active:
+          type: boolean
+          description: Una categoría inactiva no admite productos nuevos ni se ofrece como filtro al público. Nunca
+            se borra.
+        lockVersion:
+          type: integer
+          format: int32
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedBy:
+          type: string
+      description: Categoría, proyección de gestión (con versión y auditoría).
+    CategoryPublic:
+      type: object
+      required:
+      - id
+      - name
+      - description
+      - active
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Nombre de la categoría.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+          description: Texto libre sobre la categoría, visible en la tienda.
+        active:
+          type: boolean
+          description: Una categoría inactiva no admite productos nuevos ni se ofrece como filtro al público. Nunca
+            se borra.
+      description: Categoría, proyección pública y M2M (sin versión ni auditoría).
+    ProductImage:
+      type: object
+      required:
+      - id
+      - file
+      - altText
+      - position
+      - main
+      - productId
+      properties:
+        id:
+          type: string
+          format: uuid
+        file:
+          type: string
+          format: uri
+          description: URL absoluta del objeto en el bucket público `productImages`.
+        altText:
+          type:
+          - string
+          - 'null'
+          maxLength: 160
+          description: Texto alternativo para accesibilidad y SEO.
+        position:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 9
+          description: Orden de visualización dentro de la ficha, empezando en 0.
+        main:
+          type: boolean
+          description: Imagen principal (portada) del producto.
+        productId:
+          type: string
+          format: uuid
+          description: Id del producto al que pertenece la imagen (el DTO de una entidad hija lleva siempre el id
+            de su raíz).
+      description: Imagen de la ficha de un producto; dentro del producto viajan ordenadas por position ascendente.
+    Product:
+      type: object
+      required:
+      - id
+      - sku
+      - name
+      - description
+      - price
+      - status
+      - firstPublishedAt
+      - lockVersion
+      - createdAt
+      - updatedAt
+      - createdBy
+      - updatedBy
+      - brand
+      - category
+      - images
+      properties:
+        id:
+          type: string
+          format: uuid
+        sku:
+          $ref: '#/components/schemas/SKU'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Nombre comercial del producto.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+          description: Descripción larga del producto, visible en la ficha de la tienda.
+        price:
+          $ref: '#/components/schemas/Money'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        firstPublishedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Lo escribe publishProduct la primera vez que el producto pasa a active; no cambia después
+            ni vuelve a vaciarse. Mientras es null, el producto nunca se publicó y su sku todavía se puede corregir.
+        lockVersion:
+          type: integer
+          format: int32
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedBy:
+          type: string
+        brand:
+          $ref: '#/components/schemas/Brand'
+        category:
+          $ref: '#/components/schemas/Category'
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductImage'
+          description: Imágenes del producto; viajan siempre ordenadas por position ascendente.
+      description: 'Producto, proyección de gestión: cualquier estado, con versión, auditoría y marca/categoría
+        anidadas.'
+    ProductPublic:
+      type: object
+      required:
+      - id
+      - sku
+      - name
+      - description
+      - price
+      - status
+      - firstPublishedAt
+      - brand
+      - category
+      - images
+      properties:
+        id:
+          type: string
+          format: uuid
+        sku:
+          $ref: '#/components/schemas/SKU'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Nombre comercial del producto.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+          description: Descripción larga del producto, visible en la ficha de la tienda.
+        price:
+          $ref: '#/components/schemas/Money'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        firstPublishedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Lo escribe publishProduct la primera vez que el producto pasa a active; no cambia después
+            ni vuelve a vaciarse. Mientras es null, el producto nunca se publicó y su sku todavía se puede corregir.
+        brand:
+          $ref: '#/components/schemas/BrandPublic'
+        category:
+          $ref: '#/components/schemas/CategoryPublic'
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductImage'
+          description: Imágenes del producto; viajan siempre ordenadas por position ascendente.
+      description: 'Producto, proyección de la tienda: sin versión ni auditoría.'
+    ProductForServices:
+      type: object
+      required:
+      - id
+      - sku
+      - name
+      - description
+      - price
+      - status
+      - firstPublishedAt
+      - lockVersion
+      - brand
+      - category
+      - images
+      properties:
+        id:
+          type: string
+          format: uuid
+        sku:
+          $ref: '#/components/schemas/SKU'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Nombre comercial del producto.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+          description: Descripción larga del producto, visible en la ficha de la tienda.
+        price:
+          $ref: '#/components/schemas/Money'
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        firstPublishedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Lo escribe publishProduct la primera vez que el producto pasa a active; no cambia después
+            ni vuelve a vaciarse. Mientras es null, el producto nunca se publicó y su sku todavía se puede corregir.
+        lockVersion:
+          type: integer
+          format: int32
+        brand:
+          $ref: '#/components/schemas/BrandPublic'
+        category:
+          $ref: '#/components/schemas/CategoryPublic'
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductImage'
+          description: Imágenes del producto; viajan siempre ordenadas por position ascendente.
+      description: 'Producto, proyección servidor-a-servidor: cualquier estado, con lockVersion y sin auditoría.'
+    Error:
+      type: object
+      description: Forma única del cuerpo de error del servicio.
+      required:
+      - status
+      - code
+      - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+          description: Nombre del status HTTP.
+        code:
+          type: string
+          description: Código de negocio estable; es el contrato.
+        message:
+          type: string
+          description: Texto humano; no es contrato.
+        details:
+          type: object
+          additionalProperties: true
+        correlationId:
+          type: string
+    CreateBrandRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 2000
+      required:
+      - name
+      additionalProperties: false
+    UpdateBrandRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        version:
+          type: integer
+          format: int32
+          description: La lockVersion del recurso que el gestor leyó antes de editarlo.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+      required:
+      - version
+      additionalProperties: false
+    PagedBrand:
+      type: object
+      description: Página de Brand (sobre canónico de paginación offset).
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Brand'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalElements:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    CreateCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        description:
+          type: string
+          maxLength: 2000
+      required:
+      - name
+      additionalProperties: false
+    UpdateCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        version:
+          type: integer
+          format: int32
+          description: La lockVersion del recurso que el gestor leyó antes de editarlo.
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 2000
+      required:
+      - version
+      additionalProperties: false
+    PagedCategory:
+      type: object
+      description: Página de Category (sobre canónico de paginación offset).
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalElements:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    CreateProductRequest:
+      type: object
+      properties:
+        sku:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        description:
+          type: string
+          maxLength: 4000
+        price:
+          $ref: '#/components/schemas/Money'
+        brandId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+      required:
+      - sku
+      - name
+      - price
+      - brandId
+      - categoryId
+      additionalProperties: false
+    UpdateProductRequest:
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int32
+          description: La lockVersion del producto que el gestor leyó antes de editarlo.
+        sku:
+          type: string
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        description:
+          type:
+          - string
+          - 'null'
+          maxLength: 4000
+        price:
+          $ref: '#/components/schemas/Money'
+        brandId:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+      required:
+      - version
+      additionalProperties: false
+    PagedProduct:
+      type: object
+      description: Página de Product (sobre canónico de paginación offset).
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalElements:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    AddProductImageRequest:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+        altText:
+          type: string
+          maxLength: 160
+        main:
+          type: boolean
+      required:
+      - file
+    UpdateProductImageRequest:
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int32
+          description: La lockVersion del producto que el gestor leyó antes de editar la imagen.
+        altText:
+          type:
+          - string
+          - 'null'
+          maxLength: 160
+        position:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 9
+        main:
+          type: boolean
+      required:
+      - version
+      additionalProperties: false
+    PagedProductPublic:
+      type: object
+      description: Página de ProductPublic (sobre canónico de paginación offset).
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductPublic'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalElements:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    BrandPublicList:
+      type: array
+      items:
+        $ref: '#/components/schemas/BrandPublic'
+    CategoryPublicList:
+      type: array
+      items:
+        $ref: '#/components/schemas/CategoryPublic'
+    GetProductsBatchRequest:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+      required:
+      - ids
+      additionalProperties: false
+    ProductForServicesList:
+      type: array
+      items:
+        $ref: '#/components/schemas/ProductForServices'

@@ -1,0 +1,35 @@
+# Capa persistence — cómo se guarda el estado propio, agnóstico del motor.
+
+default:
+  model: relational
+
+entities:
+  Brand:
+    naturalKey: [name]
+    naturalKeyError: BRAND_NAME_ALREADY_EXISTS
+    indexes: [[active, name]]
+  Category:
+    naturalKey: [name]
+    naturalKeyError: CATEGORY_NAME_ALREADY_EXISTS
+    indexes: [[active, name]]
+  Product:
+    naturalKey: [sku]
+    naturalKeyError: PRODUCT_SKU_ALREADY_EXISTS
+    indexes:
+      - [status, name]
+      - [status, categoryId, name]
+      - [status, brandId, name]
+      - [status, price.amount]
+      - [name]
+      - [categoryId, name]
+      - [brandId, name]
+  ProductImage:
+    indexes: [[productId, position]]
+
+audit:
+  timestamps: declared
+  authorship: declared
+
+consistency:
+  transactionalBoundary: per-aggregate
+  optimisticLocking: declared

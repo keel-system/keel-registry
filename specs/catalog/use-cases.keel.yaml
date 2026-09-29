@@ -1,0 +1,485 @@
+# Capa use-cases — los casos de uso del servicio.
+# Tres superficies: gestión de la tienda (protegida), escaparate público (anónimo)
+# y contrato servidor-a-servidor (M2M), cada una con sus propias operaciones.
+
+operations:
+
+  # ------------------------------- Marcas — gestión -------------------------------
+
+  createBrand:
+    description: "Da de alta una marca, activa desde el primer momento."
+    kind: command
+    input:
+      fields:
+        name:        { type: string, required: true, constraints: { minLength: 1, maxLength: 80 } }
+        description: { type: text, constraints: { maxLength: 2000 } }
+    output: { entity: Brand }
+    idempotency: { keySource: client-key, ttlSeconds: 86400 }
+    rules:
+      - El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.
+      - La marca nace siempre activa.
+    errors:
+      - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.", http: 400 }
+      - { code: BRAND_NAME_ALREADY_EXISTS, when: "Ya existe una marca con ese nombre, sin distinguir mayúsculas ni acentos.", http: 409 }
+
+  updateBrand:
+    description: "Modifica el nombre o la descripción de una marca."
+    kind: command
+    input:
+      fields:
+        id:          { type: uuid, required: true }
+        name:        { type: string, constraints: { minLength: 1, maxLength: 80 } }
+        version:     { type: int, required: true, description: "La lockVersion del recurso que el gestor leyó antes de editarlo." }
+        description: { type: text, constraints: { maxLength: 2000 } }
+    output: { entity: Brand }
+    rules:
+      - Solo se modifican los campos presentes en la petición; un campo ausente conserva su valor.
+      - description enviada a null se vacía; name enviado a null es una petición mal formada.
+      - El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.
+      - La version enviada tiene que ser la lockVersion actual; si no lo es, no se aplica nada.
+      - Se puede modificar una marca inactiva.
+    errors:
+      - { code: BRAND_NOT_FOUND, when: "No existe una marca con ese id.", http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: "La version enviada no es la lockVersion actual: otro cambio se confirmó después de que el gestor leyera el recurso.", http: 409 }
+      - { code: BRAND_NAME_ALREADY_EXISTS, when: "Otra marca ya tiene ese nombre, sin distinguir mayúsculas ni acentos.", http: 409 }
+
+  deactivateBrand:
+    description: "Desactiva una marca: deja de admitir productos nuevos y de ofrecerse como filtro al público."
+    kind: command
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Brand }
+    rules:
+      - Desactivar una marca ya inactiva no es un error; se responde con la marca sin cambios.
+      - Los productos que ya pertenecen a la marca no cambian; siguen visibles si están publicados.
+    errors:
+      - { code: BRAND_NOT_FOUND, when: "No existe una marca con ese id.", http: 404 }
+
+  reactivateBrand:
+    description: "Vuelve a activar una marca desactivada."
+    kind: command
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Brand }
+    rules:
+      - Reactivar una marca ya activa no es un error; se responde con la marca sin cambios.
+    errors:
+      - { code: BRAND_NOT_FOUND, when: "No existe una marca con ese id.", http: 404 }
+
+  getBrand:
+    description: "Recupera una marca por su id para la gestión, activa o no."
+    kind: query
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Brand }
+    errors:
+      - { code: BRAND_NOT_FOUND, when: "No existe una marca con ese id.", http: 404 }
+
+  listBrands:
+    description: "Lista las marcas para la gestión, activas e inactivas."
+    kind: query
+    input:
+      fields:
+        active: { type: boolean }
+        name:   { type: string, match: contains, compare: ignore-case-accents, constraints: { maxLength: 80 } }
+    output: { entity: Brand, paginated: true, sort: [name:asc, id:asc] }
+    rules:
+      - Los filtros son acumulativos; los ausentes no restringen.
+
+  # ----------------------------- Categorías — gestión -----------------------------
+
+  createCategory:
+    description: "Da de alta una categoría, activa desde el primer momento."
+    kind: command
+    input:
+      fields:
+        name:        { type: string, required: true, constraints: { minLength: 1, maxLength: 80 } }
+        description: { type: text, constraints: { maxLength: 2000 } }
+    output: { entity: Category }
+    idempotency: { keySource: client-key, ttlSeconds: 86400 }
+    rules:
+      - El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.
+      - La categoría nace siempre activa.
+    errors:
+      - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.", http: 400 }
+      - { code: CATEGORY_NAME_ALREADY_EXISTS, when: "Ya existe una categoría con ese nombre, sin distinguir mayúsculas ni acentos.", http: 409 }
+
+  updateCategory:
+    description: "Modifica el nombre o la descripción de una categoría."
+    kind: command
+    input:
+      fields:
+        id:          { type: uuid, required: true }
+        name:        { type: string, constraints: { minLength: 1, maxLength: 80 } }
+        version:     { type: int, required: true, description: "La lockVersion del recurso que el gestor leyó antes de editarlo." }
+        description: { type: text, constraints: { maxLength: 2000 } }
+    output: { entity: Category }
+    rules:
+      - Solo se modifican los campos presentes en la petición; un campo ausente conserva su valor.
+      - description enviada a null se vacía; name enviado a null es una petición mal formada.
+      - El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.
+      - La version enviada tiene que ser la lockVersion actual; si no lo es, no se aplica nada.
+      - Se puede modificar una categoría inactiva.
+    errors:
+      - { code: CATEGORY_NOT_FOUND, when: "No existe una categoría con ese id.", http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: "La version enviada no es la lockVersion actual: otro cambio se confirmó después de que el gestor leyera el recurso.", http: 409 }
+      - { code: CATEGORY_NAME_ALREADY_EXISTS, when: "Otra categoría ya tiene ese nombre, sin distinguir mayúsculas ni acentos.", http: 409 }
+
+  deactivateCategory:
+    description: "Desactiva una categoría: deja de admitir productos nuevos y de ofrecerse como filtro al público."
+    kind: command
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Category }
+    rules:
+      - Desactivar una categoría ya inactiva no es un error; se responde con la categoría sin cambios.
+      - Los productos que ya pertenecen a la categoría no cambian; siguen visibles si están publicados.
+    errors:
+      - { code: CATEGORY_NOT_FOUND, when: "No existe una categoría con ese id.", http: 404 }
+
+  reactivateCategory:
+    description: "Vuelve a activar una categoría desactivada."
+    kind: command
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Category }
+    rules:
+      - Reactivar una categoría ya activa no es un error; se responde con la categoría sin cambios.
+    errors:
+      - { code: CATEGORY_NOT_FOUND, when: "No existe una categoría con ese id.", http: 404 }
+
+  getCategory:
+    description: "Recupera una categoría por su id para la gestión, activa o no."
+    kind: query
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Category }
+    errors:
+      - { code: CATEGORY_NOT_FOUND, when: "No existe una categoría con ese id.", http: 404 }
+
+  listCategories:
+    description: "Lista las categorías para la gestión, activas e inactivas."
+    kind: query
+    input:
+      fields:
+        active: { type: boolean }
+        name:   { type: string, match: contains, compare: ignore-case-accents, constraints: { maxLength: 80 } }
+    output: { entity: Category, paginated: true, sort: [name:asc, id:asc] }
+    rules:
+      - Los filtros son acumulativos; los ausentes no restringen.
+
+  # ------------------------------ Productos — gestión ------------------------------
+
+  createProduct:
+    description: "Da de alta un producto en estado draft, sin imágenes todavía."
+    kind: command
+    input:
+      fields:
+        sku:         { type: string, required: true, constraints: { pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$" } }
+        name:        { type: string, required: true, constraints: { minLength: 1, maxLength: 160 } }
+        description: { type: text, constraints: { maxLength: 4000 } }
+        price:       { type: Money, required: true }
+        brandId:     { type: uuid, required: true }
+        categoryId:  { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    idempotency: { keySource: client-key, ttlSeconds: 86400 }
+    rules:
+      - El sku se admite en mayúsculas o minúsculas y se normaliza a mayúsculas antes de comprobar su unicidad; se guarda y se devuelve siempre en mayúsculas.
+      - El name se recorta de espacios al principio y al final antes de validar.
+      - El producto nace siempre en estado draft, sin imágenes y con firstPublishedAt a null.
+      - Un price.amount igual a cero se admite en draft; solo impide publicar.
+    errors:
+      - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.", http: 400 }
+      - { code: CURRENCY_NOT_SUPPORTED, when: "La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda y no convierte.", http: 422 }
+      - { code: BRAND_REFERENCE_NOT_FOUND, when: "El brandId indicado no existe. Es distinto de BRAND_NOT_FOUND: aquí la marca es un dato de la petición, no el recurso pedido.", http: 422 }
+      - { code: BRAND_INACTIVE, when: "La marca indicada está inactiva y no admite productos nuevos.", http: 422 }
+      - { code: CATEGORY_REFERENCE_NOT_FOUND, when: "El categoryId indicado no existe. Es distinto de CATEGORY_NOT_FOUND: aquí la categoría es un dato de la petición, no el recurso pedido.", http: 422 }
+      - { code: CATEGORY_INACTIVE, when: "La categoría indicada está inactiva y no admite productos nuevos.", http: 422 }
+      - { code: PRODUCT_SKU_ALREADY_EXISTS, when: "Ya existe un producto con ese sku.", http: 409 }
+    emits: [ProductCreated]
+
+  updateProduct:
+    description: "Modifica los datos comerciales de un producto: nombre, descripción, precio, marca, categoría y, si nunca se publicó, su sku."
+    kind: command
+    input:
+      fields:
+        id:          { type: uuid, required: true }
+        version:     { type: int, required: true, description: "La lockVersion del producto que el gestor leyó antes de editarlo." }
+        sku:         { type: string, constraints: { pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$" } }
+        name:        { type: string, constraints: { minLength: 1, maxLength: 160 } }
+        description: { type: text, constraints: { maxLength: 4000 } }
+        price:       { type: Money }
+        brandId:     { type: uuid }
+        categoryId:  { type: uuid }
+    output: { entity: Product, embed: [brand, category] }
+    rules:
+      - Solo se modifican los campos presentes en la petición; un campo ausente conserva su valor.
+      - description enviada a null se vacía; sku, name, price, brandId o categoryId enviados a null son una petición mal formada.
+      - BRAND_INACTIVE y CATEGORY_INACTIVE solo se comprueban cuando la petición asigna una marca o una categoría distinta de la actual; reenviar la que ya tiene no falla aunque esté inactiva.
+      - Si ningún valor cambia, se responde con la ficha sin publicar ProductUpdated.
+      - La version enviada tiene que ser la lockVersion actual; si no lo es, no se aplica nada.
+      - El name se recorta de espacios al principio y al final antes de validar.
+      - El sku solo se puede cambiar mientras firstPublishedAt es null (el producto nunca se publicó); se normaliza a mayúsculas antes de comprobar su unicidad. Reenviar el sku que ya tiene no es un cambio y no falla aunque el producto se haya publicado.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: "No existe un producto con ese id.", http: 404 }
+      - { code: PRODUCT_RETIRED, when: "El producto está retirado y ya no admite cambios.", http: 409 }
+      - { code: CONCURRENT_MODIFICATION, when: "La version enviada no es la lockVersion actual: otro cambio se confirmó después de que el gestor leyera el recurso.", http: 409 }
+      - { code: PRODUCT_SKU_IMMUTABLE, when: "Se pide un sku distinto del actual y el producto ya se publicó alguna vez; desde entonces es la referencia estable con la que otros servidores lo conocen.", http: 409 }
+      - { code: PRODUCT_SKU_ALREADY_EXISTS, when: "Otro producto ya tiene el sku pedido.", http: 409 }
+      - { code: CURRENCY_NOT_SUPPORTED, when: "La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda y no convierte.", http: 422 }
+      - { code: PRODUCT_PRICE_NOT_POSITIVE, when: "El producto está publicado y el nuevo price.amount no es mayor que cero.", http: 409 }
+      - { code: BRAND_REFERENCE_NOT_FOUND, when: "El brandId indicado no existe.", http: 422 }
+      - { code: BRAND_INACTIVE, when: "Se asigna una marca distinta de la actual y está inactiva.", http: 422 }
+      - { code: CATEGORY_REFERENCE_NOT_FOUND, when: "El categoryId indicado no existe.", http: 422 }
+      - { code: CATEGORY_INACTIVE, when: "Se asigna una categoría distinta de la actual y está inactiva.", http: 422 }
+    emits: [ProductUpdated]
+
+  publishProduct:
+    description: "Publica un producto en borrador: pasa a active y aparece en la tienda."
+    kind: command
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    transitions:
+      - entity: Product
+        from: [draft]
+        to: active
+    preconditions:
+      - El producto está en draft.
+      - El producto tiene al menos una imagen.
+      - El price.amount del producto es mayor que cero.
+    rules:
+      - La petición no lleva cuerpo.
+      - La primera publicación fija firstPublishedAt; las siguientes lo conservan.
+      - Que la marca o la categoría del producto estén inactivas no impide publicarlo; la desactivación solo impide asignarlas a otro producto.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: "No existe un producto con ese id.", http: 404 }
+      - { code: INVALID_STATE_TRANSITION, when: "El producto no está en draft (ya está active, o está retired).", http: 409 }
+      - { code: PRODUCT_HAS_NO_IMAGES, when: "El producto no tiene ninguna imagen y no puede publicarse.", http: 409 }
+      - { code: PRODUCT_PRICE_NOT_POSITIVE, when: "El precio que ya tiene el producto no es mayor que cero, así que no puede publicarse.", http: 409 }
+    emits: [ProductUpdated]
+
+  unpublishProduct:
+    description: "Saca un producto de la tienda devolviéndolo a borrador para corregirlo."
+    kind: command
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    transitions:
+      - entity: Product
+        from: [active]
+        to: draft
+    rules:
+      - La petición no lleva cuerpo.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: "No existe un producto con ese id.", http: 404 }
+      - { code: INVALID_STATE_TRANSITION, when: "El producto no está active (está en draft o retired).", http: 409 }
+    emits: [ProductUpdated]
+
+  retireProduct:
+    description: "Retira definitivamente un producto del catálogo. Es un estado terminal: no vuelve."
+    kind: command
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    transitions:
+      - entity: Product
+        from: [draft, active]
+        to: retired
+    rules:
+      - El producto retirado conserva todos sus datos e imágenes; sigue siendo resoluble por los servidores que lo consumen.
+      - La petición no lleva cuerpo.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: "No existe un producto con ese id.", http: 404 }
+      - { code: INVALID_STATE_TRANSITION, when: "El producto ya está retired.", http: 409 }
+    emits: [ProductUpdated]
+
+  getProduct:
+    description: "Recupera un producto por su id para la gestión, en cualquier estado."
+    kind: query
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: "No existe un producto con ese id.", http: 404 }
+
+  searchProducts:
+    description: "Lista los productos para la gestión, en cualquier estado, con los filtros de la tienda más el filtro por estado."
+    kind: query
+    input:
+      fields:
+        status:     { type: ProductStatus }
+        sku:        { type: string, match: prefix, compare: ignore-case, constraints: { maxLength: 32 } }
+        categoryId: { type: uuid }
+        brandId:    { type: uuid }
+        name:       { type: string, match: contains, compare: ignore-case-accents, constraints: { maxLength: 160 } }
+        minPrice:   { type: decimal, constraints: { min: 0, scale: 2, scalePolicy: reject } }
+        maxPrice:   { type: decimal, constraints: { min: 0, scale: 2, scalePolicy: reject } }
+    output: { entity: Product, paginated: true, sort: [name:asc, id:asc], embed: [brand, category] }
+    rules:
+      - Los filtros son acumulativos; los ausentes no restringen.
+      - Un categoryId o brandId que no existe no es un error; la página vuelve vacía.
+      - El rango de precio se aplica sobre price.amount, con ambos extremos incluidos.
+    errors:
+      - { code: INVALID_PRICE_RANGE, when: "minPrice es mayor que maxPrice.", http: 400 }
+
+  # ------------------------------ Imágenes — gestión ------------------------------
+
+  addProductImage:
+    description: "Sube una imagen y la añade a la ficha de un producto."
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+        file:      { type: file, bucket: productImages, required: true }
+        altText:   { type: string, constraints: { maxLength: 160 } }
+        main:      { type: boolean }
+    output: { entity: Product, embed: [brand, category] }
+    idempotency: { keySource: client-key, ttlSeconds: 86400 }
+    rules:
+      - El tamaño y el formato del archivo se comprueban antes que el producto; un archivo rechazado nunca llega a mirar el estado del producto.
+      - La imagen se añade al final, en la position siguiente a la última ocupada; es la imagen nueva la que queda en la última position de la ficha devuelta.
+      - Añadir una imagen sube la lockVersion del producto; dos altas simultáneas sobre el mismo producto no pueden repetir position ni superar el tope de 10, y la que pierde responde CONCURRENT_MODIFICATION.
+      - La primera imagen de un producto queda siempre marcada como principal, se pida o no.
+      - Si se pide main, la imagen que fuera principal hasta entonces deja de serlo.
+      - El formato se comprueba por el contenido del binario (su firma), no solo por el tipo declarado en la petición.
+      - El binario se guarda antes de confirmar la imagen; si la confirmación falla, el binario queda sin referencia y nunca hay una imagen que apunte a un archivo inexistente.
+    errors:
+      - { code: IDEMPOTENCY_KEY_REQUIRED, when: "La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto.", http: 400 }
+      - { code: FILE_TOO_LARGE, when: "La imagen supera el tamaño máximo admitido por el bucket.", http: 413 }
+      - { code: UNSUPPORTED_CONTENT_TYPE, when: "El formato de la imagen no está entre los admitidos, o el contenido del archivo no coincide con el tipo declarado.", http: 415 }
+      - { code: PRODUCT_NOT_FOUND, when: "No existe un producto con ese id.", http: 404 }
+      - { code: PRODUCT_RETIRED, when: "El producto está retirado y ya no admite cambios.", http: 409 }
+      - { code: IMAGE_LIMIT_REACHED, when: "El producto ya tiene 10 imágenes.", http: 409 }
+      - { code: CONCURRENT_MODIFICATION, when: "Otra escritura sobre el mismo producto se confirmó durante el alta (p. ej. otra imagen subida a la vez).", http: 409 }
+    emits: [ProductUpdated]
+
+  updateProductImage:
+    description: "Cambia el texto alternativo, la posición o la condición de principal de una imagen."
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+        imageId:   { type: uuid, required: true }
+        version:   { type: int, required: true, description: "La lockVersion del producto que el gestor leyó antes de editar la imagen." }
+        altText:   { type: string, constraints: { maxLength: 160 } }
+        position:  { type: int, constraints: { min: 0, max: 9 } }
+        main:      { type: boolean }
+    output: { entity: Product, embed: [brand, category] }
+    rules:
+      - Solo se modifican los campos presentes en la petición; altText enviado a null se vacía.
+      - La version enviada tiene que ser la lockVersion actual del producto; si no lo es, no se aplica nada.
+      - Si ningún valor cambia, se responde con la ficha sin publicar ProductUpdated.
+      - Al fijar una position, las demás imágenes se desplazan para que las posiciones queden consecutivas desde 0 y sin huecos; una position mayor que la última ocupada coloca la imagen al final.
+      - main a true convierte la imagen en principal y la que lo era deja de serlo.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: "No existe un producto con ese id.", http: 404 }
+      - { code: PRODUCT_RETIRED, when: "El producto está retirado y ya no admite cambios.", http: 409 }
+      - { code: IMAGE_NOT_FOUND, when: "El producto no tiene ninguna imagen con ese id.", http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: "La version enviada no es la lockVersion actual: otro cambio se confirmó después de que el gestor leyera el recurso.", http: 409 }
+      - { code: MAIN_IMAGE_REQUIRED, when: "Se pide main a false sobre la imagen principal; siempre tiene que haber una, así que se cambia marcando otra como principal.", http: 409 }
+    emits: [ProductUpdated]
+
+  removeProductImage:
+    description: "Quita una imagen de la ficha de un producto."
+    kind: command
+    input:
+      fields:
+        productId: { type: uuid, required: true }
+        imageId:   { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category] }
+    rules:
+      - Las imágenes restantes se renumeran para que las posiciones queden consecutivas desde 0.
+      - Si la imagen quitada era la principal, pasa a serlo la que queda en position 0.
+      - El binario se borra del bucket después de confirmar la baja; si ese borrado falla, queda un binario huérfano, nunca una imagen sin binario.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: "No existe un producto con ese id.", http: 404 }
+      - { code: PRODUCT_RETIRED, when: "El producto está retirado y ya no admite cambios.", http: 409 }
+      - { code: IMAGE_NOT_FOUND, when: "El producto no tiene ninguna imagen con ese id.", http: 404 }
+      - { code: LAST_IMAGE_OF_PUBLISHED_PRODUCT, when: "El producto está publicado y es su única imagen; un producto publicado tiene al menos una.", http: 409 }
+    emits: [ProductUpdated]
+
+  # ---------------------------------- Tienda (público) ----------------------------------
+
+  searchPublishedProducts:
+    description: "Busca productos publicados en la tienda, filtrando por categoría, marca, nombre y rango de precio."
+    kind: query
+    input:
+      fields:
+        categoryId: { type: uuid }
+        brandId:    { type: uuid }
+        name:       { type: string, match: contains, compare: ignore-case-accents, constraints: { maxLength: 160 } }
+        minPrice:   { type: decimal, constraints: { min: 0, scale: 2, scalePolicy: reject } }
+        maxPrice:   { type: decimal, constraints: { min: 0, scale: 2, scalePolicy: reject } }
+    output: { entity: Product, paginated: true, sort: [name:asc, id:asc], embed: [brand, category], exclude: [lockVersion, createdAt, updatedAt, createdBy, updatedBy, brand.createdAt, brand.updatedAt, brand.createdBy, brand.updatedBy, brand.lockVersion, category.createdAt, category.updatedAt, category.createdBy, category.updatedBy, category.lockVersion] }
+    rules:
+      - Solo devuelve productos en estado active.
+      - Los filtros son acumulativos; los ausentes no restringen.
+      - Un categoryId o brandId que no existe, o que está inactivo, no es un error; se aplica igual.
+      - El rango de precio se aplica sobre price.amount, con ambos extremos incluidos; los importes están en la moneda del catálogo.
+    errors:
+      - { code: INVALID_PRICE_RANGE, when: "minPrice es mayor que maxPrice.", http: 400 }
+
+  getPublishedProduct:
+    description: "Recupera la ficha pública de un producto publicado."
+    kind: query
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category], exclude: [lockVersion, createdAt, updatedAt, createdBy, updatedBy, brand.createdAt, brand.updatedAt, brand.createdBy, brand.updatedBy, brand.lockVersion, category.createdAt, category.updatedAt, category.createdBy, category.updatedBy, category.lockVersion] }
+    rules:
+      - Un producto en draft o retired responde igual que uno inexistente, para no revelar lo que no está publicado.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: "No existe un producto publicado con ese id.", http: 404 }
+
+  listPublicBrands:
+    description: "Lista las marcas activas, para ofrecerlas como filtro en la tienda."
+    kind: query
+    input: "void"
+    output: { entity: Brand, list: true, sort: [name:asc, id:asc], exclude: [lockVersion, createdAt, updatedAt, createdBy, updatedBy] }
+    rules:
+      - Solo devuelve marcas activas.
+
+  listPublicCategories:
+    description: "Lista las categorías activas, para ofrecerlas como filtro en la tienda."
+    kind: query
+    input: "void"
+    output: { entity: Category, list: true, sort: [name:asc, id:asc], exclude: [lockVersion, createdAt, updatedAt, createdBy, updatedBy] }
+    rules:
+      - Solo devuelve categorías activas.
+
+  # ------------------------------ Servidor a servidor (M2M) ------------------------------
+
+  getProductForServices:
+    description: "Resuelve un producto por su id para otro servidor, en cualquier estado."
+    kind: query
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Product, embed: [brand, category], exclude: [createdAt, updatedAt, createdBy, updatedBy, brand.createdAt, brand.updatedAt, brand.createdBy, brand.updatedBy, brand.lockVersion, category.createdAt, category.updatedAt, category.createdBy, category.updatedBy, category.lockVersion] }
+    rules:
+      - Devuelve el producto en cualquier estado; el status viaja en la respuesta y el consumidor decide qué hacer con él.
+    errors:
+      - { code: PRODUCT_NOT_FOUND, when: "No existe un producto con ese id.", http: 404 }
+
+  getProductsBatch:
+    description: "Resuelve varios productos por sus ids en una sola llamada, para otro servidor."
+    kind: query
+    input:
+      fields:
+        ids: { type: uuid, list: true, required: true, constraints: { minItems: 1, maxItems: 100 } }
+    output: { entity: Product, list: true, sort: [sku:asc], embed: [brand, category], exclude: [createdAt, updatedAt, createdBy, updatedBy, brand.createdAt, brand.updatedAt, brand.createdBy, brand.updatedBy, brand.lockVersion, category.createdAt, category.updatedAt, category.createdBy, category.updatedBy, category.lockVersion] }
+    rules:
+      - Devuelve los productos en cualquier estado.
+      - Los ids que no existen se omiten del resultado sin error; el consumidor casa cada producto por su id, no por su posición.
+      - Un id repetido en la petición aparece una sola vez en el resultado.

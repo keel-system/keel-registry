@@ -1,0 +1,32 @@
+# Metadatos de publicación en el registry. No forma parte del DSL: describe cómo se distribuye y
+# se descubre el diseño, no lo que el servicio hace.
+
+family: catalog
+summary: >
+  Catálogo comercial de productos con marcas, categorías planas e imágenes (hasta 10, con portada y
+  orden). Tres superficies separadas: gestión protegida por rol con auditoría de autoría y fechas en el
+  contrato, tienda pública filtrable por categoría, marca, nombre y rango de precio, y contrato
+  servidor-a-servidor por id y por lote. Publica altas y cambios como foto completa del producto con
+  versión monotónica, por outbox, para que otros servidores mantengan su copia.
+maturity: draft
+tags:
+  - commerce
+  - catalog
+  - product
+  - brand
+  - category
+  - images
+  - storage
+  - lifecycle
+  - events
+  - outbox
+  - m2m
+  - batch
+  - idempotency
+  - optimistic-locking
+  - audit
+  - pagination
+  - search
+  - cors
+author: keel
+license: Apache-2.0

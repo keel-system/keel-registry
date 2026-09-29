@@ -1,0 +1,46 @@
+# Capa messaging — eventos que publica el servicio.
+# El catálogo no consume eventos de nadie: solo publica el estado de sus productos para que
+# otros servidores mantengan su copia.
+
+channels:
+  productEvents:
+    description: "Altas y cambios de producto que publica el catálogo, para que otros servidores mantengan su copia."
+
+publishing:
+  reliability: outbox
+  events:
+    ProductCreated:
+      description: >-
+        Se dio de alta un producto. Lleva la foto completa del producto en el instante del hecho,
+        igual que ProductUpdated, para que el consumidor haga un upsert sin llamar a nadie.
+      channel: productEvents
+      payload:
+        productId:   { type: uuid, required: true }
+        sku:         { type: SKU, required: true }
+        name:        { type: string, required: true }
+        description: { type: text }
+        price:       { type: Money, required: true }
+        status:      { type: ProductStatus, required: true }
+        brand:       { type: NamedRef, required: true }
+        category:    { type: NamedRef, required: true }
+        images:      { type: ProductImageRef, list: true, constraints: { maxItems: 10 } }
+        version:     { type: int, required: true, description: "Versión del producto tras el cambio (su lockVersion); el consumidor descarta un evento con versión menor o igual a la que ya aplicó." }
+
+    ProductUpdated:
+      description: >-
+        Cambió algo de un producto: sus datos comerciales, su estado (publicación, despublicación,
+        retirada) o sus imágenes. Lleva la foto completa tras el cambio; una retirada llega como
+        status retired y el producto nunca desaparece de la copia del consumidor. Un cambio nulo
+        (nada distinto) no publica.
+      channel: productEvents
+      payload:
+        productId:   { type: uuid, required: true }
+        sku:         { type: SKU, required: true }
+        name:        { type: string, required: true }
+        description: { type: text }
+        price:       { type: Money, required: true }
+        status:      { type: ProductStatus, required: true }
+        brand:       { type: NamedRef, required: true }
+        category:    { type: NamedRef, required: true }
+        images:      { type: ProductImageRef, list: true, constraints: { maxItems: 10 } }
+        version:     { type: int, required: true, description: "Versión del producto tras el cambio (su lockVersion); el consumidor descarta un evento con versión menor o igual a la que ya aplicó." }

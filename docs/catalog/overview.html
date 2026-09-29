@@ -1,0 +1,3207 @@
+<!doctype html>
+<!-- keel:version 0.1.0 -->
+<!--
+  Panel de servicio Keel — plantilla de forma fija.
+  NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
+  únicamente el marcador de datos de la constante KEEL (más abajo) por el objeto JSON derivado
+  del diseño. Contrato del objeto y token exacto a sustituir: ../overview-html-guide.md
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel del servicio</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #fbfcfd;
+    --border: #dfe3e8;
+    --text: #1b1f24;
+    --muted: #5c6773;
+    --accent: #2f6feb;
+    --ok-bg: #e7f5ed; --ok-fg: #17663a;
+    --off-bg: #f0f1f3; --off-fg: #6b7280;
+    --warn-bg: #fdf3e0; --warn-fg: #8a5a00;
+    --tag-bg: #eef2ff; --tag-fg: #33409e;
+    --code-bg: #f2f4f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --panel: #191d24; --panel-2: #1e232b; --border: #2c333d;
+      --text: #e6e9ee; --muted: #9aa5b1; --accent: #6ea0ff;
+      --ok-bg: #17311f; --ok-fg: #7fd6a0;
+      --off-bg: #23272e; --off-fg: #8b95a1;
+      --warn-bg: #362a11; --warn-fg: #e5bf74;
+      --tag-bg: #222a44; --tag-fg: #9fb2ff;
+      --code-bg: #12161c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+  a { color: var(--accent); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+
+  header.top { margin-bottom: 22px; }
+  .eyebrow { color: var(--muted); font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+  h1 { margin: 6px 0 8px; font-size: 30px; }
+  .lead { color: var(--muted); max-width: 72ch; margin: 0 0 12px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  h2 { font-size: 20px; margin: 34px 0 12px; }
+  h3 { font-size: 16px; margin: 22px 0 8px; }
+
+  .chip, .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 999px; font-size: 12px; white-space: nowrap;
+    background: var(--off-bg); color: var(--off-fg); border: 1px solid transparent;
+  }
+  .chip.on, .badge.on { background: var(--ok-bg); color: var(--ok-fg); }
+  .chip.tag, .badge.tag { background: var(--tag-bg); color: var(--tag-fg); }
+  .chip.warn, .badge.warn { background: var(--warn-bg); color: var(--warn-fg); }
+
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .links a {
+    display: inline-block; padding: 7px 13px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--panel); text-decoration: none; font-size: 14px;
+  }
+  .links a:hover { border-color: var(--accent); }
+
+  .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; }
+  .card.off { opacity: .62; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .card-label { font-weight: 600; }
+  .card-headline { color: var(--text); margin: 0 0 8px; font-size: 14px; }
+  .facts { margin: 0; font-size: 13px; color: var(--muted); }
+  .facts div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  .facts .k { color: var(--muted); }
+  .facts .v { color: var(--text); text-align: right; }
+  .card .note { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 14px; }
+  .toolbar input[type=search] {
+    flex: 1 1 240px; min-width: 200px; padding: 8px 11px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit;
+  }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tabs button {
+    padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font: inherit; cursor: pointer;
+  }
+  .tabs button[aria-selected=true] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  details.item {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  details.item > summary {
+    list-style: none; cursor: pointer; padding: 11px 14px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  }
+  details.item > summary::-webkit-details-marker { display: none; }
+  details.item > summary::before { content: "▸"; color: var(--muted); }
+  details.item[open] > summary::before { content: "▾"; }
+  details.item[open] > summary { border-bottom: 1px solid var(--border); background: var(--panel-2); }
+  .item-name { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .item-desc { color: var(--muted); font-size: 13px; flex: 1 1 200px; }
+  .body { padding: 12px 14px 16px; }
+  .body > section { margin-bottom: 14px; }
+  .body > section:last-child { margin-bottom: 0; }
+  .body h4 { margin: 0 0 6px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .body ul { margin: 0; padding-left: 20px; }
+  .body p { margin: 0 0 6px; }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  td.mono, th.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; font-size: 13.5px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+
+  .empty { color: var(--muted); font-style: italic; }
+  .gaps { background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 12px 16px; }
+  .gaps ul { margin: 6px 0 0; }
+  footer { margin-top: 44px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 12px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Servicio Keel</div>
+    <h1 id="svc-name">—</h1>
+    <p class="lead" id="svc-desc"></p>
+    <div class="meta" id="svc-meta"></div>
+    <nav class="links" id="links"></nav>
+  </header>
+
+  <section id="gaps-wrap" hidden>
+    <h2>Huecos del diseño</h2>
+    <div class="gaps">
+      <strong>Estos datos no se pudieron derivar del diseño:</strong>
+      <ul id="gaps"></ul>
+    </div>
+  </section>
+
+  <h2>Capacidades</h2>
+  <div class="cards" id="capabilities"></div>
+
+  <h2>Casos de uso</h2>
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Filtrar por nombre, descripción, campo, error…" aria-label="Filtrar">
+    <div class="tabs" id="tabs" role="tablist"></div>
+  </div>
+  <div id="use-cases"></div>
+
+  <section id="events-wrap" hidden>
+    <h2>Eventos</h2>
+    <div id="events"></div>
+  </section>
+
+  <section id="clients-wrap" hidden>
+    <h2>Clientes HTTP salientes</h2>
+    <div id="clients"></div>
+  </section>
+
+  <section id="domain-wrap" hidden>
+    <h2>Modelo de dominio</h2>
+    <div id="domain"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Datos del servicio. `/keel-docs` sustituye el marcador de la línea siguiente por el
+// objeto derivado del diseño (contrato y token exacto: ../overview-html-guide.md).
+// ---------------------------------------------------------------------------
+const KEEL = {
+  "service": {
+    "name": "catalog",
+    "version": "0.1.0",
+    "description": "Gestiona el catálogo comercial —productos con sus imágenes, marcas y categorías—, lo expone filtrable al público de la tienda, lo sirve a otros servidores por contrato y publica las altas y cambios de producto como eventos.",
+    "domain": "commerce",
+    "generatedAt": "2026-09-29"
+  },
+  "links": [
+    {
+      "label": "OpenAPI (visor)",
+      "href": "openapi.html",
+      "description": "Contrato HTTP renderizado."
+    },
+    {
+      "label": "AsyncAPI (visor)",
+      "href": "asyncapi.html",
+      "description": "Contrato de eventos renderizado."
+    },
+    {
+      "label": "openapi.yaml",
+      "href": "openapi.yaml",
+      "description": "Contrato HTTP (OpenAPI 3.1)."
+    },
+    {
+      "label": "asyncapi.yaml",
+      "href": "asyncapi.yaml",
+      "description": "Contrato de eventos (AsyncAPI 3.0)."
+    },
+    {
+      "label": "Colecciones Postman",
+      "href": "postman/",
+      "description": "Auth + una carpeta por flujo de validación."
+    },
+    {
+      "label": "Contrato de integración",
+      "href": "INTEGRATION.md",
+      "description": "Cómo consumir el servicio desde otro servidor."
+    },
+    {
+      "label": "Documento de diseño",
+      "href": "DESIGN.md",
+      "description": "Características y decisiones con su porqué."
+    }
+  ],
+  "gaps": [],
+  "capabilities": [
+    {
+      "id": "persistence",
+      "label": "Persistencia",
+      "active": true,
+      "headline": "Estado propio en un modelo relacional, con bloqueo optimista y auditoría declarada.",
+      "facts": [
+        [
+          "Modelo",
+          "relational"
+        ],
+        [
+          "Entidades persistidas",
+          "4"
+        ],
+        [
+          "Frontera transaccional",
+          "per-aggregate"
+        ],
+        [
+          "Claves naturales",
+          "3"
+        ],
+        [
+          "Índices",
+          "10"
+        ],
+        [
+          "Bloqueo optimista",
+          "declared"
+        ],
+        [
+          "Auditoría",
+          "tiempos declared · autoría declared"
+        ]
+      ]
+    },
+    {
+      "id": "messaging",
+      "label": "Broker de mensajería",
+      "active": true,
+      "headline": "Publica la foto completa de cada producto que cambia; no consume eventos.",
+      "facts": [
+        [
+          "Canales",
+          "1 (0 external)"
+        ],
+        [
+          "Eventos publicados",
+          "2"
+        ],
+        [
+          "Suscripciones",
+          "0"
+        ]
+      ],
+      "note": "El broker concreto (y los nombres físicos de topic/cola) se decide al generar."
+    },
+    {
+      "id": "outbox",
+      "label": "Patrón outbox",
+      "active": true,
+      "headline": "Ningún evento se pierde si la transacción confirma.",
+      "facts": [
+        [
+          "Garantía",
+          "el evento se escribe en la misma transacción que el cambio y un relay lo publica"
+        ],
+        [
+          "Frontera transaccional",
+          "per-aggregate"
+        ]
+      ]
+    },
+    {
+      "id": "cache",
+      "label": "Caché de respuestas",
+      "active": false,
+      "headline": "Ninguna query declara caché: todo se lee fresco (decisión explícita del diseñador).",
+      "facts": []
+    },
+    {
+      "id": "storage",
+      "label": "Almacenamiento de archivos",
+      "active": true,
+      "headline": "Imágenes de producto en un bucket lógico público.",
+      "facts": [
+        [
+          "productImages",
+          "public · 5 MB · image/jpeg, image/png, image/webp"
+        ]
+      ]
+    },
+    {
+      "id": "httpClients",
+      "label": "Integraciones HTTP salientes",
+      "active": false,
+      "headline": "El servicio no llama a ningún servidor por HTTP.",
+      "facts": []
+    },
+    {
+      "id": "dependencies",
+      "label": "Depende de",
+      "active": false,
+      "headline": "No depende de datos de otros servidores.",
+      "facts": []
+    },
+    {
+      "id": "mail",
+      "label": "Correo saliente",
+      "active": false,
+      "headline": "El servicio no manda correo.",
+      "facts": []
+    },
+    {
+      "id": "security",
+      "label": "Seguridad",
+      "active": true,
+      "headline": "OIDC para gestión, client-credentials para servidores, tienda pública.",
+      "facts": [
+        [
+          "Protocolo",
+          "oidc"
+        ],
+        [
+          "M2M",
+          "client-credentials · audiencia catalog"
+        ],
+        [
+          "Roles",
+          "2"
+        ],
+        [
+          "Permisos",
+          "5"
+        ],
+        [
+          "Clientes máquina",
+          "2"
+        ],
+        [
+          "CORS",
+          "declarado"
+        ]
+      ]
+    },
+    {
+      "id": "schedule",
+      "label": "Trabajos programados",
+      "active": false,
+      "headline": "Ninguna operación corre por schedule.",
+      "facts": []
+    }
+  ],
+  "useCases": [
+    {
+      "name": "createBrand",
+      "kind": "command",
+      "description": "Da de alta una marca, activa desde el primer momento.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/brands"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Brand",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.",
+        "La marca nace siempre activa."
+      ],
+      "errors": [
+        {
+          "code": "IDEMPOTENCY_KEY_REQUIRED",
+          "http": 400,
+          "when": "La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto."
+        },
+        {
+          "code": "BRAND_NAME_ALREADY_EXISTS",
+          "http": 409,
+          "when": "Ya existe una marca con ese nombre, sin distinguir mayúsculas ni acentos."
+        }
+      ],
+      "idempotency": {
+        "keySource": "client-key",
+        "ttlSeconds": 86400
+      },
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    {
+      "name": "updateBrand",
+      "kind": "command",
+      "description": "Modifica el nombre o la descripción de una marca.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "PATCH",
+        "path": "/api/v1/admin/brands/{id}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": "La lockVersion del recurso que el gestor leyó antes de editarlo."
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Brand",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Solo se modifican los campos presentes en la petición; un campo ausente conserva su valor.",
+        "description enviada a null se vacía; name enviado a null es una petición mal formada.",
+        "El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.",
+        "La version enviada tiene que ser la lockVersion actual; si no lo es, no se aplica nada.",
+        "Se puede modificar una marca inactiva."
+      ],
+      "errors": [
+        {
+          "code": "BRAND_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una marca con ese id."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "La version enviada no es la lockVersion actual: otro cambio se confirmó después de que el gestor leyera el recurso."
+        },
+        {
+          "code": "BRAND_NAME_ALREADY_EXISTS",
+          "http": 409,
+          "when": "Otra marca ya tiene ese nombre, sin distinguir mayúsculas ni acentos."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    {
+      "name": "deactivateBrand",
+      "kind": "command",
+      "description": "Desactiva una marca: deja de admitir productos nuevos y de ofrecerse como filtro al público.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/brands/{id}/deactivate"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Brand",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Desactivar una marca ya inactiva no es un error; se responde con la marca sin cambios.",
+        "Los productos que ya pertenecen a la marca no cambian; siguen visibles si están publicados."
+      ],
+      "errors": [
+        {
+          "code": "BRAND_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una marca con ese id."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    {
+      "name": "reactivateBrand",
+      "kind": "command",
+      "description": "Vuelve a activar una marca desactivada.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/brands/{id}/reactivate"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Brand",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Reactivar una marca ya activa no es un error; se responde con la marca sin cambios."
+      ],
+      "errors": [
+        {
+          "code": "BRAND_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una marca con ese id."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    {
+      "name": "getBrand",
+      "kind": "query",
+      "description": "Recupera una marca por su id para la gestión, activa o no.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/admin/brands/{id}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Brand",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "errors": [
+        {
+          "code": "BRAND_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una marca con ese id."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "catalog:read"
+        ]
+      }
+    },
+    {
+      "name": "listBrands",
+      "kind": "query",
+      "description": "Lista las marcas para la gestión, activas e inactivas.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/admin/brands"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "active",
+            "type": "boolean",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Brand",
+        "list": false,
+        "paginated": true,
+        "exclude": []
+      },
+      "rules": [
+        "Los filtros son acumulativos; los ausentes no restringen."
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "catalog:read"
+        ]
+      }
+    },
+    {
+      "name": "createCategory",
+      "kind": "command",
+      "description": "Da de alta una categoría, activa desde el primer momento.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/categories"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Category",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.",
+        "La categoría nace siempre activa."
+      ],
+      "errors": [
+        {
+          "code": "IDEMPOTENCY_KEY_REQUIRED",
+          "http": 400,
+          "when": "La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto."
+        },
+        {
+          "code": "CATEGORY_NAME_ALREADY_EXISTS",
+          "http": 409,
+          "when": "Ya existe una categoría con ese nombre, sin distinguir mayúsculas ni acentos."
+        }
+      ],
+      "idempotency": {
+        "keySource": "client-key",
+        "ttlSeconds": 86400
+      },
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    {
+      "name": "updateCategory",
+      "kind": "command",
+      "description": "Modifica el nombre o la descripción de una categoría.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "PATCH",
+        "path": "/api/v1/admin/categories/{id}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": "La lockVersion del recurso que el gestor leyó antes de editarlo."
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Category",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Solo se modifican los campos presentes en la petición; un campo ausente conserva su valor.",
+        "description enviada a null se vacía; name enviado a null es una petición mal formada.",
+        "El name se recorta de espacios al principio y al final antes de validar y de comprobar su unicidad.",
+        "La version enviada tiene que ser la lockVersion actual; si no lo es, no se aplica nada.",
+        "Se puede modificar una categoría inactiva."
+      ],
+      "errors": [
+        {
+          "code": "CATEGORY_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una categoría con ese id."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "La version enviada no es la lockVersion actual: otro cambio se confirmó después de que el gestor leyera el recurso."
+        },
+        {
+          "code": "CATEGORY_NAME_ALREADY_EXISTS",
+          "http": 409,
+          "when": "Otra categoría ya tiene ese nombre, sin distinguir mayúsculas ni acentos."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    {
+      "name": "deactivateCategory",
+      "kind": "command",
+      "description": "Desactiva una categoría: deja de admitir productos nuevos y de ofrecerse como filtro al público.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/categories/{id}/deactivate"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Category",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Desactivar una categoría ya inactiva no es un error; se responde con la categoría sin cambios.",
+        "Los productos que ya pertenecen a la categoría no cambian; siguen visibles si están publicados."
+      ],
+      "errors": [
+        {
+          "code": "CATEGORY_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una categoría con ese id."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    {
+      "name": "reactivateCategory",
+      "kind": "command",
+      "description": "Vuelve a activar una categoría desactivada.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/categories/{id}/reactivate"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Category",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Reactivar una categoría ya activa no es un error; se responde con la categoría sin cambios."
+      ],
+      "errors": [
+        {
+          "code": "CATEGORY_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una categoría con ese id."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "taxonomy:write"
+        ]
+      }
+    },
+    {
+      "name": "getCategory",
+      "kind": "query",
+      "description": "Recupera una categoría por su id para la gestión, activa o no.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/admin/categories/{id}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Category",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "errors": [
+        {
+          "code": "CATEGORY_NOT_FOUND",
+          "http": 404,
+          "when": "No existe una categoría con ese id."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "catalog:read"
+        ]
+      }
+    },
+    {
+      "name": "listCategories",
+      "kind": "query",
+      "description": "Lista las categorías para la gestión, activas e inactivas.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/admin/categories"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "active",
+            "type": "boolean",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Category",
+        "list": false,
+        "paginated": true,
+        "exclude": []
+      },
+      "rules": [
+        "Los filtros son acumulativos; los ausentes no restringen."
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "catalog:read"
+        ]
+      }
+    },
+    {
+      "name": "createProduct",
+      "kind": "command",
+      "description": "Da de alta un producto en estado draft, sin imágenes todavía.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/products"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "sku",
+            "type": "string",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "price",
+            "type": "Money",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "brandId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "categoryId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "El sku se admite en mayúsculas o minúsculas y se normaliza a mayúsculas antes de comprobar su unicidad; se guarda y se devuelve siempre en mayúsculas.",
+        "El name se recorta de espacios al principio y al final antes de validar.",
+        "El producto nace siempre en estado draft, sin imágenes y con firstPublishedAt a null.",
+        "Un price.amount igual a cero se admite en draft; solo impide publicar."
+      ],
+      "errors": [
+        {
+          "code": "IDEMPOTENCY_KEY_REQUIRED",
+          "http": 400,
+          "when": "La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto."
+        },
+        {
+          "code": "CURRENCY_NOT_SUPPORTED",
+          "http": 422,
+          "when": "La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda y no convierte."
+        },
+        {
+          "code": "BRAND_REFERENCE_NOT_FOUND",
+          "http": 422,
+          "when": "El brandId indicado no existe. Es distinto de BRAND_NOT_FOUND: aquí la marca es un dato de la petición, no el recurso pedido."
+        },
+        {
+          "code": "BRAND_INACTIVE",
+          "http": 422,
+          "when": "La marca indicada está inactiva y no admite productos nuevos."
+        },
+        {
+          "code": "CATEGORY_REFERENCE_NOT_FOUND",
+          "http": 422,
+          "when": "El categoryId indicado no existe. Es distinto de CATEGORY_NOT_FOUND: aquí la categoría es un dato de la petición, no el recurso pedido."
+        },
+        {
+          "code": "CATEGORY_INACTIVE",
+          "http": 422,
+          "when": "La categoría indicada está inactiva y no admite productos nuevos."
+        },
+        {
+          "code": "PRODUCT_SKU_ALREADY_EXISTS",
+          "http": 409,
+          "when": "Ya existe un producto con ese sku."
+        }
+      ],
+      "idempotency": {
+        "keySource": "client-key",
+        "ttlSeconds": 86400
+      },
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "product:write"
+        ]
+      },
+      "emits": [
+        "ProductCreated"
+      ]
+    },
+    {
+      "name": "updateProduct",
+      "kind": "command",
+      "description": "Modifica los datos comerciales de un producto: nombre, descripción, precio, marca, categoría y, si nunca se publicó, su sku.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "PATCH",
+        "path": "/api/v1/admin/products/{id}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": "La lockVersion del producto que el gestor leyó antes de editarlo."
+          },
+          {
+            "name": "sku",
+            "type": "string",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "price",
+            "type": "Money",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "brandId",
+            "type": "uuid",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "categoryId",
+            "type": "uuid",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Solo se modifican los campos presentes en la petición; un campo ausente conserva su valor.",
+        "description enviada a null se vacía; sku, name, price, brandId o categoryId enviados a null son una petición mal formada.",
+        "BRAND_INACTIVE y CATEGORY_INACTIVE solo se comprueban cuando la petición asigna una marca o una categoría distinta de la actual; reenviar la que ya tiene no falla aunque esté inactiva.",
+        "Si ningún valor cambia, se responde con la ficha sin publicar ProductUpdated.",
+        "La version enviada tiene que ser la lockVersion actual; si no lo es, no se aplica nada.",
+        "El name se recorta de espacios al principio y al final antes de validar.",
+        "El sku solo se puede cambiar mientras firstPublishedAt es null (el producto nunca se publicó); se normaliza a mayúsculas antes de comprobar su unicidad. Reenviar el sku que ya tiene no es un cambio y no falla aunque el producto se haya publicado."
+      ],
+      "errors": [
+        {
+          "code": "PRODUCT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un producto con ese id."
+        },
+        {
+          "code": "PRODUCT_RETIRED",
+          "http": 409,
+          "when": "El producto está retirado y ya no admite cambios."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "La version enviada no es la lockVersion actual: otro cambio se confirmó después de que el gestor leyera el recurso."
+        },
+        {
+          "code": "PRODUCT_SKU_IMMUTABLE",
+          "http": 409,
+          "when": "Se pide un sku distinto del actual y el producto ya se publicó alguna vez; desde entonces es la referencia estable con la que otros servidores lo conocen."
+        },
+        {
+          "code": "PRODUCT_SKU_ALREADY_EXISTS",
+          "http": 409,
+          "when": "Otro producto ya tiene el sku pedido."
+        },
+        {
+          "code": "CURRENCY_NOT_SUPPORTED",
+          "http": 422,
+          "when": "La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda y no convierte."
+        },
+        {
+          "code": "PRODUCT_PRICE_NOT_POSITIVE",
+          "http": 409,
+          "when": "El producto está publicado y el nuevo price.amount no es mayor que cero."
+        },
+        {
+          "code": "BRAND_REFERENCE_NOT_FOUND",
+          "http": 422,
+          "when": "El brandId indicado no existe."
+        },
+        {
+          "code": "BRAND_INACTIVE",
+          "http": 422,
+          "when": "Se asigna una marca distinta de la actual y está inactiva."
+        },
+        {
+          "code": "CATEGORY_REFERENCE_NOT_FOUND",
+          "http": 422,
+          "when": "El categoryId indicado no existe."
+        },
+        {
+          "code": "CATEGORY_INACTIVE",
+          "http": 422,
+          "when": "Se asigna una categoría distinta de la actual y está inactiva."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "product:write"
+        ]
+      },
+      "emits": [
+        "ProductUpdated"
+      ]
+    },
+    {
+      "name": "publishProduct",
+      "kind": "command",
+      "description": "Publica un producto en borrador: pasa a active y aparece en la tienda.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/products/{id}/publish"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "preconditions": [
+        "El producto está en draft.",
+        "El producto tiene al menos una imagen.",
+        "El price.amount del producto es mayor que cero."
+      ],
+      "rules": [
+        "La petición no lleva cuerpo.",
+        "La primera publicación fija firstPublishedAt; las siguientes lo conservan.",
+        "Que la marca o la categoría del producto estén inactivas no impide publicarlo; la desactivación solo impide asignarlas a otro producto."
+      ],
+      "errors": [
+        {
+          "code": "PRODUCT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un producto con ese id."
+        },
+        {
+          "code": "INVALID_STATE_TRANSITION",
+          "http": 409,
+          "when": "El producto no está en draft (ya está active, o está retired)."
+        },
+        {
+          "code": "PRODUCT_HAS_NO_IMAGES",
+          "http": 409,
+          "when": "El producto no tiene ninguna imagen y no puede publicarse."
+        },
+        {
+          "code": "PRODUCT_PRICE_NOT_POSITIVE",
+          "http": 409,
+          "when": "El precio que ya tiene el producto no es mayor que cero, así que no puede publicarse."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "product:write"
+        ]
+      },
+      "emits": [
+        "ProductUpdated"
+      ]
+    },
+    {
+      "name": "unpublishProduct",
+      "kind": "command",
+      "description": "Saca un producto de la tienda devolviéndolo a borrador para corregirlo.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/products/{id}/unpublish"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "La petición no lleva cuerpo."
+      ],
+      "errors": [
+        {
+          "code": "PRODUCT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un producto con ese id."
+        },
+        {
+          "code": "INVALID_STATE_TRANSITION",
+          "http": 409,
+          "when": "El producto no está active (está en draft o retired)."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "product:write"
+        ]
+      },
+      "emits": [
+        "ProductUpdated"
+      ]
+    },
+    {
+      "name": "retireProduct",
+      "kind": "command",
+      "description": "Retira definitivamente un producto del catálogo. Es un estado terminal: no vuelve.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/products/{id}/retire"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "El producto retirado conserva todos sus datos e imágenes; sigue siendo resoluble por los servidores que lo consumen.",
+        "La petición no lleva cuerpo."
+      ],
+      "errors": [
+        {
+          "code": "PRODUCT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un producto con ese id."
+        },
+        {
+          "code": "INVALID_STATE_TRANSITION",
+          "http": 409,
+          "when": "El producto ya está retired."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "product:retire"
+        ]
+      },
+      "emits": [
+        "ProductUpdated"
+      ]
+    },
+    {
+      "name": "getProduct",
+      "kind": "query",
+      "description": "Recupera un producto por su id para la gestión, en cualquier estado.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/admin/products/{id}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "errors": [
+        {
+          "code": "PRODUCT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un producto con ese id."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "catalog:read"
+        ]
+      }
+    },
+    {
+      "name": "searchProducts",
+      "kind": "query",
+      "description": "Lista los productos para la gestión, en cualquier estado, con los filtros de la tienda más el filtro por estado.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/admin/products"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "status",
+            "type": "ProductStatus",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "sku",
+            "type": "string",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "categoryId",
+            "type": "uuid",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "brandId",
+            "type": "uuid",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "minPrice",
+            "type": "decimal",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "maxPrice",
+            "type": "decimal",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": true,
+        "exclude": []
+      },
+      "rules": [
+        "Los filtros son acumulativos; los ausentes no restringen.",
+        "Un categoryId o brandId que no existe no es un error; la página vuelve vacía.",
+        "El rango de precio se aplica sobre price.amount, con ambos extremos incluidos."
+      ],
+      "errors": [
+        {
+          "code": "INVALID_PRICE_RANGE",
+          "http": 400,
+          "when": "minPrice es mayor que maxPrice."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "catalog:read"
+        ]
+      }
+    },
+    {
+      "name": "addProductImage",
+      "kind": "command",
+      "description": "Sube una imagen y la añade a la ficha de un producto.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/admin/products/{productId}/images"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "productId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "file",
+            "type": "file",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "altText",
+            "type": "string",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "main",
+            "type": "boolean",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "El tamaño y el formato del archivo se comprueban antes que el producto; un archivo rechazado nunca llega a mirar el estado del producto.",
+        "La imagen se añade al final, en la position siguiente a la última ocupada; es la imagen nueva la que queda en la última position de la ficha devuelta.",
+        "Añadir una imagen sube la lockVersion del producto; dos altas simultáneas sobre el mismo producto no pueden repetir position ni superar el tope de 10, y la que pierde responde CONCURRENT_MODIFICATION.",
+        "La primera imagen de un producto queda siempre marcada como principal, se pida o no.",
+        "Si se pide main, la imagen que fuera principal hasta entonces deja de serlo.",
+        "El formato se comprueba por el contenido del binario (su firma), no solo por el tipo declarado en la petición.",
+        "El binario se guarda antes de confirmar la imagen; si la confirmación falla, el binario queda sin referencia y nunca hay una imagen que apunte a un archivo inexistente."
+      ],
+      "errors": [
+        {
+          "code": "IDEMPOTENCY_KEY_REQUIRED",
+          "http": 400,
+          "when": "La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar que un reintento no repita el efecto."
+        },
+        {
+          "code": "FILE_TOO_LARGE",
+          "http": 413,
+          "when": "La imagen supera el tamaño máximo admitido por el bucket."
+        },
+        {
+          "code": "UNSUPPORTED_CONTENT_TYPE",
+          "http": 415,
+          "when": "El formato de la imagen no está entre los admitidos, o el contenido del archivo no coincide con el tipo declarado."
+        },
+        {
+          "code": "PRODUCT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un producto con ese id."
+        },
+        {
+          "code": "PRODUCT_RETIRED",
+          "http": 409,
+          "when": "El producto está retirado y ya no admite cambios."
+        },
+        {
+          "code": "IMAGE_LIMIT_REACHED",
+          "http": 409,
+          "when": "El producto ya tiene 10 imágenes."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "Otra escritura sobre el mismo producto se confirmó durante el alta (p. ej. otra imagen subida a la vez)."
+        }
+      ],
+      "idempotency": {
+        "keySource": "client-key",
+        "ttlSeconds": 86400
+      },
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "product:write"
+        ]
+      },
+      "emits": [
+        "ProductUpdated"
+      ]
+    },
+    {
+      "name": "updateProductImage",
+      "kind": "command",
+      "description": "Cambia el texto alternativo, la posición o la condición de principal de una imagen.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "PATCH",
+        "path": "/api/v1/admin/products/{productId}/images/{imageId}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "productId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "imageId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": "La lockVersion del producto que el gestor leyó antes de editar la imagen."
+          },
+          {
+            "name": "altText",
+            "type": "string",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "position",
+            "type": "int",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "main",
+            "type": "boolean",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Solo se modifican los campos presentes en la petición; altText enviado a null se vacía.",
+        "La version enviada tiene que ser la lockVersion actual del producto; si no lo es, no se aplica nada.",
+        "Si ningún valor cambia, se responde con la ficha sin publicar ProductUpdated.",
+        "Al fijar una position, las demás imágenes se desplazan para que las posiciones queden consecutivas desde 0 y sin huecos; una position mayor que la última ocupada coloca la imagen al final.",
+        "main a true convierte la imagen en principal y la que lo era deja de serlo."
+      ],
+      "errors": [
+        {
+          "code": "PRODUCT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un producto con ese id."
+        },
+        {
+          "code": "PRODUCT_RETIRED",
+          "http": 409,
+          "when": "El producto está retirado y ya no admite cambios."
+        },
+        {
+          "code": "IMAGE_NOT_FOUND",
+          "http": 404,
+          "when": "El producto no tiene ninguna imagen con ese id."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "La version enviada no es la lockVersion actual: otro cambio se confirmó después de que el gestor leyera el recurso."
+        },
+        {
+          "code": "MAIN_IMAGE_REQUIRED",
+          "http": 409,
+          "when": "Se pide main a false sobre la imagen principal; siempre tiene que haber una, así que se cambia marcando otra como principal."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "product:write"
+        ]
+      },
+      "emits": [
+        "ProductUpdated"
+      ]
+    },
+    {
+      "name": "removeProductImage",
+      "kind": "command",
+      "description": "Quita una imagen de la ficha de un producto.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "DELETE",
+        "path": "/api/v1/admin/products/{productId}/images/{imageId}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "productId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "imageId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Las imágenes restantes se renumeran para que las posiciones queden consecutivas desde 0.",
+        "Si la imagen quitada era la principal, pasa a serlo la que queda en position 0.",
+        "El binario se borra del bucket después de confirmar la baja; si ese borrado falla, queda un binario huérfano, nunca una imagen sin binario."
+      ],
+      "errors": [
+        {
+          "code": "PRODUCT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un producto con ese id."
+        },
+        {
+          "code": "PRODUCT_RETIRED",
+          "http": 409,
+          "when": "El producto está retirado y ya no admite cambios."
+        },
+        {
+          "code": "IMAGE_NOT_FOUND",
+          "http": 404,
+          "when": "El producto no tiene ninguna imagen con ese id."
+        },
+        {
+          "code": "LAST_IMAGE_OF_PUBLISHED_PRODUCT",
+          "http": 409,
+          "when": "El producto está publicado y es su única imagen; un producto publicado tiene al menos una."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "required",
+        "permissions": [
+          "product:write"
+        ]
+      },
+      "emits": [
+        "ProductUpdated"
+      ]
+    },
+    {
+      "name": "searchPublishedProducts",
+      "kind": "query",
+      "description": "Busca productos publicados en la tienda, filtrando por categoría, marca, nombre y rango de precio.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/products"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "categoryId",
+            "type": "uuid",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "brandId",
+            "type": "uuid",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "minPrice",
+            "type": "decimal",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "maxPrice",
+            "type": "decimal",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": true,
+        "exclude": [
+          "lockVersion",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy",
+          "brand.createdAt",
+          "brand.updatedAt",
+          "brand.createdBy",
+          "brand.updatedBy",
+          "brand.lockVersion",
+          "category.createdAt",
+          "category.updatedAt",
+          "category.createdBy",
+          "category.updatedBy",
+          "category.lockVersion"
+        ]
+      },
+      "rules": [
+        "Solo devuelve productos en estado active.",
+        "Los filtros son acumulativos; los ausentes no restringen.",
+        "Un categoryId o brandId que no existe, o que está inactivo, no es un error; se aplica igual.",
+        "El rango de precio se aplica sobre price.amount, con ambos extremos incluidos; los importes están en la moneda del catálogo."
+      ],
+      "errors": [
+        {
+          "code": "INVALID_PRICE_RANGE",
+          "http": 400,
+          "when": "minPrice es mayor que maxPrice."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "public"
+      }
+    },
+    {
+      "name": "getPublishedProduct",
+      "kind": "query",
+      "description": "Recupera la ficha pública de un producto publicado.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/products/{id}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": [
+          "lockVersion",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy",
+          "brand.createdAt",
+          "brand.updatedAt",
+          "brand.createdBy",
+          "brand.updatedBy",
+          "brand.lockVersion",
+          "category.createdAt",
+          "category.updatedAt",
+          "category.createdBy",
+          "category.updatedBy",
+          "category.lockVersion"
+        ]
+      },
+      "rules": [
+        "Un producto en draft o retired responde igual que uno inexistente, para no revelar lo que no está publicado."
+      ],
+      "errors": [
+        {
+          "code": "PRODUCT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un producto publicado con ese id."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "public"
+      }
+    },
+    {
+      "name": "listPublicBrands",
+      "kind": "query",
+      "description": "Lista las marcas activas, para ofrecerlas como filtro en la tienda.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/brands"
+      },
+      "input": {
+        "kind": "void"
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Brand",
+        "list": true,
+        "paginated": false,
+        "exclude": [
+          "lockVersion",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy"
+        ]
+      },
+      "rules": [
+        "Solo devuelve marcas activas."
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "public"
+      }
+    },
+    {
+      "name": "listPublicCategories",
+      "kind": "query",
+      "description": "Lista las categorías activas, para ofrecerlas como filtro en la tienda.",
+      "audience": "users",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/categories"
+      },
+      "input": {
+        "kind": "void"
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Category",
+        "list": true,
+        "paginated": false,
+        "exclude": [
+          "lockVersion",
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy"
+        ]
+      },
+      "rules": [
+        "Solo devuelve categorías activas."
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "public"
+      }
+    },
+    {
+      "name": "getProductForServices",
+      "kind": "query",
+      "description": "Resuelve un producto por su id para otro servidor, en cualquier estado.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/internal/products/{id}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": false,
+        "paginated": false,
+        "exclude": [
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy",
+          "brand.createdAt",
+          "brand.updatedAt",
+          "brand.createdBy",
+          "brand.updatedBy",
+          "brand.lockVersion",
+          "category.createdAt",
+          "category.updatedAt",
+          "category.createdBy",
+          "category.updatedBy",
+          "category.lockVersion"
+        ]
+      },
+      "rules": [
+        "Devuelve el producto en cualquier estado; el status viaja en la respuesta y el consumidor decide qué hacer con él."
+      ],
+      "errors": [
+        {
+          "code": "PRODUCT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un producto con ese id."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "product:read-internal"
+        ]
+      }
+    },
+    {
+      "name": "getProductsBatch",
+      "kind": "query",
+      "description": "Resuelve varios productos por sus ids en una sola llamada, para otro servidor.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/internal/products/batch"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "ids",
+            "type": "uuid",
+            "required": true,
+            "list": true
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Product",
+        "list": true,
+        "paginated": false,
+        "exclude": [
+          "createdAt",
+          "updatedAt",
+          "createdBy",
+          "updatedBy",
+          "brand.createdAt",
+          "brand.updatedAt",
+          "brand.createdBy",
+          "brand.updatedBy",
+          "brand.lockVersion",
+          "category.createdAt",
+          "category.updatedAt",
+          "category.createdBy",
+          "category.updatedBy",
+          "category.lockVersion"
+        ]
+      },
+      "rules": [
+        "Devuelve los productos en cualquier estado.",
+        "Los ids que no existen se omiten del resultado sin error; el consumidor casa cada producto por su id, no por su posición.",
+        "Un id repetido en la petición aparece una sola vez en el resultado."
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "product:read-internal"
+        ]
+      }
+    }
+  ],
+  "events": {
+    "envelope": "keel",
+    "reliability": "outbox",
+    "published": [
+      {
+        "name": "ProductCreated",
+        "description": "Se dio de alta un producto. Lleva la foto completa del producto en el instante del hecho, igual que ProductUpdated, para que el consumidor haga un upsert sin llamar a nadie.",
+        "channel": "productEvents",
+        "emittedBy": [
+          "createProduct"
+        ],
+        "payload": [
+          {
+            "name": "productId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "sku",
+            "type": "SKU",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "price",
+            "type": "Money",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "status",
+            "type": "ProductStatus",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "brand",
+            "type": "NamedRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "category",
+            "type": "NamedRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "images",
+            "type": "ProductImageRef",
+            "required": false,
+            "list": true
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": "Versión del producto tras el cambio (su lockVersion); el consumidor descarta un evento con versión menor o igual a la que ya aplicó."
+          }
+        ]
+      },
+      {
+        "name": "ProductUpdated",
+        "description": "Cambió algo de un producto: sus datos comerciales, su estado (publicación, despublicación, retirada) o sus imágenes. Lleva la foto completa tras el cambio; una retirada llega como status retired y el producto nunca desaparece de la copia del consumidor. Un cambio nulo (nada distinto) no publica.",
+        "channel": "productEvents",
+        "emittedBy": [
+          "updateProduct",
+          "publishProduct",
+          "unpublishProduct",
+          "retireProduct",
+          "addProductImage",
+          "updateProductImage",
+          "removeProductImage"
+        ],
+        "payload": [
+          {
+            "name": "productId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "sku",
+            "type": "SKU",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "price",
+            "type": "Money",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "status",
+            "type": "ProductStatus",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "brand",
+            "type": "NamedRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "category",
+            "type": "NamedRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "images",
+            "type": "ProductImageRef",
+            "required": false,
+            "list": true
+          },
+          {
+            "name": "version",
+            "type": "int",
+            "required": true,
+            "list": false,
+            "description": "Versión del producto tras el cambio (su lockVersion); el consumidor descarta un evento con versión menor o igual a la que ya aplicó."
+          }
+        ]
+      }
+    ],
+    "subscriptions": []
+  },
+  "httpClients": [],
+  "domain": {
+    "entities": [
+      {
+        "name": "Brand",
+        "description": "Marca comercial bajo la que se vende un producto.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "list": false,
+            "description": "Nombre comercial de la marca.",
+            "flags": [
+              "requerido",
+              "único"
+            ]
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "list": false,
+            "description": "Texto libre sobre la marca, visible en la tienda.",
+            "flags": []
+          },
+          {
+            "name": "active",
+            "type": "boolean",
+            "list": false,
+            "description": "Una marca inactiva no admite productos nuevos ni se ofrece como filtro al público. Nunca se borra.",
+            "flags": [
+              "requerido",
+              "default: true"
+            ]
+          },
+          {
+            "name": "lockVersion",
+            "type": "int",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "createdAt",
+            "type": "timestamp",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "updatedAt",
+            "type": "timestamp",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "createdBy",
+            "type": "string",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "updatedBy",
+            "type": "string",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          }
+        ],
+        "relations": []
+      },
+      {
+        "name": "Category",
+        "description": "Clasificación comercial plana por la que el consumidor navega el catálogo.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "list": false,
+            "description": "Nombre de la categoría.",
+            "flags": [
+              "requerido",
+              "único"
+            ]
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "list": false,
+            "description": "Texto libre sobre la categoría, visible en la tienda.",
+            "flags": []
+          },
+          {
+            "name": "active",
+            "type": "boolean",
+            "list": false,
+            "description": "Una categoría inactiva no admite productos nuevos ni se ofrece como filtro al público. Nunca se borra.",
+            "flags": [
+              "requerido",
+              "default: true"
+            ]
+          },
+          {
+            "name": "lockVersion",
+            "type": "int",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "createdAt",
+            "type": "timestamp",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "updatedAt",
+            "type": "timestamp",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "createdBy",
+            "type": "string",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "updatedBy",
+            "type": "string",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          }
+        ],
+        "relations": []
+      },
+      {
+        "name": "Product",
+        "description": "Artículo vendible del catálogo, publicado bajo una marca y clasificado en una categoría.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "sku",
+            "type": "SKU",
+            "list": false,
+            "description": "Referencia comercial única. Se normaliza a mayúsculas antes de validar y comprobar la unicidad.",
+            "flags": [
+              "requerido",
+              "único"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "list": false,
+            "description": "Nombre comercial del producto.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "list": false,
+            "description": "Descripción larga del producto, visible en la ficha de la tienda.",
+            "flags": []
+          },
+          {
+            "name": "price",
+            "type": "Money",
+            "list": false,
+            "description": "Precio de venta al público, en la moneda del catálogo.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "status",
+            "type": "ProductStatus",
+            "list": false,
+            "description": "Situación comercial; solo active es visible para el público.",
+            "flags": [
+              "requerido",
+              "default: draft"
+            ]
+          },
+          {
+            "name": "firstPublishedAt",
+            "type": "timestamp",
+            "list": false,
+            "description": "Lo escribe publishProduct la primera vez que el producto pasa a active; no cambia después ni vuelve a vaciarse. Mientras es null, el producto nunca se publicó y su sku todavía se puede corregir.",
+            "flags": []
+          },
+          {
+            "name": "lockVersion",
+            "type": "int",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "createdAt",
+            "type": "timestamp",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "updatedAt",
+            "type": "timestamp",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "createdBy",
+            "type": "string",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "updatedBy",
+            "type": "string",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "brand",
+            "entity": "Brand",
+            "cardinality": "many-to-one"
+          },
+          {
+            "name": "category",
+            "entity": "Category",
+            "cardinality": "many-to-one"
+          },
+          {
+            "name": "images",
+            "entity": "ProductImage",
+            "cardinality": "one-to-many"
+          }
+        ],
+        "lifecycle": {
+          "field": "status",
+          "transitions": {
+            "draft": [
+              "active",
+              "retired"
+            ],
+            "active": [
+              "draft",
+              "retired"
+            ],
+            "retired": []
+          }
+        },
+        "invariants": [
+          "Un producto en estado active tiene al menos una imagen.",
+          "Un producto con al menos una imagen tiene exactamente una imagen marcada como main.",
+          "Un producto tiene como mucho 10 imágenes.",
+          "Las posiciones de las imágenes de un producto son exactamente 0..n-1, sin huecos ni repeticiones, siendo n el número de imágenes.",
+          "La currency de price es la moneda del catálogo, un parámetro de despliegue único para todo el servicio.",
+          "Un producto en estado active tiene price.amount mayor que cero.",
+          "Un producto retired no admite cambios de datos ni de imágenes.",
+          "El sku de un producto con firstPublishedAt no se modifica nunca.",
+          "La lockVersion de Product sube con cualquier cambio del agregado, también cuando solo cambian sus imágenes."
+        ]
+      },
+      {
+        "name": "ProductImage",
+        "description": "Imagen de la ficha de un producto. No existe fuera de su producto.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "file",
+            "type": "file",
+            "list": false,
+            "description": "El binario de la imagen.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "altText",
+            "type": "string",
+            "list": false,
+            "description": "Texto alternativo para accesibilidad y SEO.",
+            "flags": []
+          },
+          {
+            "name": "position",
+            "type": "int",
+            "list": false,
+            "description": "Orden de visualización dentro de la ficha, empezando en 0.",
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "main",
+            "type": "boolean",
+            "list": false,
+            "description": "Imagen principal (portada) del producto.",
+            "flags": [
+              "requerido",
+              "default: false"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "product",
+            "entity": "Product",
+            "cardinality": "many-to-one"
+          }
+        ]
+      }
+    ],
+    "aggregates": [
+      {
+        "name": "Product",
+        "root": "Product",
+        "entities": [
+          "ProductImage"
+        ],
+        "description": "Un producto y sus imágenes cambian siempre juntos; la imagen no se referencia desde fuera del producto."
+      },
+      {
+        "name": "Brand",
+        "root": "Brand",
+        "entities": [],
+        "description": "La marca es su propia frontera; el producto la referencia por id."
+      },
+      {
+        "name": "Category",
+        "root": "Category",
+        "entities": [],
+        "description": "La categoría es su propia frontera; el producto la referencia por id."
+      }
+    ],
+    "types": [
+      {
+        "name": "SKU",
+        "kind": "escalar",
+        "detail": "string · pattern ^[A-Z0-9][A-Z0-9_-]{1,31}$",
+        "description": "Referencia comercial única del producto, la que comparten el catálogo y los servidores que lo consumen."
+      },
+      {
+        "name": "Money",
+        "kind": "value object",
+        "detail": "amount: decimal, currency: string",
+        "description": "Importe con su moneda. El servicio no convierte divisas: todo precio va en la moneda del catálogo."
+      },
+      {
+        "name": "ProductStatus",
+        "kind": "enum",
+        "detail": "draft | active | retired",
+        "description": "Situación comercial del producto."
+      },
+      {
+        "name": "NamedRef",
+        "kind": "value object",
+        "detail": "id: uuid, name: string",
+        "description": "Referencia a una marca o categoría tal como viaja en los eventos: su id y su nombre en el instante del hecho."
+      },
+      {
+        "name": "ProductImageRef",
+        "kind": "value object",
+        "detail": "imageId: uuid, file: file, altText: string, position: int, main: boolean",
+        "description": "Proyección de una imagen de producto tal como viaja en los eventos, sin identidad fuera de su producto."
+      }
+    ]
+  }
+};
+
+(function () {
+  'use strict';
+
+  if (!KEEL) {
+    document.getElementById('svc-name').textContent = 'Plantilla sin datos';
+    document.getElementById('svc-desc').textContent =
+      'Este archivo es la plantilla de /keel-docs: el placeholder KEEL_DATA no fue sustituido.';
+    return;
+  }
+
+  var AUDIENCES = [
+    { id: 'users',    label: 'Usuarios' },
+    { id: 'services', label: 'Servidores (M2M)' },
+    { id: 'both',     label: 'Ambos' },
+    { id: 'internal', label: 'Internos' }
+  ];
+  var LEVEL_LABEL = { public: 'pública', required: 'protegida', admin: 'admin', service: 'M2M' };
+
+  // -- helpers --------------------------------------------------------------
+  function el(tag, attrs, children) {
+    var n = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (k === 'class') n.className = attrs[k];
+      else if (k === 'text') n.textContent = attrs[k];
+      else if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) n.appendChild(c); });
+    return n;
+  }
+  function txt(tag, s, cls) { return el(tag, cls ? { class: cls, text: s } : { text: s }); }
+  function badge(label, kind) { return el('span', { class: 'badge' + (kind ? ' ' + kind : ''), text: label }); }
+  function list(arr) { return (arr && arr.length) ? arr.join(', ') : null; }
+  function has(x) { return x !== null && x !== undefined && x !== '' && !(Array.isArray(x) && !x.length); }
+  function section(title, node) { return el('section', {}, [txt('h4', title), node]); }
+  function ul(items) { return el('ul', {}, (items || []).map(function (i) { return txt('li', i); })); }
+  function kv(pairs) {
+    var d = el('dl', { class: 'kv' });
+    pairs.forEach(function (p) {
+      if (!has(p[1])) return;
+      d.appendChild(txt('dt', p[0]));
+      d.appendChild(txt('dd', String(p[1])));
+    });
+    return d.children.length ? d : null;
+  }
+  function table(headers, rows, monoCols) {
+    if (!rows || !rows.length) return null;
+    var thead = el('tr', {}, headers.map(function (h) { return txt('th', h); }));
+    var tb = el('tbody', {}, rows.map(function (r) {
+      return el('tr', {}, r.map(function (c, i) {
+        return el('td', { class: (monoCols || []).indexOf(i) >= 0 ? 'mono' : null, text: c === null || c === undefined ? '—' : String(c) });
+      }));
+    }));
+    return el('div', { class: 'scroll' }, [el('table', {}, [el('thead', {}, [thead]), tb])]);
+  }
+  function fieldsTable(fields) {
+    return table(['Campo', 'Tipo', 'Requerido', 'Descripción'], (fields || []).map(function (f) {
+      return [f.name, f.type + (f.list ? '[]' : ''), f.required ? 'sí' : 'no', f.description || '—'];
+    }), [0, 1]);
+  }
+  function payloadNode(p) {
+    if (!p) return txt('p', 'void', 'empty');
+    if (p.kind === 'void') return txt('p', 'void', 'empty');
+    if (p.kind === 'entity') {
+      var s = p.entity + (p.list ? '[] (lista)' : '') + (p.paginated ? ' — paginado' : '');
+      if (has(p.exclude)) s += ' · excluye: ' + p.exclude.join(', ');
+      return txt('p', s, 'mono');
+    }
+    return fieldsTable(p.fields) || txt('p', 'sin campos declarados', 'empty');
+  }
+
+  // -- cabecera -------------------------------------------------------------
+  var svc = KEEL.service || {};
+  document.title = svc.name ? 'Panel · ' + svc.name : 'Panel del servicio';
+  document.getElementById('svc-name').textContent = svc.name || '—';
+  document.getElementById('svc-desc').textContent = svc.description || '';
+  var meta = document.getElementById('svc-meta');
+  [['versión ' + (svc.version || '—'), 'tag'], svc.domain ? ['dominio: ' + svc.domain, null] : null,
+   svc.basedOn ? ['derivado de ' + svc.basedOn, null] : null]
+    .forEach(function (m) { if (m) meta.appendChild(badge(m[0], m[1])); });
+
+  var links = document.getElementById('links');
+  (KEEL.links || []).forEach(function (l) {
+    links.appendChild(el('a', { href: l.href, title: l.description || '', text: l.label }));
+  });
+
+  // -- huecos ---------------------------------------------------------------
+  if (has(KEEL.gaps)) {
+    document.getElementById('gaps-wrap').hidden = false;
+    var g = document.getElementById('gaps');
+    KEEL.gaps.forEach(function (s) { g.appendChild(txt('li', s)); });
+  }
+
+  // -- capacidades ----------------------------------------------------------
+  var caps = document.getElementById('capabilities');
+  (KEEL.capabilities || []).forEach(function (c) {
+    var card = el('div', { class: 'card' + (c.active ? '' : ' off') }, [
+      el('div', { class: 'card-head' }, [
+        txt('span', c.label, 'card-label'),
+        badge(c.active ? (c.state || 'sí') : 'no aplica', c.active ? 'on' : null)
+      ]),
+      c.headline ? txt('p', c.headline, 'card-headline') : null
+    ]);
+    if (has(c.facts)) {
+      var f = el('div', { class: 'facts' });
+      c.facts.forEach(function (p) {
+        f.appendChild(el('div', {}, [txt('span', p[0], 'k'), txt('span', String(p[1]), 'v')]));
+      });
+      card.appendChild(f);
+    }
+    if (c.note) card.appendChild(txt('p', c.note, 'note'));
+    caps.appendChild(card);
+  });
+
+  // -- casos de uso ---------------------------------------------------------
+  var ucs = KEEL.useCases || [];
+  var host = document.getElementById('use-cases');
+  var present = AUDIENCES.filter(function (a) {
+    return ucs.some(function (u) { return (u.audience || 'internal') === a.id; });
+  });
+  var tabs = document.getElementById('tabs');
+  var current = 'all';
+  [{ id: 'all', label: 'Todos (' + ucs.length + ')' }].concat(present.map(function (a) {
+    var n = ucs.filter(function (u) { return (u.audience || 'internal') === a.id; }).length;
+    return { id: a.id, label: a.label + ' (' + n + ')' };
+  })).forEach(function (t) {
+    var b = el('button', { type: 'button', role: 'tab', 'data-aud': t.id, text: t.label });
+    b.setAttribute('aria-selected', t.id === 'all' ? 'true' : 'false');
+    b.addEventListener('click', function () {
+      current = t.id;
+      Array.prototype.forEach.call(tabs.children, function (o) {
+        o.setAttribute('aria-selected', String(o.getAttribute('data-aud') === current));
+      });
+      applyFilter();
+    });
+    tabs.appendChild(b);
+  });
+
+  function triggerText(t) {
+    if (!t) return '—';
+    if (t.type === 'http') return (t.method || '') + ' ' + (t.path || '');
+    if (t.type === 'event') return 'evento ' + (t.event || '');
+    if (t.type === 'schedule') return 'programado · ' + (t.cron || '');
+    return 'interna';
+  }
+
+  ucs.forEach(function (u) {
+    var d = el('details', { class: 'item', 'data-aud': u.audience || 'internal' });
+    var sum = el('summary', {}, [
+      txt('span', u.name, 'item-name'),
+      badge(u.kind || 'command', 'tag'),
+      u.trigger && u.trigger.type === 'http' ? badge(triggerText(u.trigger)) : null,
+      u.trigger && u.trigger.type === 'event' ? badge('por evento') : null,
+      u.trigger && u.trigger.type === 'schedule' ? badge('programado') : null,
+      u.idempotency ? badge('idempotente', 'on') : null,
+      u.cache ? badge('cacheada', 'on') : null,
+      u.security ? badge(LEVEL_LABEL[u.security.level] || u.security.level,
+        u.security.level === 'public' ? 'warn' : 'tag') : null,
+      txt('span', u.description || '', 'item-desc')
+    ]);
+    var body = el('div', { class: 'body' });
+    if (u.description) body.appendChild(section('Qué hace', txt('p', u.description)));
+    body.appendChild(section('Disparador', txt('p', triggerText(u.trigger), 'mono')));
+    body.appendChild(section('Entrada', payloadNode(u.input)));
+    body.appendChild(section('Salida', payloadNode(u.output)));
+    if (has(u.preconditions)) body.appendChild(section('Precondiciones', ul(u.preconditions)));
+    if (has(u.rules)) body.appendChild(section('Reglas', ul(u.rules)));
+    if (has(u.errors)) {
+      body.appendChild(section('Errores', table(['Código', 'HTTP', 'Cuándo'], u.errors.map(function (e) {
+        return [e.code, e.http || '—', e.when || '—'];
+      }), [0])));
+    }
+    var pol = [];
+    if (u.idempotency) pol.push(['Idempotencia', 'keySource: ' + u.idempotency.keySource +
+      (has(u.idempotency.ttlSeconds) ? ' · TTL ' + u.idempotency.ttlSeconds + 's' : '')]);
+    if (u.cache) pol.push(['Caché', 'TTL ' + u.cache.ttlSeconds + 's' +
+      (has(u.cache.keyFields) ? ' · clave: ' + u.cache.keyFields.join(', ') : '') +
+      (has(u.cache.invalidatedBy) ? ' · invalida: ' + u.cache.invalidatedBy.join(', ') : '')]);
+    if (u.schedule) pol.push(['Programación', u.schedule.cron]);
+    if (pol.length) body.appendChild(section('Políticas', kv(pol)));
+    if (u.security) {
+      body.appendChild(section('Seguridad', kv([
+        ['Nivel', (LEVEL_LABEL[u.security.level] || u.security.level) + ' (' + u.security.level + ')'],
+        ['Roles', list(u.security.roles)],
+        ['Permisos', list(u.security.permissions)],
+        ['Scopes', list(u.security.scopes)]
+      ])));
+    }
+    if (has(u.emits)) body.appendChild(section('Eventos que emite', txt('p', u.emits.join(', '), 'mono')));
+    d.appendChild(sum);
+    d.appendChild(body);
+    d.setAttribute('data-text', (u.name + ' ' + (u.description || '') + ' ' + JSON.stringify(u)).toLowerCase());
+    host.appendChild(d);
+  });
+  if (!ucs.length) host.appendChild(txt('p', 'El diseño no declara operaciones.', 'empty'));
+
+  var q = document.getElementById('q');
+  function applyFilter() {
+    var needle = q.value.trim().toLowerCase();
+    Array.prototype.forEach.call(host.children, function (n) {
+      if (!n.getAttribute) return;
+      var okAud = current === 'all' || n.getAttribute('data-aud') === current;
+      var okTxt = !needle || (n.getAttribute('data-text') || '').indexOf(needle) >= 0;
+      n.hidden = !(okAud && okTxt);
+    });
+  }
+  q.addEventListener('input', applyFilter);
+
+  // -- eventos --------------------------------------------------------------
+  var ev = KEEL.events;
+  if (ev && (has(ev.published) || has(ev.subscriptions))) {
+    document.getElementById('events-wrap').hidden = false;
+    var eh = document.getElementById('events');
+    eh.appendChild(txt('p', 'Envoltura: ' + (ev.envelope || 'keel') +
+      ' (metadata + data)' + (ev.reliability ? ' · fiabilidad de publicación: ' + ev.reliability : ''),
+      'item-desc'));
+    if (has(ev.published)) {
+      eh.appendChild(txt('h3', 'Publicados'));
+      ev.published.forEach(function (e) {
+        var b = el('div', { class: 'body' }, [
+          e.description ? section('Descripción', txt('p', e.description)) : null,
+          section('Payload (data)', fieldsTable(e.payload) || txt('p', 'sin campos', 'empty')),
+          section('Detalles', kv([
+            ['Canal', e.channel || 'por convención del generador'],
+            ['Emitido por', list(e.emittedBy)],
+            ['Entrega', e.reliability || ev.reliability]
+          ]))
+        ]);
+        eh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', e.name, 'item-name'), badge('publicado', 'on'),
+            e.channel ? badge(e.channel) : null, txt('span', e.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+    if (has(ev.subscriptions)) {
+      eh.appendChild(txt('h3', 'Suscripciones'));
+      ev.subscriptions.forEach(function (s) {
+        var c = s.contract || {};
+        var b = el('div', { class: 'body' }, [
+          s.description ? section('Descripción', txt('p', s.description)) : null,
+          section('Payload esperado', fieldsTable(s.payload) || txt('p', 'sin campos', 'empty')),
+          section('Contrato de recepción', kv([
+            ['Origen', s.source],
+            ['Canal', s.channel],
+            ['Envoltura', c.envelope],
+            ['Ruta del payload', c.payloadPath],
+            ['Formato', c.format],
+            ['Discriminador', c.discriminator],
+            ['Clave de dedupe', c.messageId],
+            ['Campos desconocidos', c.unknownFields]
+          ])),
+          section('Al fallar', kv([
+            ['Reintentos', s.onFailure && s.onFailure.retry],
+            ['Dead letter', s.onFailure && (s.onFailure.deadLetter ? 'sí' : 'no')]
+          ]) || txt('p', 'sin política declarada', 'empty'))
+        ]);
+        eh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', s.name, 'item-name'), badge('consumido', 'tag'),
+            s.source ? badge('de ' + s.source) : null,
+            s.triggers ? badge('→ ' + s.triggers) : null,
+            txt('span', s.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+  }
+
+  // -- clientes HTTP --------------------------------------------------------
+  if (has(KEEL.httpClients)) {
+    document.getElementById('clients-wrap').hidden = false;
+    var ch = document.getElementById('clients');
+    KEEL.httpClients.forEach(function (c) {
+      var b = el('div', { class: 'body' }, [
+        c.purpose ? section('Propósito', txt('p', c.purpose)) : null,
+        section('Autenticación saliente', txt('p', c.auth || 'none', 'mono')),
+        section('Llamadas', table(
+          ['Llamada', 'Método y ruta', 'Timeout', 'Retry', 'Circuit breaker', 'Fallback'],
+          (c.calls || []).map(function (k) {
+            return [k.name, has(k.method) ? k.method + ' ' + (k.path || '') : (k.contract || '—'),
+              has(k.timeoutMs) ? k.timeoutMs + ' ms' : '—', k.retry || '—',
+              k.circuitBreaker || '—', k.fallback || '—'];
+          }), [0, 1]) || txt('p', 'sin llamadas declaradas', 'empty'))
+      ]);
+      ch.appendChild(el('details', { class: 'item' }, [
+        el('summary', {}, [txt('span', c.name, 'item-name'),
+          badge((c.calls || []).length + ' llamada(s)', 'tag'),
+          txt('span', c.purpose || '', 'item-desc')]),
+        b
+      ]));
+    });
+  }
+
+  // -- dominio --------------------------------------------------------------
+  var dom = KEEL.domain;
+  if (dom && (has(dom.entities) || has(dom.aggregates) || has(dom.types))) {
+    document.getElementById('domain-wrap').hidden = false;
+    var dh = document.getElementById('domain');
+    if (has(dom.aggregates)) {
+      dh.appendChild(txt('h3', 'Agregados'));
+      dh.appendChild(table(['Agregado', 'Raíz', 'Entidades internas', 'Descripción'],
+        dom.aggregates.map(function (a) {
+          return [a.name, a.root, list(a.entities) || '—', a.description || '—'];
+        }), [0, 1, 2]));
+    }
+    if (has(dom.entities)) {
+      dh.appendChild(txt('h3', 'Entidades'));
+      dom.entities.forEach(function (e) {
+        var b = el('div', { class: 'body' }, [
+          e.description ? section('Descripción', txt('p', e.description)) : null,
+          section('Campos', table(['Campo', 'Tipo', 'Atributos', 'Descripción'],
+            (e.fields || []).map(function (f) {
+              return [f.name, f.type + (f.list ? '[]' : ''), list(f.flags) || '—', f.description || '—'];
+            }), [0, 1]) || txt('p', 'sin campos', 'empty')),
+          has(e.relations) ? section('Relaciones', table(['Relación', 'Entidad', 'Cardinalidad'],
+            e.relations.map(function (r) { return [r.name, r.entity, r.cardinality]; }), [0, 1])) : null,
+          e.lifecycle ? section('Ciclo de vida (' + e.lifecycle.field + ')',
+            table(['Estado', 'Transiciona a'], Object.keys(e.lifecycle.transitions || {}).map(function (k) {
+              return [k, list(e.lifecycle.transitions[k]) || 'terminal'];
+            }), [0, 1])) : null,
+          has(e.invariants) ? section('Invariantes', ul(e.invariants)) : null
+        ]);
+        dh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', e.name, 'item-name'),
+            badge((e.fields || []).length + ' campo(s)', 'tag'),
+            e.persisted ? badge('persistida', 'on') : null,
+            txt('span', e.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+    if (has(dom.types)) {
+      dh.appendChild(txt('h3', 'Value types'));
+      dh.appendChild(table(['Tipo', 'Forma', 'Detalle', 'Descripción'], dom.types.map(function (t) {
+        return [t.name, t.kind, t.detail || '—', t.description || '—'];
+      }), [0, 1, 2]));
+    }
+  }
+
+  document.getElementById('footer').textContent =
+    'Derivado del diseño Keel de ' + (svc.name || '—') + ' v' + (svc.version || '—') +
+    (svc.generatedAt ? ' · generado el ' + svc.generatedAt : '') +
+    ' · La fuente de verdad son los artefactos de specs/. No edites este archivo a mano: regenéralo con /keel-docs.';
+})();
+</script>
+</body>
+</html>
