@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.1.0. Contrato de validación para la fase de generación.
+> specs/catalog v0.1.1. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -695,11 +695,11 @@ retira.
 6. `?categoryId=c1&maxPrice=40&name=bot` → `Alta Bota`.
 7. `admin` desactiva `b2`: `?brandId=b2` sigue devolviendo `Bota Trail` (el filtro se aplica igual).
 8. `?minPrice=50&maxPrice=10` → `400 INVALID_PRICE_RANGE`.
-9. `?size=2` → 2 elementos, `totalPages: 2`; `?size=2&page=1` → `Cojín`; `?page=9` → `items: []`,
-   `totalElements: 3`, `totalPages: 2`; `?size=500` → `size: 100`.
+9. `?size=2` → 2 elementos, `totalPages: 2`; `?size=2&page=1` → `Cojín`; `?size=2&page=9` → `items: []`,
+   `page: 9`, `size: 2`; `?size=500` → `size: 100`.
 10. `?name=zzz` → página vacía canónica (`items: []`, `totalElements: 0`, `totalPages: 0`).
-11. **Coste**: una página de 20 productos con marca y categoría anidadas no cuesta más trabajo de
-    almacén que una de 2: el trabajo de la operación no crece con el tamaño de la página.
+11. **Coste**: la página completa (3 productos con marca y categoría anidadas) no cuesta más trabajo
+    de almacén que `?size=2`: el trabajo de la operación no crece con el tamaño de la página.
 
 **Notas de determinación**: ningún par de nombres del Given difiere solo en mayúsculas o acentos, así
 que el orden no depende de la colación. El filtro `?name=COJIN` sí ejercita la comparación sin acentos.

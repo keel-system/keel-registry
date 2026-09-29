@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "catalog",
-    "description": "Colección de negocio del servicio catalog v0.1.0, derivada del diseño Keel: una carpeta por flujo de specs/catalog/validation-scenarios.md. Importa y ejecuta antes auth-collection.json.",
+    "description": "Colección de negocio del servicio catalog v0.1.1, derivada del diseño Keel: una carpeta por flujo de specs/catalog/validation-scenarios.md. Importa y ejecuta antes auth-collection.json.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -8445,7 +8445,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.1.0"
+      "value": "0.1.1"
     },
     {
       "key": "webOrigin",

@@ -5,7 +5,7 @@ keel: "2.17"
 
 service:
   name: catalog
-  version: 0.1.0
+  version: 0.1.1
   # keel validate trata cualquier description que empiece por "TODO" como placeholder pendiente.
   description: "Gestiona el catálogo comercial —productos con sus imágenes, marcas y categorías—, lo expone filtrable al público de la tienda, lo sirve a otros servidores por contrato y publica las altas y cambios de producto como eventos."
   domain: commerce

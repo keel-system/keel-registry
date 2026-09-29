@@ -1,6 +1,6 @@
 # catalog — Documento de diseño
 
-> specs/catalog v0.1.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/catalog v0.1.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
