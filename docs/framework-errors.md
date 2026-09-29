@@ -37,6 +37,8 @@ La regla, entonces, es más precisa que «nunca inventes un code»:
 | `use-cases`: `operations.<op>.idempotency` — misma clave, otro cuerpo | `IDEMPOTENCY_KEY_REUSED` | 409 | sí |
 | `storage`: `buckets.<b>.maxSizeMb` | `FILE_TOO_LARGE` | 413 | sí |
 | Entrada multipart (input con campo `type: file`) | `FILE_UNREADABLE` | 400 | no |
+| `security`: la cadena de autenticación | `UNAUTHENTICATED` | 401 | no |
+| `security`: `access.rules` y la audiencia de `serviceAuth` | `ACCESS_DENIED` | 403 | no |
 
 Qué significa cada uno:
 
@@ -60,6 +62,12 @@ Qué significa cada uno:
   segunda rompería la promesa de la clave. La única salida honesta es rechazarla.
 - **`FILE_TOO_LARGE`** — la subida supera el `maxSizeMb` del bucket.
 - **`FILE_UNREADABLE`** — la parte binaria llega vacía o el cuerpo multipart está roto.
+- **`UNAUTHENTICATED`** — la petición no trae credencial o la que trae no es válida. La emite la
+  cadena de seguridad antes de que exista ninguna operación, así que no es sustituible: no hay
+  operación en la que declarar otro.
+- **`ACCESS_DENIED`** — la credencial es válida pero no autoriza la operación: rol, permiso,
+  scope o audiencia. El 403 del **alcance por recurso** no es este: ese lo decide el caso de uso
+  y sale con el `code` que declara `scoping.error`.
 
 ## Sustituir uno por el del dominio
 
@@ -92,6 +100,13 @@ entra en la familia de concurrencia.
 **Se exige exactamente un candidato.** Con cero, el diseño no lo dijo y manda el canónico; con
 dos, dijo algo ambiguo y elegir uno sería adivinar — también manda el canónico. Eso es lo que
 hace que el contrato exista siempre, diga lo que diga el diseño.
+
+**La unicidad se puede nombrar en vez de dejarla a la familia** (DSL 2.16): `naturalKeyError` en
+la entidad y `error` en un índice único de `persistence` dicen qué code significa violarla, y
+mandan sobre toda deducción. Es la salida cuando el code no sigue la forma de los campos y la
+entidad tiene más de una unicidad —ahí la familia no encuentra nada y el canónico sale con un
+TODO—; `keel validate` lo avisa con `CHK-PERSIST-UNIQUE-ERROR-UNDECLARED`. Ver
+[`dsl/persistence.md`](dsl/persistence.md).
 
 ## Qué avisa `keel validate`
 

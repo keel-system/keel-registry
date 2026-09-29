@@ -51,7 +51,8 @@ subscriptions:
 
 - Un **canal** es un concepto lógico y agnóstico del broker: al generar se materializa en un **topic** (Kafka), una **cola/exchange** (RabbitMQ), etc. — igual que un `bucket` de la capa `storage` se materializa en S3/MinIO. En el diseño solo se declara el nombre lógico y su propósito.
 - Se declaran en `channels` (nombres en `camelCase`) y se referencian por nombre desde `publishing.events.<Evento>.channel` y `subscriptions.<Evento>.channel`. `keel validate` comprueba que el canal referenciado exista (referencia cruzada) y avisa de canales declarados que nadie usa (canal huérfano).
-- `channel` es **opcional**: un diseño puede dejar el enrutado a convención del generador. Pero si el servicio se integra con otros, declarar el canal deja plasmado el contrato de integración (por dónde emite y de dónde consume).
+- `channel` es **opcional**: un diseño puede dejar el enrutado a convención del generador. Pero si el servicio se integra con otros, declarar el canal deja plasmado el contrato de integración (por qué canal lógico emite y a cuál pertenece lo que consume).
+- **El canal es lógico, el destino físico es de convención, y las dos cosas no se mezclan.** El emisor publica siempre en el destino de su servicio (`<servicio>.events`, con una clave de enrutado por evento) y el consumidor lee de `<source>.events`: es lo que hace que dos servicios generados por separado casen sin ponerse de acuerdo en nada más que en el nombre del emisor. Por eso el `channel` de una **suscripción** no cambia de dónde se consume —si lo cambiara, el consumidor dejaría de leer donde el emisor escribe—. Lo que sí hace: marca el canal `external` (y entonces el nombre físico real es un parámetro de despliegue), lleva el `contract` de una fuente ajena, y es el nombre con el que las pruebas leen lo publicado. Si dos suscripciones de orígenes distintos comparten canal, siguen consumiendo cada una de su `source`.
 - `external: true` marca un canal que **posee otro sistema**: el generador no lo crea ni asume sobre él la envoltura de eventos de Keel, y el nombre físico del topic/cola real (que ya existe fuera) se resuelve como **parámetro de despliegue**, no en el spec. Publicar en un canal externo es posible pero se avisa: exige acuerdo con su dueño.
 
 ## Publicación
@@ -174,6 +175,15 @@ lo comprueba nadie. La primera hace el trabajo pesado; la segunda **no elimina l
 y se acepta a sabiendas mientras todos los emisores sean sistemas propios en la misma malla
 de confianza.
 
+**Contra qué se resuelve (`resolvedBy`, DSL 2.17).** Leer el valor no es resolverlo: `metadata.source`
+trae un nombre, y hay que decir a qué recurso corresponde. Por defecto es 1:1 contra la clave natural
+del recurso. Si un recurso tiene **varias** credenciales y el emisor se nombra con una de ellas —el
+caso de un sistema que publica con su `client_id`—, `identity.resolvedBy: Application.credentialKeys`
+lo declara, igual que `callerIdentity.from.resolvedBy` por HTTP y con las mismas reglas (la
+entidad existe y el campo es una lista). `keel validate` lo pregunta
+(`CHK-MSG-IDENTITY-RESOLVEDBY-UNDECIDED`) cuando HTTP resuelve 1:N y el broker no dice contra qué:
+sin decirlo, la misma aplicación sería una aplicación por una puerta y ninguna por la otra.
+
 Dos cosas más que declarar `identity` cierra:
 
 - **El dato de identidad está en un solo sitio.** `identity.field` no puede aparecer además
@@ -246,6 +256,19 @@ La consecuencia práctica: un `request` **no obliga a declarar su `source` como 
 - todo campo `required` del input de `triggers` (que no sea `generated` ni `computed`) llegue en el payload, directamente o vía `input` — si no, **error**: el listener no podría construir la operación;
 - las claves de `input` existan en el input de la operación y sus valores en el payload;
 - todo campo del payload alimente algo (si no, **aviso**: o sobra en el contrato o falta en la operación).
+
+**Un campo de la envoltura** (DSL 2.16). El valor de `input` puede ser también `metadata.eventId`, `metadata.occurredAt` o `metadata.source`: un dato del mensaje en sí, no de su payload. Es lo que da forma estructural a una regla como «`dedupeKey` es `event:` seguido del id del mensaje», que antes solo podía decirse en prosa y dejaba el comando sin el dato:
+
+```yaml
+subscriptions:
+  NotificationRequested:
+    contract: { envelope: keel }
+    triggers: acceptNotificationRequest
+    input:
+      eventId: metadata.eventId   # el resto llega por nombre desde el payload
+```
+
+Solo con [envoltura Keel](#la-envoltura-keel) —con `none` o `wrapped` no hay `metadata` que estampe un emisor Keel— y sobre un campo del input del tipo que tiene en la envoltura: `eventId` y `source` son `string` (el id viaja como cadena aunque su contenido sea un UUID) y `occurredAt` es `timestamp`. Si no, **error** (`CHK-MSG-INPUT-ENVELOPE-FIELD`). La identidad del emisor no se mapea así: tiene su propio bloque, `identity`, y declararla también en `input` es error.
 
 ## Qué NO va aquí
 

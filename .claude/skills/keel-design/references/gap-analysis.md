@@ -20,7 +20,7 @@ Distinción operativa:
 
 ## Procedimiento
 
-0. **Inventario de barrido.** Antes de mirar ninguna clase, enumera **las unidades** que hay que recorrer. Es el mismo movimiento —y por la misma razón— que el inventario de obligaciones de `scenario-authoring.md § 1`: recorrer las clases y ver si "parece completo" produce cobertura del camino feliz y huecos sistemáticos en todo lo demás. Es un borrador de trabajo, no va a ningún artefacto:
+0. **Inventario de barrido.** Antes de mirar ninguna clase, obtén **las unidades** que hay que recorrer: `keel validate --ready specs/<servicio>` las lista bajo el criterio `gaps`, clase por clase, derivadas de las capas. No lo reconstruyas a mano: la CLI es la que después comprueba que las recorriste todas, y dos inventarios distintos acaban discrepando. Es el mismo movimiento —y por la misma razón— que el inventario de obligaciones de `scenario-authoring.md § 1`: recorrer las clases y ver si "parece completo" produce cobertura del camino feliz y huecos sistemáticos en todo lo demás. La tabla de abajo es de dónde sale cada unidad, para que entiendas qué te pide:
 
    | Fuente | Unidades | Clases |
    |---|---|---|
@@ -45,7 +45,7 @@ Distinción operativa:
 
    Que `/keel-validate` mire algo parecido **no** es motivo para saltarse una unidad: su checklist juzga la calidad de lo **declarado** y esto busca la **ausencia**. Ese atajo es exactamente lo que vacía de contenido la tabla del paso 2.
 
-2. **Dos tablas.** Presenta al usuario la **cobertura** y los **hallazgos**, en ese orden. La primera es la que hace auditable el barrido: sin ella, una clase recorrida y limpia es indistinguible de una clase saltada.
+2. **Dos tablas, escritas en `specs/<servicio>/gaps.yaml`.** La **cobertura** (`coverage`) y los **hallazgos** (`findings`) van al archivo, no al chat; al usuario le muestras el resumen y los hallazgos que tiene que decidir. La primera es la que hace auditable el barrido: sin ella, una clase recorrida y limpia es indistinguible de una clase saltada. Y escrita en el archivo sobrevive a la conversación: tras un `/clear`, `keel validate --ready` dice exactamente qué unidades quedan. El formato está en § El archivo, al final de este documento.
 
    **Cobertura** — ninguna clase puede faltar; "no aplica" exige nombrar el disparador ausente; un veredicto sin unidades enumeradas no cuenta como recorrido:
 
@@ -75,7 +75,7 @@ Distinción operativa:
 
 4. **Re-validación.** Tras materializar los cambios, vuelve a ejecutar `keel validate specs/<servicio>` — tocar artefactos puede romper referencias cruzadas.
 
-5. **Cierre del análisis.** Termina reportando la **tabla de cobertura** (no solo los hallazgos) y una de dos frases explícitas:
+5. **Cierre del análisis.** Sella `gaps.yaml` con `reviewedAt` = la `service.version` actual y comprueba que el criterio `gaps` de `keel validate --ready` sale en verde. Termina con una de dos frases explícitas:
    - "Sin huecos abiertos: N hallazgos, M decididos y K aceptados con su porqué."
    - "N huecos abiertos: …" — con la lista y por qué no se pudieron cerrar. El diseño **no está terminado** mientras quede uno.
 
@@ -191,6 +191,10 @@ Por cada cliente de `http-clients`, cada suscripción, cada `need` y cada `activ
 - El hueco simétrico, que se ve menos: una activación cuyo desenlace llega **por evento** y que no deja la entidad en ningún **estado de espera**. Entonces el evento de resultado no tiene dónde aplicarse —no hay transición que ejecutar— y el barrido no tiene qué buscar: `reconciledBy` correría cada N minutos sobre una consulta que no se puede escribir. Reconciliar es sacar de la espera lo que se quedó ahí, así que primero hay que declarar la espera: la `transitions` de la operación que encarga es la que mete la entidad en ella. `keel validate` lo avisa, pero el estado correcto es de diseño.
 - Y si la hay, las dos preguntas que la hacen funcionar de verdad —`keel validate` las comprueba, pero la respuesta correcta es de diseño—: (a) el evento de fallo llega por un canal que **reentrega**; si la compensación se ejecuta dos veces, ¿qué pasa? ¿Qué la protege: `contract.messageId` o una transición irrepetible? (`idempotency` no: su clave llega por una cabecera HTTP que el broker no manda, y declararla ahí es error.) (b) el trabajo encargado movió el estado de una entidad nuestra: al deshacerlo, **¿a qué estado vuelve**, y esa arista está en `domain: lifecycle.transitions`? Si el estado de partida es terminal, la respuesta casi siempre es que falta la arista, no que la compensación sobre.
 
+Por cada `need`:
+
+- **¿El dato sale en la respuesta?** La pregunta que descubre un `need` es qué necesita la operación para decidir, y ahí suele acabar: sin `exposedAs` el dato entra, decide y no sale del servicio. Pero si el cliente lo **pinta** (la ficha «con su miniatura», el precio que acompaña al producto) o el `degradedTo` habla de un campo que viaja nulo, el dato es parte del contrato y va en `exposedAs`. Crúzalo con los escenarios: un `Then` que afirma el dato en la respuesta de una operación de `usedBy` sin `exposedAs` es la contradicción que `keel validate` avisa con `CHK-SCEN-NEED-NOT-EXPOSED`. En la corrida `asset-vault` el agente generador la resolvió añadiendo el campo por su cuenta, y nadie lo reportó.
+
 Por cada `activation`:
 
 - ¿Está en la casilla correcta? Un `need` con `strategy: on-demand` cuyo `fetchedFrom` apunta a una llamada que **cambia estado** en el proveedor y cuya respuesta no decide nada es una activación mal declarada: el acoplamiento va al revés de como está escrito y queda fuera del mapa del sistema.
@@ -280,8 +284,8 @@ Un `schedule` es la única superficie del servicio sin cliente que espere respue
 
 *Aplica si:* hay capa `persistence` — **o** el servicio tiene entidades y **no** la declara, en cuyo caso la primera pregunta es si de verdad no guarda nada.
 
-- **`consistency.optimisticLocking`**: `all`, `declared` o `none` cambia lo que ve el cliente cuando dos escrituras caen sobre la misma raíz — conflicto `409` frente a último-escritor-gana silencioso. Tiene default en el schema, así que se escribe solo si nadie pregunta. Es la decisión de la clase 4 materializada: si el diseño declara operaciones de leer-y-luego-escribir y `optimisticLocking: none`, eso no es configuración, es una contradicción.
-- **`audit.timestamps` / `audit.authorship`**: los dos tienen default (`all` y `none`), así que se escriben solos si nadie pregunta — y el segundo silencia en el proceso una necesidad de cumplimiento. Si el rastro lo lee alguien de fuera, la política es `declared` y los campos van en `domain`: lo que no está ahí no puede salir en un `output`. Y si el diseño pide autoría, comprueba **quién ejecuta cada escritura**: en una operación disparada por una suscripción no hay usuario, y la respuesta honesta a "quién lo hizo" es el correlation id, no un actor inventado.
+- **`consistency.optimisticLocking`**: `all`, `declared` o `none` cambia lo que ve el cliente cuando dos escrituras caen sobre la misma raíz — conflicto `409` frente a último-escritor-gana silencioso. Tiene default en el schema; sin escribirlo sale `CHK-MODEL-IMPLICIT-DEFAULT`, pero el aviso solo dice que falta, no que alguien lo preguntara. Es la decisión de la clase 4 materializada: si el diseño declara operaciones de leer-y-luego-escribir y `optimisticLocking: none`, eso no es configuración, es una contradicción.
+- **`audit.timestamps` / `audit.authorship`**: los dos tienen default (`all` y `none`); sin escribirlos sale `CHK-MODEL-IMPLICIT-DEFAULT`, y el segundo es el que más se queda sin preguntar —silencia una necesidad de cumplimiento—. Si el rastro lo lee alguien de fuera, la política es `declared` y los campos van en `domain`: lo que no está ahí no puede salir en un `output`. Crúzalo con los escenarios y con sus convenciones: un `Then` que afirma `createdAt` o `createdBy` en una respuesta con la política en `all` o `none` pide algo que ningún contrato devuelve (`CHK-SCEN-AUDIT-NOT-EXPOSED`). En la corrida `asset-vault` esta clase se dio por cerrada sin plantearlo, y el escenario salió rojo contra un servidor correcto. Y si el diseño pide autoría, comprueba **quién ejecuta cada escritura**: en una operación disparada por una suscripción no hay usuario, y la respuesta honesta a "quién lo hizo" es el correlation id, no un actor inventado.
 - Entidades de `domain` que **no aparecen** en `persistence.entities`: ¿son efímeras a sabiendas, o se olvidaron? Una entidad que el diseño trata como duradera y nadie persiste desaparece en el primer reinicio.
 - Por cada `naturalKey`: ¿hay un error de colisión declarado en las operaciones que la escriben? Es la clase 4 vista desde la otra capa, y aquí se olvida más.
 - **Índices frente a las queries**: por cada criterio de filtro y de orden de una query, ¿lo sostiene algún índice? No es rendimiento, es **cota**: una colección paginada cuyo orden no puede sostenerse deja de responder al crecer, y eso sí es contrato.
@@ -326,9 +330,9 @@ ya lo ha leído. Eso cambia el peso de cada hueco de esta clase.
 
 Las quince clases anteriores preguntan **qué** dice o no dice el diseño. Esta pregunta **quién lo decidió**.
 
-Recorre el catálogo de `structural-decisions.md § 3` entrada por entrada y, por cada una que **aplique** a este servicio, comprueba que la eligió el diseñador y no tú. Lo que buscas no deja rastro en el YAML: un `reliability: best-effort` decidido y uno asumido se escriben igual. Por eso el barrido **no se hace contra tu memoria de la sesión** —que en un diseño real ha pasado por horas de conversación y probablemente por una compactación de contexto— sino contra los **bloques de decisiones estructurales** que cerraron cada capa en el paso 3 de `/keel-design`.
+Recorre el catálogo de `structural-decisions.md § 3` entrada por entrada y, por cada una que **aplique** a este servicio, comprueba que la eligió el diseñador y no tú. Lo que buscas no deja rastro en el YAML: un `reliability: best-effort` decidido y uno asumido se escriben igual. Por eso el barrido **no se hace contra tu memoria de la sesión** —que en un diseño real ha pasado por horas de conversación y probablemente por una compactación de contexto— sino contra el **registro de decisiones estructurales** que cada capa escribió en `decisions.yaml` → `structural:` en el paso 3 de `/keel-design`. Qué secciones aplican no lo decides tú: es el inventario de esta clase, el mismo que lista `keel validate --ready`.
 
-**Si esos bloques no están disponibles** (sesión reanudada, contexto compactado, diseño heredado con `--from`), no supongas que se decidió: clasifica como **hueco** toda entrada aplicable del catálogo y vuelve a preguntarla. La asimetría es deliberada — re-preguntar cuesta una pregunta; asumir cuesta un default tácito con apariencia de decisión de negocio, que es exactamente lo que esta clase existe para cazar.
+**Si una entrada aplicable no está en el registro, o está caducada** (su `since` es de otra versión: diseño evolucionado o heredado con `--from`), no supongas que se decidió: clasifícala como **hueco** y vuelve a preguntarla. La caducada trae el porqué de entonces, que es un buen punto de partida para la pregunta, no una respuesta. La asimetría es deliberada — re-preguntar cuesta una pregunta; asumir cuesta un default tácito con apariencia de decisión de negocio, que es exactamente lo que esta clase existe para cazar.
 
 | Aplica si… | Entrada del catálogo | Qué comprobar |
 |---|---|---|
@@ -341,7 +345,9 @@ Recorre el catálogo de `structural-decisions.md § 3` entrada por entrada y, po
 | hay `persistence` | 3.7 frontera transaccional | `per-operation`/`per-aggregate` es elección, no default del template |
 | hay queries de colección | 3.8 paginación | paginar o no paginar se decidió con la cota esperada delante |
 | hay commands que escriben la misma entidad | 3.9 concurrencia | "último gana" está dicho en voz alta, o hay conflicto declarado; el `optimisticLocking` que lo materializa se eligió, no se heredó del default |
+| hay `persistence` | 3.9b auditoría | `timestamps` y `authorship` se preguntaron con quién lee el rastro delante, no se heredaron del default |
 | hay `storage` | 3.10 visibilidad | cada bucket, con su vía de acceso si es `private` |
+| hay `compensations` en `dependencies` | 3.11 compensación | la transición de vuelta y qué ve el cliente mientras tanto las eligió el diseñador |
 
 Severidades de esta clase:
 
@@ -350,3 +356,41 @@ Severidades de esta clase:
 - **ok** — decisión del diseñador, con su alternativa descartada anotada. Va a la tabla de cobertura, no a la de hallazgos.
 
 Los huecos de esta clase **no se cierran corrigiendo el artefacto**: se cierran haciendo ahora la pregunta que no se hizo entonces, con su consecuencia observable, y aceptando la respuesta que venga — incluida la de dejarlo como está.
+
+## El archivo: `gaps.yaml`
+
+El barrido se escribe en `specs/<servicio>/gaps.yaml` (schema `gaps.schema.json`). Qué clases aplican y cuáles son sus unidades **no lo decides tú**: lo deriva la CLI de las capas, y `keel validate --ready` compara el archivo con ese inventario. Una clase que no está en `coverage`, o una unidad que falta en su lista, es una unidad que nadie recorrió.
+
+```yaml
+reviewedAt: 1.2.0            # la service.version sobre la que se hizo; caduca con el minor
+
+coverage:                    # una entrada por clase aplicable, con TODAS sus unidades
+  - class: 5
+    units: [listOrders, getOrder, searchOrders]
+    result: findings         # clean | findings
+  - class: 9
+    units: [placeOrder, cancelOrder, listOrders, getOrder, searchOrders]
+    result: findings
+  - class: 10
+    units: [invoices]
+    result: clean
+
+findings:
+  - class: 5
+    unit: listOrders
+    what: Sin orden declarado ni paginación
+    severity: gap            # gap (hueco) | risk (riesgo)
+    state: decided           # decided | accepted | open
+    reason: Orden por createdAt descendente con desempate por id, y paginado
+  - class: 9
+    unit: getOrder
+    what: Un cliente puede leer el pedido de otro
+    severity: gap
+    state: open              # la clase 9 no admite accepted: o se decide, o queda open
+```
+
+- Las unidades se escriben **como las lista la CLI**: una operación, una entidad, `publishing.OrderPlaced`, `catalog.needs.productPricing`, `3.1` para las entradas del catálogo estructural (clase 16).
+- `accepted` exige `reason`, y las clases **9** y **12** no lo admiten: la CLI lo da como error de formato. El `http` de los errores (clase 2) y el orden de las colecciones (clase 5) tampoco lo admiten, pero son una pregunta dentro de su clase: el orden ya lo vigila `CHK-USECASES-COLLECTION-NO-SORT`.
+- Caduca **entero** con el minor o el major, como `review.yaml`: un cambio de forma puede abrir huecos donde el barrido anterior no encontró nada. Al evolucionar el diseño, las unidades nuevas aparecen solas como no recorridas.
+- Viaja al **publicar** el diseño y **no al derivarlo**: el análisis de huecos no se hereda.
+- No bloquea la generación: es un criterio de `keel validate --ready` (`gaps`).

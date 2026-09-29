@@ -20,6 +20,8 @@ Durante una sesión de diseño usa `keel validate --wip specs/<servicio>`: los p
 
 Si falla, traduce cada error a lenguaje del DSL (ej. "`use-cases: createProduct.emits`: el evento 'ProductCreated' no está en messaging" → "la operación emite un evento que aún no definiste en la capa messaging") y propón la corrección.
 
+Algunos avisos no señalan un error sino una **decisión que el diseño no tomó**. La CLI los distingue: debajo de cada uno imprime «decisión sin tomar» con su `id` y su `scope`. No los corrijas por tu cuenta ni los despaches como mejorables: si nadie los decide, los decide el generador. **Pregúntale al usuario** y materializa su respuesta, o en el DSL o, si el aviso lo admite, aceptándolo en `specs/<servicio>/decisions.yaml` con ese `id`, ese `scope`, su motivo y el `since` de la versión actual. Los que dicen «no admite aceptación» solo se cierran en el DSL. Mientras quede alguno abierto, `keel validate --ready` no está en verde (ver `docs/design-obligations.md § Decisiones no tomadas en los avisos`).
+
 Fallback si el comando `keel` no está disponible: valida cada `<capa>.keel.yaml` con ajv-cli (`--spec=draft2020 -r schema/common.schema.json -s schema/<capa>.schema.json`) y haz las cross-refs leyendo los artefactos.
 
 ## Nivel 3 — Semántica (lo que ni el schema ni las cross-refs pueden expresar)
@@ -37,13 +39,9 @@ Seis de las siete comprobaciones que aquí había las hace ya `keel validate` en
 
 **Calidad por capa — recorrido por id.**
 
-La CLI lista los ids de revisión que le tocan a ESTE diseño (`REV-*`, derivados de las capas que declara) y cuántos tienen ya veredicto. Recórrelos **en el orden en que los lista**, uno a uno:
+La CLI lista los ids de revisión que le tocan a ESTE diseño (`REV-*`, derivados de las capas que declara) y cuántos tienen ya veredicto. **El recorrido no lo haces tú**: lanza el subagente `keel-design-review` (`.opencode/agent/keel-design-review.md`) con la ruta `specs/<servicio>/` y **nada más**. Tiene que ser otro contexto: quien escribió el diseño —tú, casi siempre, en la misma sesión— lee sus decisiones como quiso tomarlas, y en el cierre del par del MVP la lectura independiente fue la que más encontró. El agente contesta cada id con evidencia y escribe `specs/<servicio>/review.yaml` con `reviewedBy: keel-design-review`; `keel validate --ready` exige esa autoría.
 
-1. Lee la pregunta del id y, si necesitas el porqué, su sección en `references/review-checklist.md` — solo la de la capa que estés mirando.
-2. Contesta con evidencia del diseño: nombra la entidad, la operación o el campo.
-3. Escribe el veredicto en `specs/<servicio>/review.yaml` (`ok` / `fixed` / `accepted` / `open`), con nota salvo en `ok`.
-
-Vuelve a ejecutar `keel validate` al terminar: la cobertura tiene que quedar completa, y un veredicto `open` deja el diseño sin generar, que es lo correcto.
+Después, repasa **con el usuario** cada veredicto que no sea `ok`. El agente propone `open` para todo hallazgo, y el usuario decide: se corrige el diseño (el veredicto pasa a `fixed`, con nota de qué se cambió) o se acepta (`accepted`, con su porqué). Tú escribes la decisión en `review.yaml`, sin tocar `reviewedBy`: la revisión la hizo el agente, y la decisión es del diseñador. Vuelve a ejecutar `keel validate` al terminar: la cobertura tiene que quedar completa, y un veredicto `open` deja el diseño sin generar, que es lo correcto.
 
 **No repitas lo que la CLI ya contestó.** Sus hallazgos vienen con id `CHK-*`: se leen y se incorporan al informe, no se vuelven a juzgar.
 

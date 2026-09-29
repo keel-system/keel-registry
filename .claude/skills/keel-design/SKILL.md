@@ -60,17 +60,29 @@ El catálogo completo —doce entradas, con sus ejes de decisión, sus consecuen
 
    En cada capa opcional pregunta explícitamente si aplica; si no, **no crees el artefacto** ni lo declares en `layers`. Al crear una capa opcional: copia `templates/service/<capa>.keel.yaml` y declárala en el manifiesto.
 
-   **Registro de decisiones estructurales.** Al cerrar cada capa, junto a la aprobación, emite un bloque con las entradas del catálogo que se resolvieron en ella — una línea por decisión, con este formato:
+   **Registro de decisiones estructurales.** Al cerrar cada capa, junto a la aprobación, **escribe** en `specs/<servicio>/decisions.yaml`, bajo `structural:`, las entradas del catálogo que se resolvieron en ella — una por decisión, con la sección, lo elegido, lo descartado y el porqué:
 
-   ```
-   Decisiones estructurales — messaging
-   - §3.1 fiabilidad de publicación: `outbox`. Se preguntó qué pasa si la transacción
-     confirma con el broker caído; el diseñador no acepta perder el evento de facturación.
-     Descartado: `best-effort` (reconciliación nocturna, no la hay).
-   - §3.5 política de fallo de `PriceChanged`: `retry` 3 + `deadLetter`. Descartado: solo retry.
+   ```yaml
+   structural:
+     - section: '3.1'                          # entre comillas: 3.10 sin ellas es el número 3.1
+       scope: messaging.publishing.reliability # opcional: la unidad, si la decisión cambia por unidad
+       chosen: outbox                          # si es un campo, tal como está escrito en el DSL
+       discarded: best-effort
+       reason: >-
+         Se preguntó qué pasa si la transacción confirma con el broker caído; el diseñador no
+         acepta perder el evento de facturación, y no hay reconciliación nocturna que lo recupere.
+       since: 1.0.0                            # la service.version en la que se decidió
+     - section: '3.5'
+       scope: messaging.subscriptions.PriceChanged
+       chosen: retry 3 + deadLetter
+       discarded: solo retry
+       reason: Un precio perdido deja el catálogo desalineado sin que nadie lo vea; hay que poder reinyectarlo.
+       since: 1.0.0
    ```
 
-   No es trabajo nuevo: es el mismo rationale que `/keel-handoff` pedirá en el paso 6, capturado cuando está fresco en vez de reconstruido al final. Y es el sustrato contra el que la clase 16 del análisis de huecos comprueba **quién** decidió cada cosa: sin él, ese barrido se hace contra la memoria de una sesión larga, que no es evidencia. Si una decisión quedó sin cerrar, la línea lo dice (`pendiente:`) y se arrastra al cierre de sesión.
+   Al usuario muéstrale el resumen de lo que escribiste, no un bloque aparte: el archivo **sustituye** al bloque del chat, no lo duplica. Como mínimo hace falta una entrada por cada sección § 3.x que aplica al diseño; `keel validate --ready` las deriva, lista las que faltan (criterio `structural`) y compara `chosen` con el YAML cuando `scope` nombra un campo del catálogo, así que un registro que contradice al diseño sale en rojo.
+
+   No es trabajo nuevo: es el mismo rationale que `/keel-handoff` pedirá en el paso 6, capturado cuando está fresco en vez de reconstruido al final — y ahora `/keel-handoff` lo **lee** de aquí. Es también el sustrato contra el que la clase 16 del análisis de huecos comprueba **quién** decidió cada cosa: escrito en disco sobrevive a un `/clear` y a una compactación, que la memoria de una sesión larga no. Si una decisión quedó sin cerrar, **no la escribas**: la sección seguirá saliendo como pendiente en `--ready` y se arrastra al cierre de sesión.
 
 4. **Cierre en dos partes.** Cuando el usuario apruebe el diseño completo:
 
@@ -78,7 +90,7 @@ El catálogo completo —doce entradas, con sus ejes de decisión, sus consecuen
 
    **4b. Análisis de huecos.** Con la validación en verde, lee `references/gap-analysis.md` y ejecuta el barrido que describe. **La validación demuestra que el diseño es consistente; el análisis de huecos busca lo que el diseño no dice** — un estado del `lifecycle` al que ninguna operación lleva, una query de colección sin orden, un error que ninguna guarda puede disparar, un borrado sin política para las entidades hijas: nada de eso rompe una referencia, así que ninguna regla mecánica puede echarlo de menos, y lo acabará decidiendo por su cuenta el agente que genere el código.
 
-   El barrido empieza por el **inventario** de unidades a recorrer y se hace por unidad, no por clase; presenta al usuario **dos tablas**, la de cobertura (qué clase se recorrió sobre qué unidades — es lo que hace auditable el barrido: sin ella, una clase limpia y una clase saltada se ven igual) y la de hallazgos. **Cierra cada hueco con una decisión suya** (nunca corrijas el spec en silencio: un hueco es una pregunta de negocio disfrazada de omisión técnica), materialízala en los artefactos y vuelve a validar. Cada hallazgo acaba `decidido`, `aceptado` (con el porqué escrito, que es rationale para `/keel-handoff`) o `abierto`; y hay clases que **no admiten `aceptado`** —autorización a nivel de dato, el `http` de los errores, el orden de las colecciones, las convenciones de equivalencia— porque ahí no existe default seguro y "aceptado" significaría dejárselo al generador. El análisis termina cuando no queda ninguno abierto.
+   **El barrido no lo haces tú**: lanza el subagente `keel-gap-sweep` (`.claude/agents/keel-gap-sweep.md`) con la ruta `specs/<servicio>/` y nada más. El autor no echa de menos lo que nunca pensó, y un contexto limpio sí. El agente parte del **inventario** de unidades a recorrer —lo lista `keel validate --ready` bajo el criterio `gaps`, derivado de las capas—, recorre por unidad y no por clase, y escribe las **dos tablas** en `specs/<servicio>/gaps.yaml` con `reviewedBy: keel-gap-sweep`, que `--ready` exige. Son la de cobertura (qué clase se recorrió sobre qué unidades — es lo que hace auditable el barrido: sin ella, una clase limpia y una clase saltada se ven igual) y la de hallazgos, todos en `open`. Al usuario le muestras el resumen y lo que tiene que decidir, y la decisión la escribes tú sobre ese archivo sin tocar `reviewedBy`. **Cierra cada hueco con una decisión suya** (nunca corrijas el spec en silencio: un hueco es una pregunta de negocio disfrazada de omisión técnica), materialízala en los artefactos y vuelve a validar. Cada hallazgo acaba `decidido`, `aceptado` (con el porqué escrito, que es rationale para `/keel-handoff`) o `abierto`; y hay clases que **no admiten `aceptado`** —autorización a nivel de dato, el `http` de los errores, el orden de las colecciones, las convenciones de equivalencia— porque ahí no existe default seguro y "aceptado" significaría dejárselo al generador. El análisis termina cuando no queda ninguno abierto.
 
 5. **Escenarios de validación.** Con el análisis de huecos cerrado, genera `specs/<servicio>/validation-scenarios.md`: escenarios Given/When/Then derivados de use-cases + api + security + domain (lifecycle, constraints, unicidad) + messaging + storage, con matriz de cobertura que incluya **todas** las operaciones y todos los `errors` declarados. Lee `docs/validation-scenarios.md` (el formato: qué debe cumplir) y `references/scenario-authoring.md` (el procedimiento: inventario de obligaciones → convenciones de determinación → flujos → auto-revisión).
 
@@ -104,15 +116,16 @@ Un servicio derivado nace con `keel new <nuevo> --from <origen>`: la CLI clona l
 
 ## Cierre de sesión (definition of done)
 
-El diseño solo está terminado cuando `keel validate specs/<servicio>` (sin `--wip`) pasa en verde, **el análisis de huecos está cerrado** (tabla de cobertura completa, ningún hallazgo `abierto`, y los `aceptado` con su porqué escrito), **existe `specs/<servicio>/validation-scenarios.md` con su matriz de cobertura completa** (toda operación con al menos un flujo, todo error declarado cubierto) **y existe `docs/<servicio>/DESIGN.md` con el servicio listado en el `README.md` de la raíz**. **Nunca des una sesión por terminada** dejando una capa obligatoria en estado plantilla (use-cases sin operaciones, domain sin entidades), una `description` que empiece por `TODO`, o capas opcionales declaradas en `layers` pero sin contenido. Antes de despedirte:
+El diseño solo está terminado cuando **`keel validate --ready specs/<servicio>` pasa en verde**. Los criterios del cierre los define ese comando, no esta lista: los imprime uno a uno, con lo que falta y con qué se cierra, y es lo mismo que `keel-<tech> build` estampa en el proyecto que genera. Úsalo para **retomar** una sesión en vez de reconstruir de memoria qué quedaba. El servicio listado en el `README.md` de la raíz lo comprueba `keel index --check`. **Nunca des una sesión por terminada** dejando una capa obligatoria en estado plantilla (use-cases sin operaciones, domain sin entidades), una `description` que empiece por `TODO`, o capas opcionales declaradas en `layers` pero sin contenido. Antes de despedirte:
 
-1. Ejecuta `keel validate specs/<servicio>`; si reporta "Diseño incompleto", o bien completa lo pendiente con el usuario, o bien —si la sesión se corta— **enumera explícitamente qué queda pendiente** (capa por capa) y deja claro que se retoma con `/keel-design specs/<servicio>`.
-2. Ejecuta el análisis de huecos (`references/gap-analysis.md`) sobre lo que se haya diseñado o cambiado en la sesión, y cierra los hallazgos con el usuario. Reporta la tabla de cobertura aunque la sesión se corte: es lo que permite retomar el barrido donde quedó en vez de empezarlo de cero o darlo por hecho.
+1. Ejecuta `keel validate --ready specs/<servicio>`; si la validación reporta "Diseño incompleto", o bien completa lo pendiente con el usuario, o bien —si la sesión se corta— **enumera explícitamente qué queda pendiente** (capa por capa) y deja claro que se retoma con `/keel-design specs/<servicio>`.
+2. Ejecuta el análisis de huecos (`references/gap-analysis.md`) sobre lo que se haya diseñado o cambiado en la sesión, cierra los hallazgos con el usuario y **escríbelo en `gaps.yaml`** aunque la sesión se corte a medias: lo que quede sin recorrer lo lista `keel validate --ready`, y es lo que permite retomar el barrido donde quedó en vez de empezarlo de cero o darlo por hecho.
 3. Genera (o regenera, si el spec cambió en la sesión) `specs/<servicio>/validation-scenarios.md` siguiendo `references/scenario-authoring.md`, y haz sus dos pasadas de auto-revisión (cobertura en recorrido inverso + equivalencia) antes de mostrarlo.
 4. Con la validación en verde y los escenarios al día, ejecuta el flujo de `/keel-handoff` para producir `docs/<servicio>/DESIGN.md` (con la entrevista inline de rationale) y actualizar el índice del `README.md`. Si la sesión se corta antes de este paso, deja `DESIGN.md`/`README.md` explícitamente como pendientes.
-5. **Enumera las decisiones estructurales que quedaron pendientes** — las líneas `pendiente:` de los registros por capa del paso 3 —, con nombre de operación o capa. Son pendientes reales, no cosmética: un hueco estructural sin decidir lo acabará resolviendo por su cuenta el agente que genere el código, y dos generadores lo resolverán distinto.
-6. Si el bloque de integración se resolvió en **modo degradado** (sin `INTEGRATION.md` del proveedor), **enumera los huecos de contrato que quedaron abiertos** y a quién hay que pedírselos. Son pendientes reales: el diseño es válido, pero la generación producirá clientes y listeners a partir de un contrato incompleto.
-7. No sugieras `keel-<tech> build` ni `/keel-docs` mientras la validación completa no esté en verde y los escenarios no estén al día.
+5. **Los avisos que la CLI marca como «decisión sin tomar» son preguntas para el usuario, no correcciones tuyas**: plantéaselos, y materializa la respuesta en el DSL o, si el aviso lo admite, en `decisions.yaml` con el `id` y el `scope` que imprime. Son un criterio de `--ready`.
+6. **Enumera las decisiones estructurales que quedaron pendientes** — las secciones que `keel validate --ready` lista bajo el criterio `structural` —, con nombre de operación o capa. Son pendientes reales, no cosmética: un hueco estructural sin decidir lo acabará resolviendo por su cuenta el agente que genere el código, y dos generadores lo resolverán distinto.
+7. Si el bloque de integración se resolvió en **modo degradado** (sin `INTEGRATION.md` del proveedor), **enumera los huecos de contrato que quedaron abiertos** y a quién hay que pedírselos. Son pendientes reales: el diseño es válido, pero la generación producirá clientes y listeners a partir de un contrato incompleto.
+8. No sugieras `keel-<tech> build` ni `/keel-docs` mientras `keel validate --ready` no esté en verde. Si el usuario quiere generar igualmente, dile qué criterios faltan: `build` **se niega** sobre un diseño no listo, y la única forma de generar sin cerrarlo es pedirlo a sabiendas con `--accept-unready`, que queda estampado en el proyecto. Lo que devuelva esa corrida podrá ser del diseño y no del método.
 
 ## Criterios de calidad
 

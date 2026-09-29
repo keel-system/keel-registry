@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://keel.dev/schema/2.0/decisions.schema.json",
   "title": "Keel Design Decisions",
-  "description": "Las obligaciones de diseño que este servicio deja abiertas a sabiendas (decisions.yaml, junto a las capas del servicio). La cobertura del análisis de huecos, que antes se declaraba aquí y no la leía nadie, vive ahora en review.yaml — «qué se miró» pertenece al archivo de la revisión, no al de lo que se aceptó. No forma parte del DSL: no describe lo que el servicio hace, sino qué se decidió no declarar y por qué. Es el «aceptado» de gap-analysis.md escrito en disco en vez de en la conversación — una obligación cerrada EN el DSL no necesita entrada aquí.",
+  "description": "Lo que el diseño decidió y por qué (decisions.yaml, junto a las capas del servicio). Dos secciones de naturaleza distinta. `decisions`: las obligaciones y avisos que el servicio deja abiertos a sabiendas — el «aceptado» de gap-analysis.md escrito en disco en vez de en la conversación; una obligación cerrada EN el DSL no necesita entrada ahí. `structural`: el registro de las decisiones estructurales (structural-decisions.md § 3) que SÍ se escribieron en el DSL — qué se eligió, qué se descartó y por qué —, que en el YAML no se ve (un default decidido y uno asumido se escriben igual) y hasta aquí moría con la conversación. La cobertura del análisis de huecos no vive aquí sino en gaps.yaml. No forma parte del DSL: no describe lo que el servicio hace, sino las decisiones que hay detrás.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "decisions": {
       "type": "array",
-      "description": "Una entrada por obligación aceptada. Su presencia no la esconde: `keel validate` las sigue listando, con su motivo.",
+      "description": "Una entrada por decisión aceptada —una obligación OBL-* o un aviso CHK-* de naturaleza 'undecided'—. Su presencia no la esconde: `keel validate` las sigue listando, con su motivo.",
       "items": {
         "type": "object",
         "required": ["id", "scope", "reason", "since"],
@@ -16,13 +16,13 @@
         "properties": {
           "id": {
             "type": "string",
-            "pattern": "^OBL-[A-Z0-9-]+$",
-            "description": "Id del catálogo de obligaciones (docs/design-obligations.md). Uno que el catálogo no tenga es un error: sin entrada no hay doc que leer ni nada que contar."
+            "pattern": "^(OBL|CHK)-[A-Z0-9-]+$",
+            "description": "Id del catálogo de obligaciones (OBL-*, docs/design-obligations.md) o de una comprobación mecánica de naturaleza 'undecided' (CHK-*): un aviso que no señala un error sino una decisión que el diseño no tomó. Un id que ningún catálogo tenga es un error: sin entrada no hay doc que leer ni nada que contar. Una incoherencia (CHK-* 'incoherence') tampoco se acepta: se corrige."
           },
           "scope": {
             "type": "string",
             "minLength": 1,
-            "description": "A qué parte del diseño aplica, tal como la nombra la obligación (ej. 'use-cases', 'use-cases.createOrder')."
+            "description": "A qué parte del diseño aplica, tal como la nombra la obligación o el aviso (ej. 'use-cases', 'api.endpoints.createOrder'). En un CHK-* es la unidad que `keel validate` imprime junto al aviso: una aceptación vale para esa unidad y no para las demás."
           },
           "reason": {
             "type": "string",
@@ -33,6 +33,78 @@
             "type": "string",
             "pattern": "^\\d+\\.\\d+\\.\\d+$",
             "description": "service.version en el que se tomó la decisión. Cuando el diseño cambia de minor o de major, la aceptación caduca y hay que reafirmarla: la asunción que la sostenía puede haber dejado de ser cierta."
+          }
+        }
+      }
+    },
+    "structural": {
+      "type": "array",
+      "description": "El registro de decisiones estructurales: como mínimo una entrada por cada sección § 3.x del catálogo que aplica a este diseño, y más si la decisión cambia por unidad (una por suscripción, por bucket…). Lo escribe /keel-design al cerrar cada capa, y lo leen la clase 16 del análisis de huecos, /keel-handoff y el criterio `structural` de `keel validate --ready`.",
+      "items": {
+        "type": "object",
+        "required": ["section", "chosen", "discarded", "reason", "since"],
+        "additionalProperties": false,
+        "properties": {
+          "section": {
+            "type": "string",
+            "pattern": "^3\\.\\d+b?$",
+            "description": "La entrada del catálogo de structural-decisions.md ('3.1', '3.9b'…). Entre comillas: sin ellas, 3.10 es el número 3.1."
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Opcional: la unidad concreta, con la forma del scope de los avisos ('messaging.publishing.reliability', 'storage.buckets.photos.visibility'). Si nombra un campo escalar del catálogo, `keel validate --ready` compara `chosen` con lo que dice el YAML."
+          },
+          "chosen": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Lo que se eligió; cuando es un campo, con el valor tal como está escrito en el DSL ('outbox')."
+          },
+          "discarded": {
+            "type": "string",
+            "minLength": 1,
+            "description": "La alternativa descartada. Es lo que necesita quien derive el diseño para otro contexto: sin ella no sabe si puede cambiar la decisión."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 20,
+            "description": "Por qué: la consecuencia observable que se preguntó y lo que contestó el diseñador. Una frase vacía no distingue una decisión de un default tácito."
+          },
+          "since": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "description": "service.version en el que se decidió. Caduca con el minor o el major, como las aceptaciones: hay que reafirmarla."
+          }
+        }
+      }
+    },
+    "falsePositives": {
+      "type": "array",
+      "description": "Los avisos de naturaleza 'incoherence' que el DETECTOR dio mal: el diseño no se contradice y la heurística se equivocó. No es una aceptación —una incoherencia se corrige, no se acepta—, sino la salida para que un falso positivo no bloquee `keel validate --ready`, y cada entrada es deuda de keel-core: el detector hay que arreglarlo. `keel validate` las cuenta aparte.",
+      "items": {
+        "type": "object",
+        "required": ["id", "match", "reason", "since"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^CHK-[A-Z0-9-]+$",
+            "description": "Id de un aviso CHK-* de naturaleza 'incoherence'. Un error o una decisión 'undecided' no caben aquí."
+          },
+          "match": {
+            "type": "string",
+            "minLength": 3,
+            "description": "Un fragmento del mensaje del aviso que lo identifica: la unidad que nombra ('roles.vault-custodian', 'FL-AST-003'). Casa con todo aviso de ese id cuyo mensaje lo contenga."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 20,
+            "description": "Por qué el detector se equivoca aquí: qué dice el diseño que la heurística no ve."
+          },
+          "since": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "description": "service.version en el que se declaró. Caduca con el minor o el major, como las aceptaciones."
           }
         }
       }

@@ -92,6 +92,12 @@ fallo, una `activation` nueva su compensación—, **se vuelve a preguntar al di
 meses no se hereda en silencio: heredarla es exactamente el default tácito que la metodología
 prohíbe.
 
+El registro vive en `decisions.yaml` → `structural:`. Con la versión subida de minor o de major,
+`keel validate --ready` da por **caducadas** todas sus entradas (criterio `structural`): reafirma con
+el diseñador las que el cambio no toca —basta con subir su `since` cuando él confirma que el porqué
+sigue siendo cierto— y vuelve a preguntar las que sí. Una sección nueva (el primer bucket, la primera
+compensación) aparece sola como pendiente.
+
 Termina esta fase con `keel validate specs/<servicio>` en verde, sin `--wip`.
 
 ### 4. Versionado del contrato
@@ -130,9 +136,13 @@ deshace. Recorre la clase 8 del barrido para cada compensación cuya activación
 haya tocado el cambio, y vuelve a responder las dos preguntas de §3.11: cómo no se aplica dos veces
 y a qué estado vuelve.
 
-Reporta la **tabla de cobertura** además de los hallazgos —es lo que distingue una clase que se
-recorrió y salió limpia de una que nadie miró— y cierra cada hallazgo con una decisión del usuario.
-Ninguno queda `abierto`.
+El barrido va a `gaps.yaml`, no al chat, y **no lo haces tú**: lánzalo con el subagente `keel-gap-sweep`
+(`.claude/agents/keel-gap-sweep.md`) y pásale el alcance. Lo mismo con la revisión de lo tocado, que
+es del subagente `keel-design-review`. Los dos firman su archivo con `reviewedBy`, y `--ready` lo exige.
+Con la versión subida, `keel validate --ready` da el barrido por caducado y lista como **sin recorrer**
+las unidades que el cambio añadió: esas, más las clases de lo tocado, son el alcance. Actualiza su `coverage` y sus `findings`, cierra cada hallazgo con una
+decisión del usuario —ninguno queda `open`— y vuelve a sellar `reviewedAt` con la versión nueva.
+Lo que quede en el archivo de una unidad que ya no existe, la CLI lo marca como huérfano: bórralo.
 
 ### 6. Cascada de regeneración
 
@@ -167,7 +177,10 @@ Reglas de la cascada:
 
 ### 7. Cierre (definition of done)
 
-1. `keel validate specs/<servicio>` en verde, sin `--wip`.
+1. `keel validate --ready specs/<servicio>` en verde: no basta con que valide. La versión nueva caduca
+   la revisión, el análisis de huecos, el registro estructural, el careo y `DESIGN.md`, y el build de
+   refresco del punto 3 **se niega** sobre un diseño que no está listo (salvo `--accept-unready`, que
+   deja constancia de que se generó a sabiendas).
 2. `keel describe <servicio>` **sin ningún derivado desactualizado ni huérfano**. Este es el gate real
    de la skill: si algo sigue en `⚠` o `✘`, la evolución no ha terminado.
 3. Si la evolución fue **minor o major**, avisa explícitamente a quién afecta hacia fuera:
@@ -193,6 +206,6 @@ Reglas de la cascada:
 - El cambio se tradujo a capas **antes** de editar, y el usuario aprobó el impacto.
 - Ninguna decisión estructural reabierta se resolvió por herencia silenciosa de la versión anterior.
 - `service.version` subió, y la clase (patch/minor/major) la eligió el usuario viendo qué rompe.
-- El análisis de huecos se ejecutó sobre lo tocado, con su tabla de cobertura, y no quedó nada abierto.
+- El análisis de huecos se ejecutó sobre lo tocado y `gaps.yaml` está resellado: el criterio `gaps` de `keel validate --ready` en verde.
 - Todos los derivados que existían se regeneraron; los huérfanos se borraron; ninguno se editó a mano.
 - Los consumidores conocidos quedaron avisados con nombre, no con un «avisa a quien corresponda».
