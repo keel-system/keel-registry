@@ -132,10 +132,10 @@ entities:
     fields:
       id:           { type: uuid, id: true, generated: true }
       subject:      { type: SubjectIdentifier, required: true, unique: true, description: "sub del token. Inmutable; es la clave de negocio y la única pieza compartida con el servidor de identidad." }
-      contactEmail: { type: EmailAddress, description: "Réplica de solo lectura del claim email del token. Ninguna operación de la API lo cambia: solo lo escribe el aprovisionamiento." }
+      contactEmail: { type: EmailAddress, compare: ignore-case-accents, description: "Réplica de solo lectura del claim email del token. Ninguna operación de la API lo cambia: solo lo escribe el aprovisionamiento." }
       givenName:    { type: PersonName, description: "Nombre de pila." }
       familyName:   { type: PersonName, description: "Apellidos." }
-      displayName:  { type: PersonName, description: "Nombre con el que se muestra a la persona." }
+      displayName:  { type: PersonName, compare: ignore-case-accents, description: "Nombre con el que se muestra a la persona. Se compara sin mayúsculas ni acentos: es lo que busca listProfiles." }
       contactPhone: { type: PhoneNumber, description: "Teléfono de contacto de negocio. No es el teléfono de MFA, aunque coincida." }
       status:       { type: ProfileStatus, required: true, default: draft, description: "Se recalcula en cada mutación; ver invariantes." }
       deactivatedBy: { type: SubjectIdentifier, description: "Subject del operador que desactivó el perfil; null si no está deactivated." }

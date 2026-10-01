@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.0 -->
+<!-- keel:version 0.1.1 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,7 +188,7 @@
 const KEEL = {
   "service": {
     "name": "user-profile",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Guarda el perfil de negocio de cada persona autenticada (datos de contacto y direcciones postales) indexado por el sub del token, sin duplicar nada de lo que es del servidor de identidad: lo aprovisiona just-in-time en la primera petición, lo deja editar a su titular, lo gestiona desde back-office con borrado definitivo por lápida y lo sirve a otros servidores en proyecciones separadas de contacto y de entrega.",
     "domain": "identity",
     "generatedAt": "2026-10-01"
@@ -464,10 +464,6 @@ const KEEL = {
           "when": "El subject tiene lápida: su perfil se borró y no se vuelve a crear."
         }
       ],
-      "idempotency": {
-        "keySource": "payload-field",
-        "keyField": "callerSubject"
-      },
       "emits": [
         "ProfileProvisioned",
         "ProfileContactEmailRefreshed"

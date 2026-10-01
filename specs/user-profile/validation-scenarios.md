@@ -1,7 +1,7 @@
 # user-profile — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/user-profile v0.1.0. Contrato de validación para la fase de generación.
+> specs/user-profile v0.1.1. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 

@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: user-profile
-  version: 0.1.0
+  version: 0.1.1
   description: 'Guarda el perfil de negocio de cada persona autenticada (datos de contacto y direcciones postales) indexado
     por el sub del token, sin duplicar nada de lo que es del servidor de identidad: lo aprovisiona just-in-time en la primera
     petición, lo deja editar a su titular, lo gestiona desde back-office con borrado definitivo por lápida y lo sirve a otros

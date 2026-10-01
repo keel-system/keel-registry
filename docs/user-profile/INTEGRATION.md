@@ -1,6 +1,6 @@
 ---
 service: user-profile
-version: 0.1.0
+version: 0.1.1
 domain: identity
 basePath: /api/v1
 m2mAuth:

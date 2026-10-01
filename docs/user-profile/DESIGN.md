@@ -1,6 +1,6 @@
 # user-profile — Documento de diseño
 
-> specs/user-profile v0.1.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/user-profile v0.1.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -126,8 +126,8 @@ de back-office que se superpone a la completitud.
 ## 4. Qué hace
 
 **Transversal:** `provisionProfileFromIdentity` (interna). La ejecutan todas las operaciones de `/me` salvo
-`deleteMyProfile`. Su idempotencia es `payload-field` sobre `callerSubject`: la unicidad de `subject` es
-la guarda, y si dos primeros accesos chocan, el perdedor relee y devuelve el ganador.
+`deleteMyProfile`. No declara `idempotency`: la guarda es la unicidad de `subject` (su `naturalKey`), y si dos
+primeros accesos chocan, el perdedor relee y devuelve el ganador.
 
 **Titular (`/me`)**. El subject sale siempre del token (`callerIdentity`) y nunca del cuerpo. Toda
 mutación devuelve el perfil completo, porque el status recalculado no es predecible.

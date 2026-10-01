@@ -31,7 +31,10 @@ operations:
         displayName:   { type: PersonName, description: "Claim name del token, si lo trae." }
         actorIsPerson: { type: boolean, required: true, description: "false si el token lo emitió el flujo de cliente máquina (client-credentials): no hay persona detrás." }
     output: { entity: UserProfile }
-    idempotency: { keySource: payload-field, keyField: callerSubject }
+    # Sin bloque idempotency: la guarda es la naturalKey [subject] (persistence) y la regla de releer al
+    # ganador, de abajo. Un payload-field sobre callerSubject no la provocaba —el generador la resuelve por
+    # nombre y callerSubject no está en la naturalKey— y caía a un almacén de claves con firma por contenido,
+    # que daría IDEMPOTENCY_KEY_REUSED en un refresco legítimo del email (FL-PRV-004). Corrida 2026-10-01.
     rules:
       - Se ejecuta en su propia transacción, antes de la operación que lo dispara, y confirma aunque esa operación falle después.
       - Si actorIsPerson es false, falla con SUBJECT_NOT_PROVISIONABLE sin leer ni escribir nada.

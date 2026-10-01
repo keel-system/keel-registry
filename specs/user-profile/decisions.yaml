@@ -6,13 +6,18 @@ structural:
   # ------------------------------ use-cases ------------------------------
   - section: '3.2'
     scope: use-cases.provisionProfileFromIdentity.idempotency
-    chosen: payload-field callerSubject, permanente (la guarda es la unicidad de subject)
-    discarded: client-key (la operación es interna y no tiene cabecera); sin idempotencia
+    chosen: sin idempotency declarada; la guarda es la naturalKey [subject], permanente
+    discarded: >-
+      payload-field callerSubject (la guarda se resuelve por nombre y callerSubject no está en la
+      naturalKey: caía a un almacén de claves con firma por contenido, que da IDEMPOTENCY_KEY_REUSED en
+      un refresco legítimo del email, FL-PRV-004); client-key (la operación es interna y no tiene cabecera)
     reason: >-
       El aprovisionamiento lo dispara cualquier petición de /me, y un front abre varias a la vez en el
       primer acceso. La unicidad de subject es la guarda permanente: la petición que choca relee y
       devuelve el ganador, así que el cliente nunca ve la colisión y solo se publica un ProfileProvisioned.
-    since: 0.1.0
+      Hasta 0.1.0 se declaraba payload-field sobre callerSubject creyendo que provocaba esa guarda; la
+      corrida del 2026-10-01 mostró que no (CHK-USECASES-IDEM-KEYFIELD-NOT-NATURAL).
+    since: 0.1.1
   - section: '3.2'
     scope: use-cases.addMyAddress.idempotency
     chosen: client-key 86400, partitionBy [callerSubject], declarada pero no exigida
