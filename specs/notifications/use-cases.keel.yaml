@@ -1,0 +1,530 @@
+# Capa use-cases — los casos de uso del servicio.
+# Tres superficies: back-office (aplicaciones, plantillas, supresiones, consulta de correos),
+# contrato servidor-a-servidor (pedir envíos, consultarlos, reportar rebotes) y procesos
+# programados (despacho de la cola y purga de datos personales).
+
+operations:
+
+  # ------------------------------ Aplicaciones ------------------------------
+
+  registerApplication:
+    description: "Da de alta una aplicación consumidora, activa desde el primer momento."
+    kind: command
+    input:
+      fields:
+        code:           { type: ApplicationCode, required: true }
+        name:           { type: string, required: true, constraints: { minLength: 1, maxLength: 120 } }
+        senderAddress:  { type: EmailAddress, required: true }
+        senderName:     { type: string, constraints: { maxLength: 100 } }
+        replyToAddress: { type: EmailAddress }
+    output: { entity: Application, exclude: [templates] }
+    rules:
+      - senderAddress y replyToAddress se normalizan a minúsculas antes de guardarse.
+      - La aplicación nace en estado active.
+      - El code tiene que coincidir con el nombre de su cliente máquina y con el source de sus eventos; darlo de alta aquí no crea el cliente máquina.
+    errors:
+      - { code: APPLICATION_ALREADY_EXISTS, when: "Ya existe una aplicación con ese code.", http: 409 }
+
+  updateApplication:
+    description: "Sustituye los datos editables de una aplicación: nombre, remitente y Reply-To."
+    kind: command
+    input:
+      fields:
+        code:           { type: ApplicationCode, required: true }
+        name:           { type: string, required: true, constraints: { minLength: 1, maxLength: 120 } }
+        senderAddress:  { type: EmailAddress, required: true }
+        senderName:     { type: string, constraints: { maxLength: 100 } }
+        replyToAddress: { type: EmailAddress }
+    output: { entity: Application, exclude: [templates] }
+    rules:
+      - Es una sustitución completa de los campos editables; senderName o replyToAddress ausentes quedan vacíos.
+      - El code no se modifica nunca; es el que identifica el recurso.
+      - Los mensajes ya aceptados no cambian; conservan el remitente y el Reply-To congelados al aceptarse.
+      - Se puede modificar una aplicación suspended.
+    errors:
+      - { code: APPLICATION_NOT_FOUND, when: "No existe una aplicación con ese code.", http: 404 }
+
+  suspendApplication:
+    description: "Suspende una aplicación: deja de aceptar envíos y su cola pendiente ya no sale."
+    kind: command
+    input:
+      fields:
+        code: { type: ApplicationCode, required: true }
+    output: { entity: Application, exclude: [templates] }
+    transitions:
+      - { entity: Application, from: [active], to: suspended }
+    rules:
+      - "Suspender una aplicación ya suspended no se aplica: responde 409 INVALID_STATE_TRANSITION."
+      - Los mensajes en queued de la aplicación terminarán en failed con application-suspended cuando el despacho los tome.
+    errors:
+      - { code: APPLICATION_NOT_FOUND, when: "No existe una aplicación con ese code.", http: 404 }
+      - { code: INVALID_STATE_TRANSITION, when: "La aplicación ya está suspended.", http: 409 }
+
+  reactivateApplication:
+    description: "Reactiva una aplicación suspendida."
+    kind: command
+    input:
+      fields:
+        code: { type: ApplicationCode, required: true }
+    output: { entity: Application, exclude: [templates] }
+    transitions:
+      - { entity: Application, from: [suspended], to: active }
+    rules:
+      - "Reactivar una aplicación ya active no se aplica: responde 409 INVALID_STATE_TRANSITION."
+      - Los mensajes que fallaron con application-suspended mientras estuvo suspendida no se reenvían.
+    errors:
+      - { code: APPLICATION_NOT_FOUND, when: "No existe una aplicación con ese code.", http: 404 }
+      - { code: INVALID_STATE_TRANSITION, when: "La aplicación ya está active.", http: 409 }
+
+  getApplication:
+    description: "Recupera una aplicación por su code."
+    kind: query
+    input:
+      fields:
+        code: { type: ApplicationCode, required: true }
+    output: { entity: Application, exclude: [templates] }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y el code no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN antes de buscar la aplicación.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "El code no está entre las aplicaciones del claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: APPLICATION_NOT_FOUND, when: "No existe una aplicación con ese code.", http: 404 }
+
+  listApplications:
+    description: "Lista las aplicaciones, filtrables por estado."
+    kind: query
+    input:
+      fields:
+        status: { type: ApplicationStatus }
+    output: { entity: Application, paginated: true, exclude: [templates], sort: [code:asc] }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance, solo ve las aplicaciones de su claim applications; nunca recibe un 403 por ello.
+      - Sin status se listan todas.
+
+  # ------------------------------- Plantillas -------------------------------
+
+  createTemplate:
+    description: "Da de alta una plantilla vacía en una aplicación; todavía no tiene versiones."
+    kind: command
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        code:            { type: TemplateCode, required: true }
+        name:            { type: string, required: true, constraints: { minLength: 1, maxLength: 120 } }
+        description:     { type: string, constraints: { maxLength: 1000 } }
+    output: { entity: EmailTemplate, exclude: [versions] }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+      - La plantilla nace sin versiones y con hasActiveVersion a false.
+      - Se pueden crear plantillas en una aplicación suspended.
+      - Dos altas simultáneas en la misma aplicación compiten por el agregado Application; la que pierde recibe 409 CONCURRENT_MODIFICATION y, si reintenta con el mismo code, TEMPLATE_ALREADY_EXISTS.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: APPLICATION_NOT_FOUND, when: "No existe una aplicación con ese code.", http: 404 }
+      - { code: TEMPLATE_ALREADY_EXISTS, when: "La aplicación ya tiene una plantilla con ese code.", http: 409 }
+
+  updateTemplate:
+    description: "Sustituye el nombre y la descripción de una plantilla. No toca sus versiones."
+    kind: command
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        templateCode:    { type: TemplateCode, required: true }
+        name:            { type: string, required: true, constraints: { minLength: 1, maxLength: 120 } }
+        description:     { type: string, constraints: { maxLength: 1000 } }
+    output: { entity: EmailTemplate, exclude: [versions] }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+      - Es una sustitución completa de los campos editables; description ausente queda vacía.
+      - El code no se modifica nunca; es el que identifica el recurso.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: TEMPLATE_NOT_FOUND, when: "No existe la aplicación o esa aplicación no tiene una plantilla con templateCode.", http: 404 }
+
+  publishTemplateVersion:
+    description: "Publica una versión nueva de una plantilla: la crea, la activa y archiva la anterior en la misma transacción."
+    kind: command
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        templateCode:    { type: TemplateCode, required: true }
+        subject:         { type: string, required: true, constraints: { minLength: 1, maxLength: 300 } }
+        htmlBody:        { type: text, required: true, constraints: { minLength: 1, maxLength: 262144 } }
+        textBody:        { type: text, required: true, constraints: { minLength: 1, maxLength: 65536 } }
+        variables:       { type: TemplateVariable, list: true, constraints: { maxItems: 50 } }
+    output: { entity: EmailTemplateVersion }
+    idempotency: { keySource: client-key, ttlSeconds: 86400, partitionBy: [applicationCode, templateCode] }
+    transitions:
+      - { entity: EmailTemplateVersion, from: [active], to: archived, description: "La versión que estaba activa, si la había." }
+    rules:
+      - "Orden de evaluación: (1) alcance → APPLICATION_FORBIDDEN; (2) Idempotency-Key, si viene: repetición con el mismo contenido → la versión ya creada, contenido distinto → IDEMPOTENCY_KEY_REUSED, en curso → IDEMPOTENCY_KEY_IN_PROGRESS; (3) plantilla → TEMPLATE_NOT_FOUND; (4) DUPLICATE_TEMPLATE_VARIABLE; (5) INVALID_TEMPLATE_SYNTAX; (6) UNDECLARED_TEMPLATE_VARIABLES."
+      - "Sintaxis: un marcador es {{name}} o {{ name }} (espacios opcionales junto a las llaves) y name cumple VariableName. Cualquier otra aparición de {{ —sin cerrar, vacía o con un contenido que no es un nombre— es INVALID_TEMPLATE_SYNTAX. No hay forma de escribir {{ literal. El motor no admite condicionales, bucles, llamadas ni expresiones de ningún tipo."
+      - Toda variable usada en subject, htmlBody o textBody tiene que estar declarada en variables; una variable declarada y no usada se admite.
+      - Los nombres de variables declaradas no se repiten.
+      - La versión nueva recibe como versionNumber el mayor de la plantilla más uno (1 si es la primera) y nace active.
+      - La versión active anterior, si la había, pasa a archived; hasActiveVersion queda a true. Todo en la misma transacción.
+      - Se pueden publicar versiones en una aplicación suspended.
+      - Los mensajes ya aceptados siguen usando la versión que congelaron.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: IDEMPOTENCY_KEY_REUSED, when: "La Idempotency-Key ya se usó para esta plantilla con un contenido distinto.", http: 409 }
+      - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: "Otra petición con la misma Idempotency-Key para esta plantilla se está procesando todavía.", http: 409 }
+      - { code: TEMPLATE_NOT_FOUND, when: "No existe la aplicación o esa aplicación no tiene una plantilla con templateCode.", http: 404 }
+      - { code: DUPLICATE_TEMPLATE_VARIABLE, when: "Dos variables declaradas tienen el mismo name.", http: 422 }
+      - { code: INVALID_TEMPLATE_SYNTAX, when: "El asunto o algún cuerpo tiene un marcador mal formado o usa una construcción que el motor no admite.", http: 422 }
+      - { code: UNDECLARED_TEMPLATE_VARIABLES, when: "El asunto o algún cuerpo usa variables que no están declaradas en variables.", http: 422 }
+
+  activateTemplateVersion:
+    description: "Vuelve a activar una versión archivada de una plantilla, archivando la que estaba activa."
+    kind: command
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        templateCode:    { type: TemplateCode, required: true }
+        versionNumber:   { type: int, required: true, constraints: { min: 1 } }
+    output: { entity: EmailTemplateVersion }
+    transitions:
+      - { entity: EmailTemplateVersion, from: [archived], to: active, description: "La versión pedida." }
+      - { entity: EmailTemplateVersion, from: [active], to: archived, description: "La versión que estaba activa, si la había." }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+      - "Activar la versión que ya está active no se aplica: responde 409 INVALID_STATE_TRANSITION."
+      - También sirve para volver a poner en servicio una plantilla retirada.
+      - La versión pedida pasa a active, la anterior active (si la había) a archived y hasActiveVersion queda a true, en la misma transacción.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: TEMPLATE_NOT_FOUND, when: "No existe la aplicación o esa aplicación no tiene una plantilla con templateCode.", http: 404 }
+      - { code: TEMPLATE_VERSION_NOT_FOUND, when: "La plantilla no tiene una versión con ese versionNumber.", http: 404 }
+      - { code: INVALID_STATE_TRANSITION, when: "La versión pedida ya es la active.", http: 409 }
+
+  retireTemplate:
+    description: "Retira una plantilla: archiva su versión activa y conserva todo el historial."
+    kind: command
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        templateCode:    { type: TemplateCode, required: true }
+    output: { entity: EmailTemplate, exclude: [versions] }
+    transitions:
+      - { entity: EmailTemplateVersion, from: [active], to: archived }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+      - Retirar una plantilla sin versión active no es un error; se responde con la plantilla sin cambios.
+      - La versión active pasa a archived y hasActiveVersion queda a false en la misma transacción.
+      - Desde ese momento las peticiones nuevas con esa plantilla fallan con TEMPLATE_NOT_PUBLISHED; los mensajes ya aceptados salen con la versión que congelaron.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: TEMPLATE_NOT_FOUND, when: "No existe la aplicación o esa aplicación no tiene una plantilla con templateCode.", http: 404 }
+
+  getTemplate:
+    description: "Recupera una plantilla de una aplicación por su code."
+    kind: query
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        templateCode:    { type: TemplateCode, required: true }
+    output: { entity: EmailTemplate, exclude: [versions] }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: TEMPLATE_NOT_FOUND, when: "No existe la aplicación o esa aplicación no tiene una plantilla con templateCode.", http: 404 }
+
+  listTemplates:
+    description: "Lista las plantillas de una aplicación."
+    kind: query
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+    output: { entity: EmailTemplate, paginated: true, exclude: [versions], sort: [code:asc] }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+      - Una aplicación sin plantillas devuelve una página vacía.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: APPLICATION_NOT_FOUND, when: "No existe una aplicación con ese code.", http: 404 }
+
+  getTemplateVersion:
+    description: "Recupera una versión concreta de una plantilla, con su contenido completo."
+    kind: query
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        templateCode:    { type: TemplateCode, required: true }
+        versionNumber:   { type: int, required: true, constraints: { min: 1 } }
+    output: { entity: EmailTemplateVersion }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: TEMPLATE_NOT_FOUND, when: "No existe la aplicación o esa aplicación no tiene una plantilla con templateCode.", http: 404 }
+      - { code: TEMPLATE_VERSION_NOT_FOUND, when: "La plantilla no tiene una versión con ese versionNumber.", http: 404 }
+
+  listTemplateVersions:
+    description: "Lista las versiones de una plantilla, de la más nueva a la más antigua, sin sus cuerpos."
+    kind: query
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        templateCode:    { type: TemplateCode, required: true }
+    output: { entity: EmailTemplateVersion, paginated: true, exclude: [htmlBody, textBody], sort: [versionNumber:desc] }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+      - Una plantilla sin versiones devuelve una página vacía.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: TEMPLATE_NOT_FOUND, when: "No existe la aplicación o esa aplicación no tiene una plantilla con templateCode.", http: 404 }
+
+  # -------------------------------- Envíos (M2M y eventos) --------------------------------
+
+  requestNotification:
+    description: "Acepta la petición de una aplicación de enviar un correo a partir de una de sus plantillas y lo deja en cola. No promete la entrega."
+    kind: command
+    input:
+      fields:
+        callerApplicationCode: { type: ApplicationCode, required: true, description: "La aplicación que pide el envío. La fija el servidor a partir de la identidad del llamante; nunca viaja en el cuerpo." }
+        idempotencyKey:        { type: IdempotencyKey, required: true }
+        templateCode:          { type: TemplateCode, required: true }
+        recipients:            { type: EmailAddress, list: true, required: true, constraints: { minItems: 1, maxItems: 20 } }
+        variables:             { type: VariableValue, list: true, constraints: { maxItems: 100 } }
+    output: { entity: EmailMessage, exclude: [variableValues, contentFingerprint] }
+    idempotency: { keySource: payload-field, keyField: idempotencyKey }
+    rules:
+      - "Orden de evaluación: (1) resolver la aplicación de callerApplicationCode → APPLICATION_NOT_FOUND; (2) un name repetido en variables → DUPLICATE_VARIABLE_VALUE, antes de comparar nada; (3) si ya existe un mensaje con (aplicación, idempotencyKey), mismo contenido → ese mensaje, contenido distinto → IDEMPOTENCY_KEY_REUSED; (4) APPLICATION_SUSPENDED; (5) TEMPLATE_NOT_FOUND; (6) TEMPLATE_NOT_PUBLISHED; (7) MISSING_TEMPLATE_VARIABLES; (8) RECIPIENT_SUPPRESSED; (9) RENDERED_SUBJECT_TOO_LONG."
+      - Los destinatarios se normalizan a minúsculas y se deduplican conservando el orden de su primera aparición.
+      - "Si ya existe un mensaje con la misma (aplicación, idempotencyKey) y el mismo contenido, se responde con ese mensaje en su estado actual, aunque la aplicación se haya suspendido o la plantilla se haya retirado desde entonces. No se crea nada ni se envía nada."
+      - "Mismo contenido significa misma contentFingerprint: mismo templateCode, mismo conjunto de destinatarios normalizados y mismo conjunto de pares (name, value) de las variables que declara la versión que el mensaje original congeló, sin importar el orden. Vale también para un mensaje ya purgado."
+      - "La clave es permanente: no caduca nunca, tampoco después de la purga de datos personales."
+      - Las variables que la versión activa no declara se descartan en silencio y no se guardan; todas las declaradas como required tienen que venir.
+      - Se rechaza la petición entera si algún destinatario tiene una supresión active en la aplicación; no se envía a los demás.
+      - "El asunto se renderiza al aceptar con la versión activa; una variable opcional ausente se sustituye por la cadena vacía, y los saltos de línea de los valores se sustituyen por un espacio. En el asunto no se escapa nada."
+      - Se congelan en el mensaje el remitente, el nombre y el Reply-To de la aplicación, el templateCode, el versionNumber y el id de la versión activa.
+      - El mensaje queda en queued; lo envía más tarde dispatchQueuedMessages.
+      - La respuesta es la misma venga la petición por HTTP o por el canal de eventos.
+    errors:
+      - { code: APPLICATION_NOT_FOUND, when: "La identidad del llamante no corresponde a ninguna aplicación registrada.", http: 422 }
+      - { code: IDEMPOTENCY_KEY_REUSED, when: "La aplicación ya usó esa idempotencyKey con un contenido distinto.", http: 409 }
+      - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: "Otra petición de la misma aplicación con la misma idempotencyKey se está aceptando en este mismo momento.", http: 409 }
+      - { code: APPLICATION_SUSPENDED, when: "La aplicación está suspended y la clave no corresponde a un mensaje ya aceptado.", http: 409 }
+      - { code: TEMPLATE_NOT_FOUND, when: "La aplicación no tiene una plantilla con templateCode.", http: 422 }
+      - { code: TEMPLATE_NOT_PUBLISHED, when: "La plantilla existe pero no tiene una versión active.", http: 422 }
+      - { code: DUPLICATE_VARIABLE_VALUE, when: "variables trae dos valores con el mismo name.", http: 422 }
+      - { code: MISSING_TEMPLATE_VARIABLES, when: "Falta alguna variable que la versión activa declara como required.", http: 422 }
+      - { code: RECIPIENT_SUPPRESSED, when: "Algún destinatario tiene una supresión active en la aplicación.", http: 422 }
+      - { code: RENDERED_SUBJECT_TOO_LONG, when: "El asunto renderizado supera los 998 caracteres.", http: 422 }
+
+  findMessageByIdempotencyKey:
+    description: "Permite a una aplicación consultar el estado de un envío suyo por la clave con que lo pidió."
+    kind: query
+    input:
+      fields:
+        callerApplicationCode: { type: ApplicationCode, required: true, description: "La aplicación que consulta. La fija el servidor a partir de la identidad del llamante." }
+        applicationCode:       { type: ApplicationCode, required: true }
+        idempotencyKey:        { type: IdempotencyKey, required: true }
+    output: { entity: EmailMessage, exclude: [variableValues, contentFingerprint] }
+    rules:
+      - Si applicationCode no es la aplicación del llamante, se rechaza con APPLICATION_FORBIDDEN antes de buscar nada.
+      - Un mensaje purgado se devuelve con recipients vacío y renderedSubject nulo.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no es la aplicación del llamante.", http: 403 }
+      - { code: MESSAGE_NOT_FOUND, when: "La aplicación no tiene ningún mensaje con esa idempotencyKey.", http: 404 }
+
+  reportEmailBounce:
+    description: "Recibe del proveedor de correo el rebote de un destinatario de un mensaje enviado."
+    kind: command
+    input:
+      fields:
+        messageId:  { type: uuid, required: true }
+        recipient:  { type: EmailAddress, required: true }
+        bounceType: { type: enum, values: [permanent, transient], required: true }
+        diagnostic: { type: string, constraints: { maxLength: 1000 } }
+    output: "void"
+    rules:
+      - recipient se normaliza a minúsculas.
+      - Se acepta el rebote de un mensaje en sending, sent o failed; en queued todavía no ha salido nada.
+      - "Un rebote permanent llama a suppressHardBouncedAddress con la aplicación del mensaje, recipient y notes = diagnostic."
+      - Un rebote transient solo se registra en el log; no cambia ningún estado persistente.
+      - Reportar dos veces el mismo rebote no tiene más efecto que reportarlo una.
+    errors:
+      - { code: MESSAGE_NOT_FOUND, when: "No existe un mensaje con ese id.", http: 404 }
+      - { code: MESSAGE_NOT_SENT, when: "El mensaje sigue en queued: todavía no ha salido.", http: 409 }
+      - { code: BOUNCE_RECIPIENT_UNKNOWN, when: "recipient no es uno de los destinatarios del mensaje, o el mensaje ya se purgó y no hay con qué comprobarlo.", http: 422 }
+      - { code: APPLICATION_ADDRESS_ALREADY_EXISTS, when: "Otra supresión de la misma dirección en la misma aplicación se creó en paralelo; el reintento la encuentra active y no hace nada.", http: 409 }
+
+  suppressHardBouncedAddress:
+    description: "Suprime una dirección en una aplicación porque su correo no se puede entregar nunca (rebote permanent o rechazo definitivo del relay)."
+    kind: command
+    internal: true
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        address:         { type: EmailAddress, required: true }
+        notes:           { type: string, constraints: { maxLength: 1000 } }
+    output: "void"
+    transitions:
+      - { entity: SuppressedAddress, from: [released, active], to: active, description: "Desde released reactiva la dirección que un humano había liberado; desde active es un no-op." }
+    rules:
+      - address se normaliza a minúsculas.
+      - "Si no existía, se crea active con reason hard-bounce, notes y suppressedAt = ahora. Si estaba released, se reactiva aunque la hubiera liberado un humano: reason pasa a hard-bounce, notes y suppressedAt toman los valores nuevos y releasedAt se vacía. Si ya estaba active, no cambia nada."
+      - Se ejecuta en su propia transacción, sobre el agregado SuppressedAddress y ningún otro.
+      - Aplicarla dos veces no tiene más efecto que aplicarla una.
+    errors:
+      - { code: APPLICATION_ADDRESS_ALREADY_EXISTS, when: "Otra supresión de la misma dirección en la misma aplicación se creó en paralelo; repetirla la encuentra active y no hace nada.", http: 409 }
+
+  # -------------------------------- Despacho --------------------------------
+
+  dispatchQueuedMessages:
+    description: "Cada minuto rescata los envíos atascados en sending y despacha la cola de mensajes queued."
+    kind: command
+    input: "void"
+    output: "void"
+    schedule: { cron: "* * * * *", description: "Cada minuto, en UTC." }
+    transitions:
+      - { entity: EmailMessage, from: [sending], to: failed, description: "Rescate de los atascados." }
+    emits: [EmailDeliveryFailed]
+    rules:
+      - Solo corre un barrido a la vez en todo el servicio; si el anterior sigue en curso, el ciclo se salta.
+      - "Primero el rescate: todo mensaje en sending con sendingSince anterior a hace sendingTimeoutMinutes (parámetro, 15 por defecto) pasa a failed con failureReason sending-timeout y failedAt = ahora, sin reenviarse jamás, y publica EmailDeliveryFailed. Se desconoce si el correo llegó a salir."
+      - Después toma hasta 200 mensajes en queued por requestedAt ascendente (id ascendente como desempate) y llama a sendQueuedMessage con cada uno, de uno en uno.
+      - Lo que no cabe en un ciclo se queda en queued y lo toma el siguiente; tras una parada del servicio no se pierde nada, porque la cola es el propio estado queued.
+      - El fallo de un mensaje no detiene el lote.
+
+  sendQueuedMessage:
+    description: "Envía un mensaje en cola. Es la única operación que produce correo."
+    kind: command
+    internal: true
+    input:
+      fields:
+        messageId: { type: uuid, required: true }
+    output: "void"
+    transitions:
+      - { entity: EmailMessage, from: [queued], to: sending }
+      - { entity: EmailMessage, from: [sending], to: sent }
+      - { entity: EmailMessage, from: [sending], to: failed }
+    emits: [EmailSent, EmailDeliveryFailed]
+    rules:
+      - "La guarda es la transición queued → sending, con sendingSince = ahora, y se confirma en su propia transacción ANTES de contactar con el relay. Si el mensaje ya no está en queued (otro envío ganó la carrera), no se hace nada y no sale correo."
+      - Si la aplicación está suspended, el mensaje pasa a failed con application-suspended sin contactar con el relay. Un mensaje que ya había pasado a sending cuando se suspende la aplicación sigue su curso.
+      - Si algún destinatario tiene ahora una supresión active en la aplicación, el mensaje pasa a failed con recipient-suppressed sin contactar con el relay.
+      - "Los cuerpos se renderizan con la versión congelada (templateVersionId) y variableValues; una variable opcional ausente se sustituye por la cadena vacía. En htmlBody los valores se escapan como HTML con exactamente estas sustituciones: & → &amp;, < → &lt;, > → &gt;, \" → &quot; y ' → &#39;; en textBody van tal cual. Si el render falla, pasa a failed con render-error."
+      - "El correo sale en un único envío multipart/alternative (html + text), con todos los recipients en To, el From y su nombre y el Reply-To congelados en sender, el renderedSubject y la cabecera X-Notification-Id con el id del mensaje: es lo que el proveedor devuelve con el rebote para llamar a reportEmailBounce."
+      - "Si el relay acepta al menos a un destinatario, el mensaje pasa a sent con sentAt = ahora y publica EmailSent. Por cada destinatario que el relay rechaza de forma definitiva se llama a suppressHardBouncedAddress, igual que con un rebote permanent, después de confirmar el desenlace del mensaje."
+      - "Cada llamada a suppressHardBouncedAddress es independiente: el fallo de una no detiene las demás ni cambia el desenlace del mensaje. Ante APPLICATION_ADDRESS_ALREADY_EXISTS o CONCURRENT_MODIFICATION se reintenta una vez (el reintento la encuentra active y no hace nada); si vuelve a fallar, se registra en el log y queda como respaldo el rebote asíncrono del proveedor."
+      - "Si el relay rechaza de forma definitiva a todos, failed con delivery-rejected (y se llama a suppressHardBouncedAddress con cada uno); ante cualquier otro error, failed con delivery-error. En ambos casos failedAt = ahora y se publica EmailDeliveryFailed."
+      - "failureDetail lleva la respuesta del relay con delivery-rejected y delivery-error, y el error del motor con render-error; con application-suspended, recipient-suppressed y sending-timeout es nulo."
+      - "El servicio no reintenta nunca un envío: todo fallo es terminal."
+      - Si el proceso se detiene entre el envío y el registro del resultado, el mensaje queda en sending y lo resuelve el rescate, que nunca lo reenvía.
+    errors:
+      - { code: MESSAGE_NOT_QUEUED, when: "El mensaje ya no está en queued: otro envío ganó la carrera o ya terminó. No se envía nada." }
+
+  # ------------------------------- Consulta de correos -------------------------------
+
+  getMessage:
+    description: "Recupera un correo por su id para el back-office."
+    kind: query
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: EmailMessage, exclude: [variableValues, contentFingerprint] }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y la aplicación del mensaje no está en su claim applications, se responde MESSAGE_NOT_FOUND, igual que si no existiera.
+      - Un mensaje purgado se devuelve con recipients vacío y renderedSubject nulo.
+    errors:
+      - { code: MESSAGE_NOT_FOUND, when: "No existe un mensaje con ese id, o pertenece a una aplicación fuera del alcance del llamante.", http: 404 }
+
+  listMessages:
+    description: "Lista correos para el back-office, con filtros, siempre acotados al alcance del llamante."
+    kind: query
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode }
+        status:          { type: MessageStatus }
+        templateCode:    { type: TemplateCode }
+        recipient:       { type: EmailAddress, match: exact, compare: ignore-case }
+        requestedFrom:   { type: timestamp, description: "Inicio de la ventana sobre requestedAt, inclusive." }
+        requestedTo:     { type: timestamp, description: "Fin de la ventana sobre requestedAt, exclusivo." }
+    output: { entity: EmailMessage, paginated: true, exclude: [variableValues, contentFingerprint], sort: [requestedAt:desc] }
+    rules:
+      - Los filtros son acumulativos; los ausentes no restringen.
+      - Si el llamante no tiene un rol exento del alcance, el resultado se acota siempre a las aplicaciones de su claim applications; si pide applicationCode fuera de ellas, se rechaza con APPLICATION_FORBIDDEN.
+      - recipient casa con un mensaje si es uno de sus destinatarios; los mensajes purgados no casan nunca con un filtro por recipient.
+      - templateCode filtra por el templateCode congelado en el mensaje.
+      - El orden es requestedAt descendente y, a igualdad, id ascendente.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: INVALID_TIME_WINDOW, when: "requestedFrom no es anterior a requestedTo.", http: 400 }
+
+  # -------------------------------- Supresiones --------------------------------
+
+  suppressAddress:
+    description: "Suprime a mano una dirección en una aplicación: deja de poder recibir correos de ella."
+    kind: command
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        address:         { type: EmailAddress, required: true }
+        reason:          { type: enum, values: [complaint, manual], required: true }
+        notes:           { type: string, constraints: { maxLength: 1000 } }
+    output: { entity: SuppressedAddress }
+    transitions:
+      - { entity: SuppressedAddress, from: [released, active], to: active, description: "Desde active es un no-op: no cambia ningún campo." }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+      - address se normaliza a minúsculas.
+      - "Si no existía, se crea active con suppressedAt = ahora. Si estaba released, se reactiva: reason, notes y suppressedAt toman los valores nuevos y releasedAt se vacía. Si ya estaba active, no cambia nada y se responde con ella tal cual."
+      - hard-bounce solo lo asigna reportEmailBounce.
+      - Los mensajes ya en queued con esa dirección terminarán en failed con recipient-suppressed cuando el despacho los tome.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: APPLICATION_NOT_FOUND, when: "No existe una aplicación con ese code.", http: 404 }
+      - { code: APPLICATION_ADDRESS_ALREADY_EXISTS, when: "Otra supresión de la misma dirección en la misma aplicación se creó en paralelo.", http: 409 }
+
+  releaseAddress:
+    description: "Libera una dirección suprimida: vuelve a poder recibir correos de la aplicación. El registro se conserva."
+    kind: command
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+        address:         { type: EmailAddress, required: true }
+    output: { entity: SuppressedAddress }
+    transitions:
+      - { entity: SuppressedAddress, from: [active], to: released }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+      - address se normaliza a minúsculas.
+      - La supresión pasa a released con releasedAt = ahora; reason y notes se conservan.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: SUPPRESSED_ADDRESS_NOT_FOUND, when: "La dirección no tiene una supresión active en la aplicación (no existe o ya está released), o la aplicación no existe.", http: 404 }
+
+  listSuppressedAddresses:
+    description: "Lista las direcciones suprimidas activas de una aplicación."
+    kind: query
+    input:
+      fields:
+        applicationCode: { type: ApplicationCode, required: true }
+    output: { entity: SuppressedAddress, paginated: true, sort: [suppressedAt:desc] }
+    rules:
+      - Si el llamante no tiene un rol exento del alcance y applicationCode no está en su claim applications, se rechaza con APPLICATION_FORBIDDEN.
+      - Solo se listan las supresiones active; las released no aparecen.
+      - El orden es suppressedAt descendente y, a igualdad, id ascendente.
+    errors:
+      - { code: APPLICATION_FORBIDDEN, when: "applicationCode no está en el claim applications del llamante y su rol no está exento.", http: 403 }
+      - { code: APPLICATION_NOT_FOUND, when: "No existe una aplicación con ese code.", http: 404 }
+
+  # ------------------------------ Datos personales ------------------------------
+
+  purgeMessagePersonalData:
+    description: "Vacía los datos personales de los correos terminados que superan el plazo de retención (18 meses por defecto), conservando la fila y su clave para siempre."
+    kind: command
+    input: "void"
+    output:
+      fields:
+        purgedCount: { type: int, required: true, description: "Cuántos mensajes se purgaron en esta ejecución." }
+    schedule: { cron: "0 3 * * *", description: "Cada día a las 03:00 UTC." }
+    rules:
+      - Solo corre una purga a la vez en todo el servicio; si ya hay una en curso (programada o manual), la nueva termina sin purgar nada y responde purgedCount 0.
+      - "Son purgables los mensajes en sent o failed con personalDataPurgedAt nulo y requestedAt anterior a hace personalDataRetentionMonths meses de calendario (parámetro, 18 por defecto, contados en UTC)."
+      - "Procesa lotes de hasta 5000 mensajes purgables por requestedAt ascendente (id ascendente como desempate), cada lote en su propia transacción, hasta que no quede ninguno."
+      - "A cada uno le vacía recipients y variableValues, pone renderedSubject a nulo y fija personalDataPurgedAt = ahora. Conserva la fila, su estado, su idempotencyKey y su contentFingerprint."
+      - Repetirla no tiene efecto sobre lo ya purgado; si se interrumpe, la siguiente ejecución continúa donde quedó.
+      - Además del disparo diario, un administrador puede lanzarla a mano.

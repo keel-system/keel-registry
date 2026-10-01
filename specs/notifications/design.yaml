@@ -1,0 +1,32 @@
+# Metadatos de publicación en el registry. No forma parte del DSL: describe cómo se distribuye y
+# se descubre el diseño, no lo que el servicio hace.
+
+family: notifications
+summary: >
+  Correo transaccional multi-aplicación: cada aplicación consumidora pide envíos por HTTP
+  servidor-a-servidor o por eventos, con el mismo contrato, a partir de plantillas versionadas que
+  negocio publica sin desplegar. Idempotencia permanente por clave de la aplicación (sobrevive a la
+  purga de datos personales), cola con despacho único y rescate que nunca reenvía, supresiones por
+  aplicación alimentadas por los rebotes del proveedor, fallo terminal publicado como evento, alcance
+  por aplicación en el back-office y purga de datos personales a los 18 meses.
+maturity: draft
+tags:
+  - notifications
+  - email
+  - smtp
+  - templates
+  - versioning
+  - multi-tenant
+  - m2m
+  - events
+  - idempotency
+  - suppression
+  - bounces
+  - scheduled
+  - personal-data
+  - optimistic-locking
+  - audit
+  - pagination
+  - cors
+author: keel
+license: Apache-2.0

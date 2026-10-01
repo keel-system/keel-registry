@@ -1,0 +1,49 @@
+# Capa api — integración con el cliente: exposición REST de las operaciones.
+# La seguridad de estos endpoints se declara en security.keel.yaml, no aquí.
+# Los recursos se direccionan por su clave natural (code, templateCode, versionNumber, address),
+# así que ninguna creación devuelve 201: no hay una lectura por id a la que apunte un Location.
+
+style: rest
+basePath: /api/v1
+auto: false
+defaultAudience: users
+
+endpoints:
+  # --- Aplicaciones (back-office) ---
+  registerApplication:   { method: POST, path: "/applications", successStatus: 200 }
+  updateApplication:     { method: PUT,  path: "/applications/{code}", successStatus: 200 }
+  suspendApplication:    { method: POST, path: "/applications/{code}/suspend", successStatus: 200 }
+  reactivateApplication: { method: POST, path: "/applications/{code}/reactivate", successStatus: 200 }
+  getApplication:        { method: GET,  path: "/applications/{code}" }
+  listApplications:      { method: GET,  path: "/applications" }
+
+  # --- Plantillas (back-office) ---
+  createTemplate:          { method: POST, path: "/applications/{applicationCode}/templates", successStatus: 200 }
+  getTemplate:             { method: GET,  path: "/applications/{applicationCode}/templates/{templateCode}" }
+  listTemplates:           { method: GET,  path: "/applications/{applicationCode}/templates" }
+  updateTemplate:          { method: PUT,  path: "/applications/{applicationCode}/templates/{templateCode}", successStatus: 200 }
+  retireTemplate:          { method: POST, path: "/applications/{applicationCode}/templates/{templateCode}/retire", successStatus: 200 }
+  publishTemplateVersion:  { method: POST, path: "/applications/{applicationCode}/templates/{templateCode}/versions", successStatus: 200 }
+  listTemplateVersions:    { method: GET,  path: "/applications/{applicationCode}/templates/{templateCode}/versions" }
+  getTemplateVersion:      { method: GET,  path: "/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}" }
+  activateTemplateVersion: { method: POST, path: "/applications/{applicationCode}/templates/{templateCode}/versions/{versionNumber}/activate", successStatus: 200 }
+
+  # --- Supresiones (back-office) ---
+  suppressAddress:         { method: PUT,  path: "/applications/{applicationCode}/suppressed-addresses/{address}", successStatus: 200 }
+  releaseAddress:          { method: POST, path: "/applications/{applicationCode}/suppressed-addresses/{address}/release", successStatus: 200 }
+  listSuppressedAddresses: { method: GET,  path: "/applications/{applicationCode}/suppressed-addresses" }
+
+  # --- Consulta de correos y datos personales (back-office) ---
+  getMessage:               { method: GET,  path: "/messages/{id}" }
+  listMessages:             { method: GET,  path: "/messages" }
+  purgeMessagePersonalData: { method: POST, path: "/messages/personal-data-purges", successStatus: 200 }
+
+  # --- Superficie servidor-a-servidor ---
+  requestNotification:         { method: POST, path: "/notifications", successStatus: 202, audience: services }
+  findMessageByIdempotencyKey: { method: GET,  path: "/notifications/{applicationCode}/{idempotencyKey}", audience: services }
+  reportEmailBounce:           { method: POST, path: "/messages/{messageId}/bounces", successStatus: 204, audience: services }
+
+pagination:
+  style: offset
+  defaultSize: 20
+  maxSize: 100

@@ -1,0 +1,243 @@
+reviewedBy: keel-gap-sweep
+reviewedAt: 0.1.0
+
+coverage:
+  - class: 1
+    units: [Application, EmailTemplateVersion, EmailMessage, SuppressedAddress]
+    result: clean
+  - class: 2
+    units: [registerApplication, updateApplication, suspendApplication, reactivateApplication, createTemplate, updateTemplate, publishTemplateVersion, activateTemplateVersion, retireTemplate, requestNotification, reportEmailBounce, suppressHardBouncedAddress, dispatchQueuedMessages, sendQueuedMessage, suppressAddress, releaseAddress, purgeMessagePersonalData]
+    result: findings
+  - class: 3
+    units: [Application, EmailTemplate, EmailTemplateVersion, EmailMessage, SuppressedAddress]
+    result: findings
+  - class: 4
+    units: [registerApplication, updateApplication, suspendApplication, reactivateApplication, createTemplate, updateTemplate, publishTemplateVersion, activateTemplateVersion, retireTemplate, requestNotification, reportEmailBounce, suppressHardBouncedAddress, dispatchQueuedMessages, sendQueuedMessage, suppressAddress, releaseAddress, purgeMessagePersonalData]
+    result: findings
+  - class: 5
+    units: [getApplication, listApplications, getTemplate, listTemplates, getTemplateVersion, listTemplateVersions, findMessageByIdempotencyKey, getMessage, listMessages, listSuppressedAddresses]
+    result: findings
+  - class: 6
+    units: [Application, EmailTemplate, EmailTemplateVersion, EmailMessage, SuppressedAddress]
+    result: findings
+  - class: 7
+    units: [publishing.EmailSent, publishing.EmailDeliveryFailed, subscriptions.NotificationRequested]
+    result: findings
+  - class: 8
+    units: [subscriptions.NotificationRequested]
+    result: findings
+  - class: 9
+    units: [registerApplication, updateApplication, suspendApplication, reactivateApplication, getApplication, listApplications, createTemplate, updateTemplate, publishTemplateVersion, activateTemplateVersion, retireTemplate, getTemplate, listTemplates, getTemplateVersion, listTemplateVersions, requestNotification, findMessageByIdempotencyKey, reportEmailBounce, suppressHardBouncedAddress, dispatchQueuedMessages, sendQueuedMessage, getMessage, listMessages, suppressAddress, releaseAddress, listSuppressedAddresses, purgeMessagePersonalData]
+    result: clean
+  - class: 11
+    units: [requestNotification, findMessageByIdempotencyKey, reportEmailBounce, serviceClients.billing, serviceClients.shipping, serviceClients.dispatch-only, serviceClients.mail-provider]
+    result: findings
+  - class: 12
+    units: [service]
+    result: findings
+  - class: 13
+    units: [dispatchQueuedMessages, purgeMessagePersonalData]
+    result: findings
+  - class: 14
+    units: [Application, EmailTemplate, EmailTemplateVersion, EmailMessage, SuppressedAddress]
+    result: findings
+  - class: 15
+    units: [registerApplication, updateApplication, suspendApplication, reactivateApplication, getApplication, listApplications, createTemplate, updateTemplate, publishTemplateVersion, activateTemplateVersion, retireTemplate, getTemplate, listTemplates, getTemplateVersion, listTemplateVersions, requestNotification, findMessageByIdempotencyKey, reportEmailBounce, dispatchQueuedMessages, getMessage, listMessages, suppressAddress, releaseAddress, listSuppressedAddresses, purgeMessagePersonalData]
+    result: clean
+  - class: 16
+    units: ['3.1', '3.2', '3.3', '3.4', '3.5', '3.7', '3.8', '3.9', '3.9b']
+    result: findings
+  - class: 17
+    units: [sendQueuedMessage]
+    result: findings
+
+findings:
+  # ---------------------------- 17. Correo saliente ----------------------------
+  - class: 17
+    unit: sendQueuedMessage
+    what: Con hasta 20 destinatarios «en un único envío», no dice si van en To (cada destinatario ve las direcciones de los demás, que pueden ser personas sin relación) o en Bcc/envíos separados.
+    severity: gap
+    state: decided
+    reason: 'Todos los destinatarios van en To en un único envío: la aplicación los agrupa a sabiendas (p. ej. los contactos de una cuenta) y un mensaje tiene un solo desenlace. Regla en sendQueuedMessage.'
+  - class: 17
+    unit: sendQueuedMessage
+    what: No dice cómo viaja el id del mensaje dentro del correo enviado (cabecera, Message-ID, VERP), y sin esa correlación el proveedor no puede llamar a POST /messages/{messageId}/bounces con un messageId nuestro.
+    severity: gap
+    state: decided
+    reason: 'Todo correo sale con la cabecera X-Notification-Id con el id del mensaje; es contrato con quien adapte los webhooks del proveedor. Regla en sendQueuedMessage.'
+  - class: 17
+    unit: sendQueuedMessage
+    what: No dice qué se interpola en el asunto y los cuerpos por una variable declarada con required false que la petición no trae (cadena vacía, marcador literal, error).
+    severity: gap
+    state: decided
+    reason: 'Una variable opcional ausente se sustituye por la cadena vacía, en el asunto (al aceptar) y en los cuerpos (al enviar).'
+  - class: 17
+    unit: sendQueuedMessage
+    what: No dice el desenlace cuando el relay acepta a unos destinatarios y rechaza a otros en el mismo envío (sent, failed con delivery-rejected, o algo intermedio).
+    severity: risk
+    state: decided
+    reason: 'Si el relay acepta al menos a uno, sent; cada rechazado de forma definitiva se suprime con hard-bounce vía suppressHardBouncedAddress. Si rechaza a todos, failed con delivery-rejected y también se suprimen.'
+  - class: 17
+    unit: sendQueuedMessage
+    what: Las quejas (complaint) solo entran a mano por suppressAddress; no hay canal por el que el proveedor las notifique, aunque queman la misma reputación compartida que un rebote duro.
+    severity: risk
+    state: accepted
+    reason: 'Las quejas son raras y llegan por canales que el proveedor no normaliza; se registran a mano con suppressAddress (reason complaint) por admin u operator. Si el volumen lo pide, se añade una operación M2M con /keel-evolve.'
+
+  # ---------------------------- 12. Zonas grises ----------------------------
+  - class: 12
+    unit: service
+    what: La sintaxis del motor de plantillas no está fijada más allá de {{name}} (espacios dentro del marcador, cómo escribir un {{ literal, qué es «marcador mal formado»), ni el juego exacto de caracteres que se escapan en htmlBody; dos stacks aceptarán y renderizarán plantillas distintas.
+    severity: gap
+    state: decided
+    reason: 'Sintaxis fijada en publishTemplateVersion: {{name}} o {{ name }} con name VariableName; cualquier otro {{ es INVALID_TEMPLATE_SYNTAX; no hay {{ literal. En htmlBody se escapan & < > " ''; en subject y textBody no se escapa nada.'
+  - class: 12
+    unit: service
+    what: contentFingerprint sale en la respuesta de requestNotification, findMessageByIdempotencyKey, getMessage y listMessages (el output solo excluye variableValues) sin algoritmo ni forma canónica declarados, así que su valor difiere entre stacks; o se fija el algoritmo o se excluye del output (lo mismo cabe preguntarse de templateVersionId y sendingSince).
+    severity: gap
+    state: decided
+    reason: 'contentFingerprint es sensitive y se excluye de todas las salidas; su computed fija SHA-256 hex sobre el JSON canónico (recipients normalizados y ordenados, variables declaradas ordenadas por name).'
+  - class: 12
+    unit: service
+    what: «Hace 18 meses» en purgeMessagePersonalData no dice si son meses de calendario en UTC o un número fijo de días.
+    severity: risk
+    state: decided
+    reason: 'Meses de calendario en UTC, con el parámetro de despliegue personalDataRetentionMonths (18 por defecto).'
+
+  # ---------------------------- 13. Programadas ----------------------------
+  - class: 13
+    unit: dispatchQueuedMessages
+    what: El rescate de mensajes en sending con más de 15 minutos no es verificable por ninguna suite (el umbral no es configurable ni hay disparador), y el diseño no lo declara como hueco de verificación.
+    severity: risk
+    state: decided
+    reason: 'Verificable: el arnés pone la fila en sending con sendingSince envejecido (o a ahora) y el umbral es el parámetro sendingTimeoutMinutes; escenarios FL-RSC-001 (se rescata a failed sending-timeout sin reenviar) y FL-RSC-002 (lo recién entrado no se toca).'
+  - class: 13
+    unit: purgeMessagePersonalData
+    what: El disparo manual no hace verificable la purga, porque su condición sigue siendo requestedAt con más de 18 meses, que ninguna suite puede producir; no dice si se declara como hueco o si el umbral se parametriza.
+    severity: risk
+    state: decided
+    reason: 'Con el parámetro personalDataRetentionMonths a 0 en pruebas (testValue) y el disparo manual POST /messages/personal-data-purges, la purga es verificable por caja negra.'
+  - class: 13
+    unit: purgeMessagePersonalData
+    what: Con una sola ejecución diaria de hasta 5000 mensajes, si el servicio envía más de 5000 correos al día la purga nunca alcanza al atraso y los datos personales superan los 18 meses; no se dice la cota de volumen esperada ni qué pasa si se supera.
+    severity: risk
+    state: decided
+    reason: 'Cada ejecución procesa lotes de hasta 5000, cada uno en su transacción, hasta que no quede nada purgable: el plazo se cumple sea cual sea el volumen.'
+
+  # ---------------------------- 11. Servidor-a-servidor ----------------------------
+  - class: 11
+    unit: requestNotification
+    what: Por el canal de eventos la aplicación sale de metadata.source, que cualquier emisor registrado puede escribir con el code de otra aplicación y enviar correo desde su remitente verificado.
+    severity: risk
+    state: accepted
+    reason: 'Aceptado por escrito en messaging.subscriptions.NotificationRequested.identity.trustedPublishers, que ya pesa la irreversibilidad del correo y declara que la ACL del broker sobre notificationRequests equivale al scope notification:send; se pasa a location: header cuando publique un tercero.'
+  - class: 11
+    unit: reportEmailBounce
+    what: El contrato (messageId en la ruta, recipient, bounceType permanent/transient) es propio del servicio, y los proveedores reales publican sus webhooks con su propio formato; no dice quién traduce el uno al otro ni si el proveedor lo adapta.
+    severity: risk
+    state: accepted
+    reason: 'El contrato de reportEmailBounce es el del servicio; traducir el webhook de cada proveedor (y extraer X-Notification-Id) es un adaptador de despliegue fuera de este diseño, que se autentica como mail-provider.'
+  - class: 11
+    unit: serviceClients.billing
+    what: El catálogo de clientes máquina (billing, shipping, dispatch-only) es fijo en el diseño, mientras que registerApplication da de alta aplicaciones en caliente; no dice si una aplicación nueva exige evolucionar el diseño o si ese catálogo es solo ilustrativo.
+    severity: risk
+    state: accepted
+    reason: 'El catálogo de serviceClients declara los consumidores conocidos hoy; dar de alta una aplicación nueva exige registrarla y aprovisionar su cliente máquina con el mismo code, que es una evolución del diseño (/keel-evolve) porque cambia la superficie M2M.'
+
+  # ---------------------------- 2. Guardas y errores ----------------------------
+  - class: 2
+    unit: publishTemplateVersion
+    what: IDEMPOTENCY_KEY_IN_PROGRESS e IDEMPOTENCY_KEY_REUSED van últimos en el array, detrás de las validaciones 422, mientras que una clave client-key se comprueba normalmente antes de ejecutar; no dice qué ve el cliente cuando reusa la clave con contenido distinto e inválido.
+    severity: risk
+    state: decided
+    reason: 'Orden de evaluación declarado en publishTemplateVersion: alcance, luego la Idempotency-Key (REUSED / IN_PROGRESS / repetición), luego plantilla y validaciones de contenido. Errores reordenados en ese orden.'
+  - class: 2
+    unit: requestNotification
+    what: La repetición se evalúa en el paso 2 y DUPLICATE_VARIABLE_VALUE en el 3, así que no dice cómo se calcula la huella de una repetición que trae un name repetido (¿qué valor cuenta?) ni si responde con el mensaje, con REUSED o con 422.
+    severity: risk
+    state: decided
+    reason: 'DUPLICATE_VARIABLE_VALUE se evalúa antes de comparar la clave (paso 2 del orden de evaluación): una petición con names repetidos es inválida venga como repetición o no.'
+  - class: 2
+    unit: sendQueuedMessage
+    what: MESSAGE_NOT_FOUND no tiene guarda alcanzable, porque el único llamante (dispatchQueuedMessages) pasa ids que acaba de leer y los mensajes no se borran nunca.
+    severity: risk
+    state: decided
+    reason: 'Retirado MESSAGE_NOT_FOUND de sendQueuedMessage: el despacho pasa ids que acaba de leer y los mensajes no se borran.'
+
+  # ---------------------------- 3. Determinación del estado ----------------------------
+  - class: 3
+    unit: EmailTemplate
+    what: name y description de una plantilla no se pueden cambiar después de createTemplate, porque ninguna operación los edita; no se dice si es deliberado.
+    severity: risk
+    state: decided
+    reason: 'Añadida updateTemplate (PUT /applications/{applicationCode}/templates/{templateCode}, template:write) que sustituye name y description.'
+  - class: 3
+    unit: EmailMessage
+    what: No hay campo que registre cuándo terminó en failed; EmailDeliveryFailed.failedAt no tiene de dónde salir persistido y el back-office no puede ver ese instante (sí sentAt para sent).
+    severity: risk
+    state: decided
+    reason: 'Añadido EmailMessage.failedAt, con la invariante failed ⇒ failureReason y failedAt; lo fijan el rescate y sendQueuedMessage y es el origen de EmailDeliveryFailed.failedAt.'
+
+  # ---------------------------- 4. Concurrencia ----------------------------
+  - class: 4
+    unit: createTemplate
+    what: Dos altas simultáneas del mismo code en una aplicación chocan a la vez en la clave natural (TEMPLATE_ALREADY_EXISTS) y en el bloqueo optimista de la raíz Application (CONCURRENT_MODIFICATION); no dice cuál ve el perdedor.
+    severity: risk
+    state: decided
+    reason: 'Regla en createTemplate: el perdedor de dos altas simultáneas recibe 409 CONCURRENT_MODIFICATION (bloqueo de la raíz Application); si reintenta, TEMPLATE_ALREADY_EXISTS.'
+
+  # ---------------------------- 5. Consultas ----------------------------
+  - class: 5
+    unit: listSuppressedAddresses
+    what: No hay forma de consultar si una dirección concreta está suprimida (ni filtro por address ni lectura unitaria), y las supresiones released, que se conservan para siempre, no las puede ver ninguna operación.
+    severity: risk
+    state: accepted
+    reason: 'El back-office necesita ver lo que bloquea envíos hoy (las active); el historial de liberadas se conserva para auditoría en la base, y consultar una dirección concreta se hace paginando. Si se pide, se añade el filtro con /keel-evolve.'
+
+  # ---------------------------- 6. Agregados ----------------------------
+  - class: 6
+    unit: Application
+    what: La invariante «una aplicación suspended no deja salir los que tenía en cola» cruza agregados y solo se comprueba al pasar a sending; un mensaje que ya estaba en sending cuando se suspende sale igual, y el diseño no dice que la invariante sea eventual.
+    severity: risk
+    state: decided
+    reason: 'Invariante reescrita: una aplicación suspended no acepta peticiones nuevas. La cola se trata en las reglas: lo que el despacho toma después falla con application-suspended, y un mensaje ya en sending sigue su curso (declarado en sendQueuedMessage).'
+
+  # ---------------------------- 7. Eventos ----------------------------
+  - class: 7
+    unit: subscriptions.NotificationRequested
+    what: No dice si un mensaje con un payload que no cumple el schema (recipients vacío, idempotencyKey mal formada) pasa directamente a deadLetter o gasta antes los 3 reintentos, como un rechazo de negocio.
+    severity: risk
+    state: accepted
+    reason: 'El DSL no distingue fallos permanentes de transitorios en onFailure: un payload inválido gasta los 3 reintentos (deterministas, sin efectos) y acaba en la deadLetter, como un rechazo de negocio. El coste son unos segundos de reintentos inútiles.'
+
+  # ---------------------------- 8. Dependencias ----------------------------
+  - class: 8
+    unit: subscriptions.NotificationRequested
+    what: Con 3 reintentos y un máximo de 30 s, una caída transitoria propia (base de datos) algo más larga manda peticiones válidas a la deadLetter, y no dice quién las reprocesa ni cómo.
+    severity: risk
+    state: accepted
+    reason: 'La deadLetter la vigila operación y la reinyecta a mano tras una caída propia; reinyectar es seguro porque la clave payload-field devuelve el mismo mensaje sin enviar dos veces.'
+
+  # ---------------------------- 14. Estado persistido ----------------------------
+  - class: 14
+    unit: EmailMessage
+    what: listMessages sin filtros para un rol exento ordena por requestedAt desc sobre todo el servicio, y ningún índice empieza por requestedAt ([status, requestedAt] y [application, requestedAt] exigen filtrar antes por su primera columna); no se garantiza la cota de la colección que más crece.
+    severity: risk
+    state: decided
+    reason: 'Añadidos los índices [requestedAt] (listMessages sin filtros) y [personalDataPurgedAt, requestedAt] (purga).'
+
+  # ---------------------------- 16. Decisiones estructurales ----------------------------
+  - class: 16
+    unit: '3.2'
+    what: El registro de 3.2 cubre requestNotification, publishTemplateVersion y «el resto de comandos del back-office», pero no nombra reportEmailBounce (M2M, que el proveedor reintenta) ni purgeMessagePersonalData manual; su falta de idempotencia no consta como decisión.
+    severity: risk
+    state: decided
+    reason: 'Registradas en decisions.yaml § 3.2 reportEmailBounce, suppressHardBouncedAddress y la purga manual: idempotentes por naturaleza (suprimir una dirección ya active no cambia nada; purgar lo purgado tampoco).'
+
+  # ---------------------------- Segunda pasada: updateTemplate, suppressHardBouncedAddress ----------------------------
+  - class: 4
+    unit: suppressHardBouncedAddress
+    what: Cuando la llama sendQueuedMessage después de confirmar el desenlace, no dice qué pasa si falla (APPLICATION_ADDRESS_ALREADY_EXISTS o CONCURRENT_MODIFICATION con un suppressAddress, releaseAddress o rebote simultáneo), ni si se intentan los destinatarios restantes; nadie la reintenta y el mensaje ya no vuelve a despacharse, así que la supresión se puede perder sin rastro.
+    severity: risk
+    state: decided
+    reason: 'Regla en sendQueuedMessage: cada supresión es independiente y no detiene las demás ni cambia el desenlace del mensaje; ante APPLICATION_ADDRESS_ALREADY_EXISTS o CONCURRENT_MODIFICATION se reintenta una vez (la encuentra active y no hace nada); si vuelve a fallar se registra en el log y queda como respaldo el rebote asíncrono del proveedor.'

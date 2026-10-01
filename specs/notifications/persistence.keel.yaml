@@ -1,0 +1,48 @@
+# Capa persistence — cómo se guardan las entidades del dominio.
+# Agnóstica del motor: se declara el modelo de almacenamiento, nunca el producto.
+
+default:
+  model: relational
+
+entities:
+  Application:
+    naturalKey: [code]
+    naturalKeyError: APPLICATION_ALREADY_EXISTS
+    indexes: [[status, code]]
+
+  EmailTemplate:
+    naturalKey: [application, code]
+    naturalKeyError: TEMPLATE_ALREADY_EXISTS
+
+  EmailTemplateVersion:
+    naturalKey: [template, versionNumber]
+    indexes:
+      - fields: [template]
+        unique: true
+        when: { field: status, equals: active }
+        description: "Como mucho una versión active por plantilla. Publicar y activar cambian dos versiones en la misma transacción del agregado Application, así que la ventana de dos activaciones simultáneas la cierra el bloqueo optimista de la raíz; este índice es la red por debajo."
+
+  EmailMessage:
+    naturalKey: [application, idempotencyKey]
+    naturalKeyError: IDEMPOTENCY_KEY_IN_PROGRESS
+    indexes:
+      - [status, sendingSince]            # rescate: sending con sendingSince anterior al umbral
+      - [status, requestedAt]             # despacho de la cola (queued por requestedAt) y purga (sent/failed antiguos)
+      - [application, requestedAt]        # listMessages acotado por aplicación, en su orden
+      - [application, templateCode, requestedAt]
+      - [recipients]                      # índice multivalor: filtro por destinatario
+      - [requestedAt]                     # listMessages sin filtros (roles exentos), en su orden
+      - [personalDataPurgedAt, requestedAt] # purga: pendientes de purgar por antigüedad
+
+  SuppressedAddress:
+    naturalKey: [application, address]
+    naturalKeyError: APPLICATION_ADDRESS_ALREADY_EXISTS
+    indexes: [[application, status, suppressedAt]]
+
+audit:
+  timestamps: declared    # Application, EmailTemplate, EmailTemplateVersion y SuppressedAddress
+  authorship: declared    # ídem; en escrituras sin usuario (rebotes, procesos) queda el centinela del sistema
+
+consistency:
+  transactionalBoundary: per-aggregate
+  optimisticLocking: all

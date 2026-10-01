@@ -1,0 +1,67 @@
+# Capa messaging — broker de mensajería.
+# El broker concreto y el nombre físico de cada canal se deciden al generar, nunca aquí.
+# Dos canales propios: uno por el que las aplicaciones piden envíos (segunda puerta de
+# requestNotification, con el mismo contrato que la HTTP) y otro por el que el servicio
+# publica cómo terminó cada correo.
+
+channels:
+  notificationRequests:
+    description: "Peticiones de envío que las aplicaciones consumidoras dirigen a este servicio. Lo posee este servicio: cualquier sistema registrado publica en él."
+  notificationEvents:
+    description: "Desenlace de cada correo: enviado o fallido. Contrato estable aunque hoy no tenga consumidores."
+
+publishing:
+  reliability: best-effort
+  events:
+    EmailSent:
+      description: "El relay aceptó el correo. No garantiza que haya llegado al buzón."
+      channel: notificationEvents
+      payload:
+        messageId:             { type: uuid, required: true }
+        applicationCode:       { type: ApplicationCode, required: true }
+        idempotencyKey:        { type: IdempotencyKey, required: true }
+        templateCode:          { type: TemplateCode, required: true }
+        templateVersionNumber: { type: int, required: true }
+        sentAt:                { type: timestamp, required: true }
+    EmailDeliveryFailed:
+      description: "El correo terminó en failed. Es terminal: el servicio no lo reintenta. Con failureReason sending-timeout se desconoce si llegó a salir."
+      channel: notificationEvents
+      payload:
+        messageId:             { type: uuid, required: true }
+        applicationCode:       { type: ApplicationCode, required: true }
+        idempotencyKey:        { type: IdempotencyKey, required: true }
+        templateCode:          { type: TemplateCode, required: true }
+        templateVersionNumber: { type: int, required: true }
+        failureReason:         { type: FailureReason, required: true }
+        failedAt:              { type: timestamp, required: true }
+
+subscriptions:
+  NotificationRequested:
+    description: "Segunda puerta de requestNotification, con el mismo contrato que POST /notifications. La aplicación no viaja en el payload: la identifica el source del mensaje."
+    source: any-registered-system
+    nature: request
+    channel: notificationRequests
+    contract:
+      envelope: keel
+    identity:
+      field: callerApplicationCode
+      from: { location: field, name: metadata.source }
+      trustedPublishers: >-
+        Nadie publica anónimamente en notificationRequests: el broker autentica a cada emisor y solo deja
+        publicar en este canal a las aplicaciones registradas, así que el permiso de publicar en él hace
+        de scope y equivale a notification:send por HTTP (la ACL del broker es el control, no el diseño).
+        Sobre eso se acepta que cada emisor ponga su propio code de aplicación en metadata.source, que es
+        política de desarrollo y no control técnico: un emisor registrado podría publicar en nombre de
+        otro, y el efecto es irreversible — un correo real a una persona real con el remitente de otra
+        aplicación. Se acepta a sabiendas mientras todos los emisores sean sistemas propios del mismo
+        perímetro; el día que publique un tercero o se pida no-repudio, se pasa a location: header.
+      onUnresolved: deadLetter
+    payload:
+      idempotencyKey: { type: IdempotencyKey, required: true }
+      templateCode:   { type: TemplateCode, required: true }
+      recipients:     { type: EmailAddress, list: true, required: true, constraints: { minItems: 1, maxItems: 20 } }
+      variables:      { type: VariableValue, list: true, constraints: { maxItems: 100 } }
+    triggers: requestNotification
+    onFailure:
+      retry: { maxAttempts: 3, backoff: exponential, initialDelayMs: 1000, maxDelayMs: 30000 }
+      deadLetter: true

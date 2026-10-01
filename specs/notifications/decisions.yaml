@@ -1,0 +1,215 @@
+# Decisiones del diseño: estructurales (tomadas por el diseñador, catálogo de /keel-design)
+# y obligaciones aceptadas por escrito (docs/design-obligations.md).
+# No forma parte del DSL: registra qué se decidió, qué se descartó y por qué.
+
+structural:
+  - section: '3.2'
+    scope: use-cases.requestNotification.idempotency
+    chosen: payload-field idempotencyKey, permanente (sin ttlSeconds)
+    discarded: client-key (no llega por el canal de eventos); payload-hash (dos envíos legítimamente iguales serían indistinguibles); con TTL
+    reason: >-
+      El mayor riesgo del servicio es mandar dos veces el mismo correo a una persona real, y la petición
+      entra por dos puertas (HTTP y eventos) con el mismo contrato: solo una clave que viaja en el cuerpo
+      cubre las dos. Es permanente porque un reintento tardío (un job que reencola días después) no puede
+      producir un segundo correo; la guarda es la clave natural (application, idempotencyKey), y la
+      comparación de contenido usa una huella que sobrevive a la purga de datos personales.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.publishTemplateVersion.idempotency
+    chosen: client-key 86400, partitionBy [applicationCode, templateCode]
+    discarded: sin idempotencia
+    reason: >-
+      Un doble clic o un reintento de la SPA tras un timeout crearía dos versiones idénticas, y el
+      versionNumber no se reutiliza nunca. El resto de comandos del back-office ya los protege la clave
+      natural (409) o fijan un estado (no-op). La clave se acota a la plantilla para que dos editores no
+      se pisen el espacio de claves.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.reportEmailBounce.idempotency
+    chosen: sin idempotency declarada (idempotente por naturaleza)
+    discarded: client-key
+    reason: >-
+      El proveedor reintenta los rebotes. Repetirlo no hace daño: un rebote transient no cambia nada y uno
+      permanent llama a suppressHardBouncedAddress, que no cambia nada si la dirección ya está active. Una
+      carrera entre dos reportes simultáneos se resuelve con 409 APPLICATION_ADDRESS_ALREADY_EXISTS y el
+      reintento no hace nada.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.purgeMessagePersonalData.idempotency
+    chosen: sin idempotency declarada (idempotente por naturaleza, sin solape)
+    discarded: client-key en el disparo manual
+    reason: >-
+      Purgar lo ya purgado no tiene efecto y solo corre una purga a la vez: un doble disparo manual responde
+      purgedCount 0 la segunda vez o no encuentra nada que purgar.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases (todas las queries)
+    chosen: sin caché
+    discarded: caché con TTL en getTemplate y getTemplateVersion
+    reason: >-
+      El estado de un mensaje y las supresiones tienen que verse al instante, y el volumen de lectura del
+      back-office no justifica una caché con su invalidación. Los envíos nunca leen de una caché.
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.endpoints.requestNotification.audience
+    chosen: services
+    discarded: audience both; no exponerlo por HTTP (solo eventos)
+    reason: >-
+      Pedir un envío es una operación de máquina por definición: la aplicación sale de la credencial y no
+      del cuerpo. Operación y endpoint propios; el mismo contrato entra por el canal de eventos.
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.endpoints.findMessageByIdempotencyKey.audience
+    chosen: services
+    discarded: reutilizar getMessage con audience both
+    reason: >-
+      La aplicación conoce su idempotencyKey, no el id interno, y su lectura no se acota por el claim
+      applications de las personas sino por su propia credencial. Contratos distintos que evolucionan aparte.
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.endpoints.reportEmailBounce.audience
+    chosen: services
+    discarded: exponerlo también al back-office con audience both
+    reason: El único que reporta rebotes es el proveedor de correo, con su propio cliente máquina y el scope bounce:report.
+    since: 0.1.0
+  - section: '3.8'
+    scope: api.pagination
+    chosen: offset, defaultSize 20, maxSize 100
+    discarded: sin paginar
+    reason: >-
+      Aplicaciones, plantillas, versiones, supresiones y sobre todo correos crecen sin cota conocida. Cada
+      listado declara orden total (code, versionNumber desc, suppressedAt desc, requestedAt desc) con el id
+      como desempate.
+    since: 0.1.0
+  - section: '3.1'
+    scope: messaging.publishing.reliability
+    chosen: best-effort
+    discarded: outbox
+    reason: >-
+      EmailSent y EmailDeliveryFailed no tienen consumidores hoy y la verdad del desenlace es el estado del
+      mensaje, consultable por HTTP. Se acepta que, con el broker caído en el instante de confirmar, el
+      evento se pierda sin rastro; el día que un consumidor dependa de él se revisa con /keel-evolve.
+    since: 0.1.0
+  - section: '3.5'
+    scope: messaging.subscriptions.NotificationRequested
+    chosen: retry 3 exponencial + deadLetter; identidad no resuelta a deadLetter
+    discarded: solo retry; descartar en silencio; publicar un evento de rechazo
+    reason: >-
+      Una petición no se pierde en silencio: lo que no se acepta (emisor no registrado, rechazo de negocio
+      tras los reintentos) acaba en la deadLetter, donde lo ve operación. Reintentar no duplica nada porque
+      la clave payload-field devuelve el mismo mensaje. El emisor que quiera saber si se aceptó consulta
+      GET /notifications/{app}/{key}; no se publica un evento de rechazo.
+    since: 0.1.0
+  - section: '3.7'
+    scope: persistence.consistency.transactionalBoundary
+    chosen: per-aggregate
+    discarded: per-operation
+    reason: >-
+      Ninguna operación escribe dos agregados: requestNotification lee Application y SuppressedAddress y
+      solo escribe EmailMessage; reportEmailBounce lee EmailMessage y solo escribe SuppressedAddress. Lo que
+      tiene que ser atómico (publicar una versión, archivar la anterior y recalcular hasActiveVersion) vive
+      dentro del agregado Application. La transición queued → sending se confirma en su propia transacción
+      antes de contactar con el relay. La supresión de los destinatarios que el relay rechaza de forma
+      definitiva va aparte (suppressHardBouncedAddress, en su propia transacción, después del desenlace):
+      si esa segunda escritura fallara, el mensaje sigue bien terminado y la dirección se suprimirá con el
+      rebote que manda después el proveedor.
+    since: 0.1.0
+  - section: '3.9'
+    scope: persistence.consistency.optimisticLocking
+    chosen: all
+    discarded: none (último gana)
+    reason: >-
+      Dos escrituras sobre el mismo agregado no pueden pisarse: en EmailMessage el bloqueo es lo que hace
+      que solo un envío gane la transición queued → sending; en Application, que dos publicaciones no dejen
+      dos versiones active. El perdedor recibe 409 CONCURRENT_MODIFICATION (en el envío interno, no hace nada).
+    since: 0.1.0
+  - section: '3.9b'
+    scope: persistence.audit
+    chosen: timestamps declared + authorship declared (Application, EmailTemplate, EmailTemplateVersion, SuppressedAddress)
+    discarded: all fuera del contrato; none
+    reason: >-
+      El back-office tiene que poder mostrar quién y cuándo publicó una versión, suspendió una aplicación o
+      liberó una dirección. EmailMessage no los lleva: tiene sus propios requestedAt, sendingSince y sentAt,
+      y sus escrituras son del sistema.
+    since: 0.1.0
+
+decisions:
+  - id: OBL-IDEM-RACE-CODE
+    scope: use-cases
+    reason: >-
+      Se acepta el canónico 409 IDEMPOTENCY_KEY_IN_PROGRESS como contrato público de publishTemplateVersion
+      y requestNotification; en requestNotification lo produce además el choque de la clave natural
+      (application, idempotencyKey), que es su guarda.
+    since: 0.1.0
+  - id: OBL-IDEM-REUSE-CODE
+    scope: use-cases
+    reason: >-
+      Se acepta el canónico 409 IDEMPOTENCY_KEY_REUSED. En requestNotification, contenido distinto es una
+      contentFingerprint distinta (templateCode, destinatarios normalizados y variables declaradas, sin orden).
+    since: 0.1.0
+  - id: OBL-IDEM-KEY-REQUIRED
+    scope: use-cases
+    reason: >-
+      En publishTemplateVersion la cabecera Idempotency-Key es opcional a sabiendas: sin ella se publica sin
+      deduplicar. El peor caso es una versión duplicada en el historial, sin ningún correo de más, y no se
+      obliga a todo cliente del back-office a mandarla.
+    since: 0.1.0
+  - id: OBL-CONCURRENCY-CODE
+    scope: persistence
+    reason: >-
+      Se acepta el canónico 409 CONCURRENT_MODIFICATION para todo conflicto concurrente sobre una raíz
+      (Application, EmailMessage, SuppressedAddress); en particular, dos cambios simultáneos sobre una misma
+      aplicación o sus plantillas. En sendQueuedMessage el conflicto no llega a nadie: el perdedor no envía.
+    since: 0.1.0
+  - id: OBL-GUARD-UNOBSERVABLE
+    scope: mail.sendQueuedMessage
+    reason: >-
+      sendQueuedMessage es interna por decisión del diseñador: no se abre ninguna puerta que pueda disparar
+      un envío a mano. Se acepta que su guarda (transición queued → sending confirmada antes de contactar
+      con el relay) se verifica con la comprobación de idempotencia de infraestructura del generador
+      (infra/check-idempotency.sh), y se declara en validation-scenarios.md § Lo que no tiene escenario.
+    since: 0.1.0
+  - id: CHK-MAIL-SENDER-NO-FALLBACK
+    scope: mail.sender
+    reason: >-
+      Sin fallback a propósito: antes que enviar desde una dirección que nadie verificó, no se envía. El
+      remitente es un campo obligatorio de la aplicación y se congela en el mensaje al aceptarlo, así que
+      en la práctica siempre resuelve.
+    since: 0.1.0
+  - id: CHK-PERSIST-CONDITIONAL-UNIQUE-CODE
+    scope: persistence.entities.EmailTemplateVersion.indexes.template
+    reason: >-
+      Ningún cliente puede pedir una segunda versión active: publicar y activar archivan la anterior en la
+      misma transacción del agregado Application. El choque solo es posible en una carrera, que el bloqueo
+      optimista de la raíz convierte en CONCURRENT_MODIFICATION, y ahí reintentar sí lo arregla.
+    since: 0.1.0
+  - id: CHK-PERSIST-UNIQUE-ERROR-UNDECLARED
+    scope: persistence.entities.EmailTemplateVersion.naturalKey
+    reason: >-
+      El versionNumber lo asigna el servicio (máximo + 1) dentro del agregado Application; dos publicaciones
+      simultáneas chocan antes en el bloqueo optimista de la raíz (CONCURRENT_MODIFICATION). No hay un 409
+      de negocio que nombrar.
+    since: 0.1.0
+  - id: CHK-USECASES-CODE-MULTI-STATUS
+    scope: use-cases.errors.APPLICATION_NOT_FOUND
+    reason: >-
+      Deliberado: 404 cuando la aplicación se direcciona en la ruta (el recurso pedido no existe) y 422 en
+      requestNotification, donde la aplicación sale de la credencial o del source del evento y la ruta
+      /notifications sí existe: la petición es válida en forma pero no procesable.
+    since: 0.1.0
+  - id: CHK-USECASES-CODE-MULTI-STATUS
+    scope: use-cases.errors.TEMPLATE_NOT_FOUND
+    reason: >-
+      Deliberado: 404 cuando la plantilla se direcciona en la ruta del back-office y 422 en
+      requestNotification, donde templateCode viaja en el cuerpo de una petición cuya ruta existe.
+    since: 0.1.0
+
+falsePositives:
+  - id: CHK-DOMAIN-INNER-LIFECYCLE
+    match: EmailTemplateVersion
+    reason: >-
+      El estado de la versión no cambia por su cuenta: solo lo mueven publishTemplateVersion,
+      activateTemplateVersion y retireTemplate, que entran por la raíz Application y recalculan en la
+      misma transacción el hasActiveVersion de la plantilla. La raíz gobierna; el lifecycle de la versión
+      solo declara qué aristas son legales.
+    since: 0.1.0

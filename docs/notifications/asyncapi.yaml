@@ -1,0 +1,312 @@
+asyncapi: 3.0.0
+info:
+  title: notifications
+  version: 0.1.1
+  description: >-
+    Envía correo transaccional en nombre de varias aplicaciones consumidoras a partir de plantillas que mantiene negocio
+    sin desplegar: acepta peticiones por HTTP servidor-a-servidor y por eventos con el mismo contrato, garantiza que la
+    misma petición nunca produce dos correos, respeta las supresiones por aplicación y publica el desenlace terminal de
+    cada envío.
+
+
+    Contrato asíncrono derivado del diseño Keel (capa messaging). Publicación best-effort: con el broker caído en el
+    instante de confirmar, el evento se pierde (la verdad del desenlace es el estado del mensaje, consultable por HTTP).
+    Los eventos publicados no llevan destinatarios. El broker concreto y los nombres físicos de topic/cola se deciden al
+    generar, no aquí.
+defaultContentType: application/json
+channels:
+  notificationRequests:
+    address: notificationRequests
+    title: notificationRequests
+    description: >-
+      Peticiones de envío que las aplicaciones consumidoras dirigen a este servicio. Lo posee este servicio: cualquier
+      sistema registrado publica en él.
+
+      Nombre lógico: el topic/cola físico que lo respalda es parámetro de despliegue.
+    messages:
+      NotificationRequested:
+        $ref: "#/components/messages/NotificationRequested"
+  notificationEvents:
+    address: notificationEvents
+    title: notificationEvents
+    description: |-
+      Desenlace de cada correo: enviado o fallido. Contrato estable aunque hoy no tenga consumidores.
+      Nombre lógico: el topic/cola físico que lo respalda es parámetro de despliegue.
+    messages:
+      EmailSent:
+        $ref: "#/components/messages/EmailSent"
+      EmailDeliveryFailed:
+        $ref: "#/components/messages/EmailDeliveryFailed"
+operations:
+  publishEmailSent:
+    action: send
+    channel:
+      $ref: "#/channels/notificationEvents"
+    summary: El relay aceptó el correo. No garantiza que haya llegado al buzón.
+    messages:
+      - $ref: "#/channels/notificationEvents/messages/EmailSent"
+    x-keel-emitted-by:
+      - sendQueuedMessage
+  publishEmailDeliveryFailed:
+    action: send
+    channel:
+      $ref: "#/channels/notificationEvents"
+    summary: "El correo terminó en failed. Es terminal: el servicio no lo reintenta. Con failureReason sending-timeout se
+      desconoce si llegó a salir."
+    messages:
+      - $ref: "#/channels/notificationEvents/messages/EmailDeliveryFailed"
+    x-keel-emitted-by:
+      - dispatchQueuedMessages
+      - sendQueuedMessage
+  consumeNotificationRequested:
+    action: receive
+    channel:
+      $ref: "#/channels/notificationRequests"
+    summary: "Segunda puerta de requestNotification, con el mismo contrato que POST /notifications. La aplicación no viaja
+      en el payload: la identifica el source del mensaje."
+    messages:
+      - $ref: "#/channels/notificationRequests/messages/NotificationRequested"
+    x-keel-source: any-registered-system
+    x-keel-nature: request
+    x-keel-triggers: requestNotification
+    x-keel-identity:
+      field: callerApplicationCode
+      from:
+        location: field
+        name: metadata.source
+      onUnresolved: deadLetter
+      trustedPublishers: "Nadie publica anónimamente en notificationRequests: el broker autentica a cada emisor y solo deja
+        publicar en este canal a las aplicaciones registradas, así que el permiso de publicar en él hace de scope y
+        equivale a notification:send por HTTP (la ACL del broker es el control, no el diseño). Sobre eso se acepta que
+        cada emisor ponga su propio code de aplicación en metadata.source, que es política de desarrollo y no control
+        técnico: un emisor registrado podría publicar en nombre de otro, y el efecto es irreversible — un correo real a
+        una persona real con el remitente de otra aplicación. Se acepta a sabiendas mientras todos los emisores sean
+        sistemas propios del mismo perímetro; el día que publique un tercero o se pida no-repudio, se pasa a location:
+        header."
+    x-keel-on-failure:
+      retry:
+        maxAttempts: 3
+        backoff: exponential
+        initialDelayMs: 1000
+        maxDelayMs: 30000
+      deadLetter: true
+components:
+  messages:
+    EmailSent:
+      name: EmailSent
+      title: EmailSent
+      contentType: application/json
+      summary: El relay aceptó el correo. No garantiza que haya llegado al buzón.
+      correlationId:
+        $ref: "#/components/correlationIds/keelCorrelationId"
+      payload:
+        type: object
+        required:
+          - metadata
+          - data
+        properties:
+          metadata:
+            $ref: "#/components/schemas/KeelEventMetadata"
+          data:
+            $ref: "#/components/schemas/EmailSentPayload"
+    EmailDeliveryFailed:
+      name: EmailDeliveryFailed
+      title: EmailDeliveryFailed
+      contentType: application/json
+      summary: "El correo terminó en failed. Es terminal: el servicio no lo reintenta. Con failureReason sending-timeout se
+        desconoce si llegó a salir."
+      correlationId:
+        $ref: "#/components/correlationIds/keelCorrelationId"
+      payload:
+        type: object
+        required:
+          - metadata
+          - data
+        properties:
+          metadata:
+            $ref: "#/components/schemas/KeelEventMetadata"
+          data:
+            $ref: "#/components/schemas/EmailDeliveryFailedPayload"
+    NotificationRequested:
+      name: NotificationRequested
+      title: NotificationRequested
+      contentType: application/json
+      summary: "Segunda puerta de requestNotification, con el mismo contrato que POST /notifications. La aplicación no viaja
+        en el payload: la identifica el source del mensaje."
+      correlationId:
+        $ref: "#/components/correlationIds/keelCorrelationId"
+      payload:
+        type: object
+        required:
+          - metadata
+          - data
+        properties:
+          metadata:
+            $ref: "#/components/schemas/KeelEventMetadata"
+          data:
+            $ref: "#/components/schemas/NotificationRequestedPayload"
+  schemas:
+    EmailSentPayload:
+      type: object
+      required:
+        - messageId
+        - applicationCode
+        - idempotencyKey
+        - templateCode
+        - templateVersionNumber
+        - sentAt
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        applicationCode:
+          $ref: "#/components/schemas/ApplicationCode"
+        idempotencyKey:
+          $ref: "#/components/schemas/IdempotencyKey"
+        templateCode:
+          $ref: "#/components/schemas/TemplateCode"
+        templateVersionNumber:
+          type: integer
+        sentAt:
+          type: string
+          format: date-time
+    EmailDeliveryFailedPayload:
+      type: object
+      required:
+        - messageId
+        - applicationCode
+        - idempotencyKey
+        - templateCode
+        - templateVersionNumber
+        - failureReason
+        - failedAt
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        applicationCode:
+          $ref: "#/components/schemas/ApplicationCode"
+        idempotencyKey:
+          $ref: "#/components/schemas/IdempotencyKey"
+        templateCode:
+          $ref: "#/components/schemas/TemplateCode"
+        templateVersionNumber:
+          type: integer
+        failureReason:
+          $ref: "#/components/schemas/FailureReason"
+        failedAt:
+          type: string
+          format: date-time
+    NotificationRequestedPayload:
+      type: object
+      required:
+        - idempotencyKey
+        - templateCode
+        - recipients
+      properties:
+        idempotencyKey:
+          $ref: "#/components/schemas/IdempotencyKey"
+        templateCode:
+          $ref: "#/components/schemas/TemplateCode"
+        recipients:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailAddress"
+          minItems: 1
+          maxItems: 20
+        variables:
+          type: array
+          items:
+            $ref: "#/components/schemas/VariableValue"
+          maxItems: 100
+    ApplicationCode:
+      type: string
+      description: "Código estable de una aplicación consumidora. Es su identidad ante el servicio: coincide con su cliente
+        máquina y con el source de sus eventos."
+      pattern: ^[a-z][a-z0-9-]{2,47}$
+    IdempotencyKey:
+      type: string
+      description: Clave con la que la aplicación identifica un envío. Viaja en la ruta de consulta M2M, así que solo admite
+        caracteres seguros en una URL.
+      pattern: ^[A-Za-z0-9._:-]{8,128}$
+    TemplateCode:
+      type: string
+      description: Código estable de una plantilla, único dentro de su aplicación. Es el que usan las aplicaciones al pedir un
+        envío.
+      pattern: ^[a-z][a-z0-9-]{2,47}$
+    FailureReason:
+      type: string
+      enum:
+        - delivery-rejected
+        - delivery-error
+        - render-error
+        - application-suspended
+        - recipient-suppressed
+        - sending-timeout
+      description: "Motivo estable por el que un correo terminó en failed. Es contrato: viaja en EmailDeliveryFailed."
+    EmailAddress:
+      type: string
+      description: Dirección de correo. Se normaliza a minúsculas antes de guardarla, compararla o deduplicarla.
+      pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+      maxLength: 254
+    VariableValue:
+      type: object
+      description: Valor de una variable en una petición de envío.
+      required:
+        - name
+        - value
+      properties:
+        name:
+          allOf:
+            - $ref: "#/components/schemas/VariableName"
+          description: Variable a la que da valor.
+        value:
+          type: string
+          maxLength: 2000
+          description: Valor en texto plano; el motor lo escapa al renderizar, nunca lo evalúa.
+    VariableName:
+      type: string
+      description: Nombre de una variable de plantilla, tal como se escribe en el asunto y los cuerpos.
+      pattern: ^[A-Za-z][A-Za-z0-9_]{0,63}$
+    KeelEventMetadata:
+      type: object
+      description: Metadata transversal de la envoltura Keel; la estampa el servicio al emitir.
+      required:
+        - eventId
+        - eventType
+        - eventVersion
+        - occurredAt
+        - source
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Id único de esta ocurrencia; clave de deduplicación del consumidor.
+        eventType:
+          type: string
+          description: Nombre del evento en el diseño; discriminador cuando el canal lleva varios tipos.
+        eventVersion:
+          type: integer
+          minimum: 1
+          description: Versión del contrato del payload.
+        occurredAt:
+          type: string
+          format: date-time
+          description: Instante UTC en que ocurrió el hecho en el dominio, no el del envío.
+        source:
+          type: string
+          description: Nombre del servicio emisor. En notificationRequests es el code de la aplicación que pide el envío.
+        correlationId:
+          type:
+            - string
+            - "null"
+          description: Correlación de la petición que originó el hecho; null si no hubo contexto.
+        traceparent:
+          type:
+            - string
+            - "null"
+          description: Contexto de traza W3C (traceparent) del hecho; null si el emisor no tiene telemetría.
+  correlationIds:
+    keelCorrelationId:
+      description: Correlación end-to-end estampada en la envoltura Keel.
+      location: $message.payload#/metadata/correlationId
