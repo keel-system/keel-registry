@@ -1,0 +1,112 @@
+reviewedBy: keel-design-review
+reviewedAt: 0.1.0
+findings:
+  - id: REV-DOMAIN-VAGUE-INVARIANT
+    scope: domain.entities.Address.invariants
+    verdict: ok
+    note: >-
+      Corregido en el diseño por decisión del diseñador: las dos frases de Address (semántica de localityCode y «solo se valida la forma») salen de invariants y pasan a la description de PostalAddress; la regla de validación sigue en addMyAddress. Las invariantes que quedan son predicados sobre campos.
+  - id: REV-DOMAIN-ENUM-NO-LIFECYCLE
+    scope: domain.entities.Address.type, domain.entities.DeletedSubject.reason
+    verdict: ok
+    note: >-
+      Las dos entidades sin lifecycle con campo enum son Address.type (AddressType) y
+      DeletedSubject.reason (DeletionReason). Ninguno es un estado: type es clasificación libre que
+      updateMyAddress reemplaza en cualquier sentido (con la regla explícita de que al cambiar pierde
+      isDefault), y reason se escribe una vez y la invariante «Una lápida no se reescribe nunca» lo
+      congela. UserProfile.status sí tiene lifecycle.
+  - id: REV-DOMAIN-INVARIANT-IS-TRANSITION
+    scope: domain.entities
+    verdict: ok
+    note: >-
+      Ninguna invariante describe un «pasar de X a Y». La de completitud es una función de estado
+      (status derivado de los datos fuera de deactivated), «se recalcula en cada mutación, incluida la
+      reactivación» es la regla de recálculo, y las de updatedAt/lockVersion hablan de contadores, no
+      de status. Las transiciones de status viven en UserProfile.lifecycle y en las transitions de cada
+      operación.
+  - id: REV-DOMAIN-PROMISED-STATE
+    scope: decisions.structural[persistence.audit.authorship], use-cases.deactivateProfile
+    verdict: ok
+    note: >-
+      Corregido en el diseño por decisión del diseñador: UserProfile declara deactivatedBy/deactivatedAt, que escribe solo deactivateProfile (deactivatedBy = callerSubject), vacía reactivateProfile y no pisa el aprovisionamiento; viajan en la respuesta y en ProfileDeactivated. La decisión 3.9b se reescribió: authorship all es solo la última escritura de cada fila, fuera de contrato.
+  - id: REV-DOMAIN-PARTIAL-WRITER
+    scope: use-cases.operations.*.transitions
+    verdict: ok
+    note: >-
+      draft, complete y deactivated se alcanzan por varias operaciones, pero ninguna vía escribe un
+      campo de «porqué» que otra deje a null: UserProfile no tiene campos de motivo, y deactivated solo
+      se alcanza de verdad por deactivateProfile (el aprovisionamiento solo hace el bucle
+      deactivated→deactivated). El análogo fuera del lifecycle, la lápida, lo escriben las dos vías
+      (deleteMyProfile y deleteProfile) con deletedAt, deletedBy y reason completos. Lo que sí falta,
+      el actor de la desactivación, está tratado en REV-DOMAIN-PROMISED-STATE.
+  - id: REV-USECASES-INTERNAL-REPEAT
+    scope: use-cases.operations
+    verdict: ok
+    note: >-
+      Commands sin idempotency: updateMyContactDetails, updateMyAddress, setMyDefaultAddress
+      (reemplazo o fijación; repetir es no-op sin evento), removeMyAddress (el reintento da
+      ADDRESS_NOT_FOUND sin efecto), deleteMyProfile/deleteProfile (la lápida es la guarda),
+      deactivate/reactivateProfile (el lifecycle rechaza el segundo) y reinstateSubject (segundo intento
+      SUBJECT_NOT_DELETED). Ninguno suma ni acumula por dentro, y cada uno tiene su decisión escrita en
+      decisions.yaml structural §3.2. El único alta no natural, addMyAddress, declara client-key y su
+      no-exigencia está aceptada (OBL-IDEM-KEY-REQUIRED). El aprovisionamiento lo frena naturalKey
+      [subject].
+  - id: REV-USECASES-CACHE-NON-EVENT-PATHS
+    scope: use-cases.operations.resolveContactForServices.cache, use-cases.operations.resolveDeliveryProfileForServices.cache
+    verdict: ok
+    note: >-
+      Las dos cachés se invalidan por los diez eventos, y toda mutación del agregado publica uno (o es
+      no-op sin cambio). El servicio no se suscribe a nada ni tiene configuración que altere lo
+      proyectado. La única escritura sin evento es reinstateSubject, que no toca UserProfile: solo
+      cambia una respuesta de error (410 → 404) y el perfil nuevo llega con ProfileProvisioned, que
+      invalida. El TTL de 60 s acota el peor caso si un generador cachea errores.
+  - id: REV-USECASES-GUARD-ORDER
+    scope: use-cases.operations.addMyAddress.rules, use-cases.operations.updateMyAddress.rules
+    verdict: ok
+    note: >-
+      addMyAddress fija: forma (400) → idempotencia (IN_PROGRESS, REUSED; partitionBy callerSubject,
+      que sale del token) → aprovisionamiento (403 antes que 410) → PROFILE_DELETED →
+      PROFILE_DEACTIVATED → ADDRESS_LIMIT_REACHED → 422 territoriales → CONCURRENT_MODIFICATION.
+      Cada guarda usa datos disponibles en su turno: las 422 dependen solo del cuerpo, así que
+      ponerlas detrás de las de estado es implementable (se difieren), y la concurrencia sale al
+      confirmar. updateMyAddress igual, con ADDRESS_NOT_FOUND tras cargar el perfil. En los lotes,
+      el 400 de forma va antes que TOO_MANY_SUBJECTS por la regla común.
+  - id: REV-API-DELETE-BODY
+    scope: api.endpoints.removeMyAddress, api.endpoints.deleteProfile
+    verdict: ok
+    note: >-
+      deleteMyProfile es 204 void. removeMyAddress devuelve el perfil (200): quitar la shipping
+      predeterminada lo devuelve a draft y sube lockVersion/updatedAt, que el cliente no puede
+      predecir, y es coherente con el resto de mutaciones de /me. deleteProfile devuelve la lápida
+      (200) a propósito: un reintento devuelve la ORIGINAL, que puede ser self-service y de otro
+      autor (description de la operación).
+  - id: REV-SEC-M2M-AUDIENCE
+    scope: security.authentication.serviceAuth
+    verdict: ok
+    note: >-
+      serviceAuth declara validateAudience true con audience user-profile; un token emitido para otro
+      servicio del mismo servidor de identidad no vale aquí.
+  - id: REV-SEC-RESOURCE-SCOPE
+    scope: security
+    verdict: ok
+    note: >-
+      Ninguna prosa da por hecho un alcance que el DSL no exprese. En /me el recurso sale del token
+      (callerIdentity = sub; sin subject en la ruta) y addressId se busca dentro del perfil del
+      titular (ADDRESS_NOT_FOUND). Back-office actúa sobre cualquier subject, dicho explícitamente
+      (cabecera de use-cases), y los scopes M2M también, con su motivo (cabecera de security). La
+      separación contacto/entrega es por scope distinto, no por recurso.
+  - id: REV-MSG-MISSING-CHANNEL
+    scope: messaging.publishing.events
+    verdict: ok
+    note: >-
+      Los diez eventos declaran channel profileEvents, canal lógico sin tecnología y con description.
+      No hay suscripciones.
+  - id: REV-PERSIST-MISSING-INDEX
+    scope: persistence.entities
+    verdict: ok
+    note: >-
+      listProfiles filtra por status y busca por prefijo en contactEmail o displayName, ordenando por
+      createdAt desc: índices [status, createdAt], [createdAt], [contactEmail], [displayName]. Cómo se
+      pliega el texto para ignore-case-accents es del generador (dsl-reference 2.14). Las lecturas por
+      subject (getProfile, resolve*, lotes, aprovisionamiento) van por naturalKey; las direcciones por
+      [userProfile, type, isDefault] (máximo 20 por perfil); DeletedSubject por su id.

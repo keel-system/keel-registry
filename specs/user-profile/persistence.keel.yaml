@@ -1,0 +1,38 @@
+# Capa persistence — cómo se guarda el estado propio. Agnóstica del motor.
+#
+# Ningún endpoint es de solo lectura a efectos de transacción: el aprovisionamiento puede escribir
+# dentro de un GET de /me. No hay retención ni purga: un perfil vive hasta que se borra (lápida).
+
+default:
+  model: relational
+
+entities:
+  UserProfile:
+    persisted: true
+    naturalKey: [subject]          # también es la guarda de idempotencia del aprovisionamiento
+    indexes:
+      - [status, createdAt]        # listProfiles filtrado por status, en su orden
+      - [createdAt]                # listProfiles sin filtro
+      - [contactEmail]             # búsqueda por prefijo
+      - [displayName]              # búsqueda por prefijo
+
+  Address:
+    persisted: true
+    indexes:
+      - [userProfile, type, isDefault]
+      - fields: [userProfile, type]
+        unique: true
+        when: { field: isDefault, equals: true }
+        error: CONCURRENT_MODIFICATION
+        description: "Como mucho una dirección predeterminada por perfil y tipo. Solo la viola una carrera que el bloqueo optimista no paró, y se responde como tal."
+
+  DeletedSubject:
+    persisted: true
+
+audit:
+  timestamps: declared             # createdAt/updatedAt en UserProfile y Address, visibles en el contrato
+  authorship: all                  # quién escribió cada fila, fuera del contrato
+
+consistency:
+  transactionalBoundary: per-operation   # borrar el perfil y escribir la lápida confirman juntos
+  optimisticLocking: declared            # solo UserProfile (lockVersion)

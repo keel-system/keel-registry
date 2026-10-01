@@ -1,0 +1,434 @@
+# Capa use-cases — los casos de uso del servicio.
+# Tres superficies sin operaciones compartidas —la del titular (/me), la de back-office (indexada por
+# subject) y la servidor-a-servidor (contacto y entrega, separadas por contenido y por scope)— y una
+# operación transversal interna: el aprovisionamiento just-in-time del perfil.
+#
+# Reglas comunes a toda mutación del agregado UserProfile:
+# - El status se recalcula en la misma transacción (invariante de domain).
+# - Si el resultado es igual a lo guardado, no hay mutación: no sube lockVersion, no se publica evento
+#   y la respuesta es el perfil tal cual.
+# - Cada transacción publica como mucho un evento.
+# - La validación de forma del cuerpo y de los parámetros (tipos, constraints, requeridos → 400) va
+#   antes que cualquier otra guarda, incluida la idempotencia.
+# - Si entre el aprovisionamiento y la lectura de la operación el perfil se borra, la operación
+#   responde PROFILE_DELETED (410).
+# - Back-office actúa sobre cualquier subject, también el del propio operador.
+
+operations:
+
+  # ------------------------- Transversal: aprovisionamiento -------------------------
+
+  provisionProfileFromIdentity:
+    description: "Garantiza que el titular del token tiene perfil: lo crea en draft la primera vez y, después, solo refresca contactEmail cuando el claim email cambia. Lo ejecutan las operaciones de /me antes de su propia lógica."
+    kind: command
+    internal: true
+    input:
+      fields:
+        callerSubject: { type: SubjectIdentifier, required: true, description: "Claim sub del token." }
+        email:         { type: EmailAddress, description: "Claim email del token, si lo trae." }
+        givenName:     { type: PersonName, description: "Claim given_name del token, si lo trae." }
+        familyName:    { type: PersonName, description: "Claim family_name del token, si lo trae." }
+        displayName:   { type: PersonName, description: "Claim name del token, si lo trae." }
+        actorIsPerson: { type: boolean, required: true, description: "false si el token lo emitió el flujo de cliente máquina (client-credentials): no hay persona detrás." }
+    output: { entity: UserProfile }
+    idempotency: { keySource: payload-field, keyField: callerSubject }
+    rules:
+      - Se ejecuta en su propia transacción, antes de la operación que lo dispara, y confirma aunque esa operación falle después.
+      - Si actorIsPerson es false, falla con SUBJECT_NOT_PROVISIONABLE sin leer ni escribir nada.
+      - "actorIsPerson es false cuando el token lo emitió el flujo client-credentials (el mismo tipo de credencial que serviceAuth): no hay usuario final detrás. Cómo lo marca el proveedor de identidad lo resuelve el generador."
+      - "La creación del perfil y la escritura de una lápida del mismo subject se serializan: si confirma antes la lápida, el aprovisionamiento no crea el perfil y falla con PROFILE_DELETED. Perfil y lápida del mismo subject no coexisten nunca."
+
+      - Si existe una lápida (DeletedSubject) para callerSubject, falla con PROFILE_DELETED sin crear perfil.
+      - "Si no existe perfil para callerSubject, crea uno en draft con lockVersion 0, subject = callerSubject y contactEmail, givenName, familyName y displayName tomados de los claims que traiga el token (los ausentes quedan a null), y publica ProfileProvisioned."
+      - Un claim que no cumple el tipo de su campo (email sin forma de correo, nombre de más de 100 caracteres) se trata como ausente; nunca hace fallar la petición.
+      - Si dos peticiones del mismo subject crean el perfil a la vez, la que choca con la unicidad de subject relee el perfil y devuelve el ganador; el cliente nunca ve la colisión y solo se publica un ProfileProvisioned.
+      - "Si el perfil existe, el token trae email y es distinto del contactEmail guardado (comparación exacta), refresca contactEmail, recalcula el status y publica ProfileContactEmailRefreshed. Ocurre en cualquier estado, también en deactivated, donde el status no cambia."
+      - Si el token no trae email, contactEmail no se toca. Ningún otro claim refresca nada después de la creación.
+      - Si el refresco choca con otra escritura concurrente sobre el perfil, relee y vuelve a evaluar; si entretanto el perfil se borró, falla con PROFILE_DELETED.
+    transitions:
+      - { entity: UserProfile, from: [draft, complete], to: complete }
+      - { entity: UserProfile, from: [draft], to: draft }
+      - { entity: UserProfile, from: [deactivated], to: deactivated }
+    errors:
+      - { code: SUBJECT_NOT_PROVISIONABLE, when: "El token es de un cliente máquina: no hay una persona a la que crearle perfil.", http: 403 }
+      - { code: PROFILE_DELETED, when: "El subject tiene lápida: su perfil se borró y no se vuelve a crear.", http: 410 }
+    emits: [ProfileProvisioned, ProfileContactEmailRefreshed]
+
+  # ------------------------------- Superficie del titular (/me) -------------------------------
+
+  getMyProfile:
+    description: "Devuelve el perfil del titular del token con sus direcciones. Un usuario nuevo recibe su perfil recién aprovisionado en draft, nunca un 404."
+    kind: query
+    input:
+      fields:
+        callerSubject: { type: SubjectIdentifier, required: true }
+    output: { entity: UserProfile }
+    rules:
+      - "Antes de leer ejecuta provisionProfileFromIdentity con los claims del token (por eso esta query puede escribir); sus errores se propagan tal cual: 403 SUBJECT_NOT_PROVISIONABLE con un token de máquina y 410 PROFILE_DELETED con lápida."
+      - Un perfil deactivated se devuelve igual, con su status.
+      - addresses viaja en orden de alta, de la más antigua a la más reciente.
+    errors:
+      - { code: PROFILE_DELETED, when: "El titular tiene lápida.", http: 410 }
+
+  updateMyContactDetails:
+    description: "Reemplaza el bloque de contacto del titular: givenName, familyName, displayName y contactPhone. El email queda fuera: es del servidor de identidad."
+    kind: command
+    input:
+      fields:
+        callerSubject: { type: SubjectIdentifier, required: true }
+        givenName:     { type: PersonName }
+        familyName:    { type: PersonName }
+        displayName:   { type: PersonName }
+        contactPhone:  { type: PhoneNumber }
+    output: { entity: UserProfile }
+    rules:
+      - "Antes de nada ejecuta provisionProfileFromIdentity; sus errores se propagan tal cual: 403 SUBJECT_NOT_PROVISIONABLE con un token de máquina y 410 PROFILE_DELETED con lápida."
+      - "Es un reemplazo completo del bloque: un campo ausente o null se borra. Una petición sin cuerpo los borra todos."
+      - "No recibe la versión leída por el cliente: entre dos dispositivos del mismo titular gana la última escritura confirmada (aceptado por el diseñador); solo dos escrituras estrictamente simultáneas chocan con CONCURRENT_MODIFICATION."
+      - contactEmail no se puede cambiar por aquí; si el cuerpo lo trae, se ignora.
+      - Si el perfil está deactivated, falla con PROFILE_DEACTIVATED.
+      - Si el bloque resultante es igual al guardado, no hay mutación ni evento.
+      - Si hay mutación, recalcula el status y publica ProfileContactDetailsChanged.
+    transitions:
+      - { entity: UserProfile, from: [draft, complete], to: complete }
+      - { entity: UserProfile, from: [draft, complete], to: draft }
+    errors:
+      - { code: PROFILE_DELETED, when: "El titular tiene lápida.", http: 410 }
+      - { code: PROFILE_DEACTIVATED, when: "El perfil está deactivated: no admite mutaciones por la API.", http: 409 }
+      - { code: CONCURRENT_MODIFICATION, when: "Otra escritura confirmó antes sobre el mismo perfil.", http: 409 }
+    emits: [ProfileContactDetailsChanged]
+
+  addMyAddress:
+    description: "Añade una dirección al perfil del titular; si se pide isDefault, pasa a ser la predeterminada de su tipo."
+    kind: command
+    input:
+      fields:
+        callerSubject: { type: SubjectIdentifier, required: true }
+        label:         { type: string, constraints: { minLength: 1, maxLength: 60 } }
+        type:          { type: AddressType, required: true }
+        postal:        { type: PostalAddress, required: true }
+        isDefault:     { type: boolean, description: "Si se omite, false." }
+    output: { entity: UserProfile }
+    idempotency: { keySource: client-key, ttlSeconds: 86400, partitionBy: [callerSubject] }
+    preconditions:
+      - Si postal.adminAreaCode tiene valor, postal.adminAreaName también.
+      - Si postal.adminAreaCode tiene valor, su prefijo es igual a postal.countryCode.
+    rules:
+      - "Los errores se evalúan en el orden en que están declarados: el primero que aplique es el que se responde."
+      - La Idempotency-Key es opcional; sin ella la operación se ejecuta sin deduplicar.
+      - "Después de las comprobaciones de idempotencia ejecuta provisionProfileFromIdentity; sus errores se propagan tal cual y en ese punto de la precedencia: 403 SUBJECT_NOT_PROVISIONABLE con un token de máquina antes que PROFILE_DELETED."
+      - "El límite de 20 direcciones cuenta las de ambos tipos."
+      - Solo se valida la forma de los códigos territoriales, nunca su existencia.
+      - isDefault vale false si se omite; la primera dirección de un tipo no se marca predeterminada sola.
+      - "Si isDefault es true, desmarca la predeterminada anterior de ese tipo en la misma transacción y publica solo AddressAdded (nunca también DefaultAddressChanged: serían dos eventos con la misma versión)."
+      - Recalcula el status y publica AddressAdded.
+      - La dirección añadida es siempre la última de addresses en la respuesta (orden de alta); así identifica el cliente su addressId.
+    transitions:
+      - { entity: UserProfile, from: [draft, complete], to: complete }
+      - { entity: UserProfile, from: [draft], to: draft }
+    errors:
+      - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: "Otra petición con la misma Idempotency-Key del mismo titular se está ejecutando.", http: 409 }
+      - { code: IDEMPOTENCY_KEY_REUSED, when: "La Idempotency-Key ya se usó con un cuerpo distinto.", http: 409 }
+      - { code: PROFILE_DELETED, when: "El titular tiene lápida.", http: 410 }
+      - { code: PROFILE_DEACTIVATED, when: "El perfil está deactivated.", http: 409 }
+      - { code: ADDRESS_LIMIT_REACHED, when: "El perfil ya tiene 20 direcciones.", http: 409 }
+      - { code: SUBDIVISION_CODE_COUNTRY_MISMATCH, when: "El prefijo de postal.adminAreaCode no coincide con postal.countryCode.", http: 422 }
+      - { code: TERRITORY_NAME_MISSING, when: "postal.adminAreaCode viene sin postal.adminAreaName.", http: 422 }
+      - { code: CONCURRENT_MODIFICATION, when: "Otra escritura confirmó antes sobre el mismo perfil.", http: 409 }
+    emits: [AddressAdded]
+
+  updateMyAddress:
+    description: "Reemplaza label, tipo y dirección postal de una dirección del titular. No toca isDefault, salvo al cambiar de tipo."
+    kind: command
+    input:
+      fields:
+        callerSubject: { type: SubjectIdentifier, required: true }
+        addressId:     { type: uuid, required: true }
+        label:         { type: string, constraints: { minLength: 1, maxLength: 60 } }
+        type:          { type: AddressType, required: true }
+        postal:        { type: PostalAddress, required: true }
+    output: { entity: UserProfile }
+    preconditions:
+      - Si postal.adminAreaCode tiene valor, postal.adminAreaName también.
+      - Si postal.adminAreaCode tiene valor, su prefijo es igual a postal.countryCode.
+    rules:
+      - "Antes de nada ejecuta provisionProfileFromIdentity; sus errores se propagan tal cual: 403 SUBJECT_NOT_PROVISIONABLE con un token de máquina y 410 PROFILE_DELETED con lápida."
+      - "Los errores se evalúan en el orden en que están declarados: el primero que aplique es el que se responde."
+      - "Es un reemplazo completo: label ausente queda a null."
+      - "Si type cambia, la dirección pierde isDefault: era la predeterminada del tipo anterior y no pasa a serlo del nuevo sin pedirlo. Por eso cambiar una shipping predeterminada a billing puede devolver el perfil a draft."
+      - Si type no cambia, isDefault se conserva.
+      - Si el resultado es igual a lo guardado, no hay mutación ni evento.
+      - Si hay mutación, recalcula el status y publica AddressChanged.
+    transitions:
+      - { entity: UserProfile, from: [draft, complete], to: draft }
+      - { entity: UserProfile, from: [complete], to: complete }
+    errors:
+      - { code: PROFILE_DELETED, when: "El titular tiene lápida.", http: 410 }
+      - { code: PROFILE_DEACTIVATED, when: "El perfil está deactivated.", http: 409 }
+      - { code: ADDRESS_NOT_FOUND, when: "El perfil del titular no tiene una dirección con ese addressId.", http: 404 }
+      - { code: SUBDIVISION_CODE_COUNTRY_MISMATCH, when: "El prefijo de postal.adminAreaCode no coincide con postal.countryCode.", http: 422 }
+      - { code: TERRITORY_NAME_MISSING, when: "postal.adminAreaCode viene sin postal.adminAreaName.", http: 422 }
+      - { code: CONCURRENT_MODIFICATION, when: "Otra escritura confirmó antes sobre el mismo perfil.", http: 409 }
+    emits: [AddressChanged]
+
+  removeMyAddress:
+    description: "Quita una dirección del perfil del titular. Si era la predeterminada, no se promociona otra."
+    kind: command
+    input:
+      fields:
+        callerSubject: { type: SubjectIdentifier, required: true }
+        addressId:     { type: uuid, required: true }
+    output: { entity: UserProfile }
+    rules:
+      - "Antes de nada ejecuta provisionProfileFromIdentity; sus errores se propagan tal cual: 403 SUBJECT_NOT_PROVISIONABLE con un token de máquina y 410 PROFILE_DELETED con lápida."
+      - Si la dirección era la predeterminada de su tipo, ese tipo se queda sin predeterminada; quitar la shipping predeterminada devuelve el perfil a draft.
+      - Recalcula el status y publica AddressRemoved con wasDefault.
+    transitions:
+      - { entity: UserProfile, from: [draft, complete], to: draft }
+      - { entity: UserProfile, from: [complete], to: complete }
+    errors:
+      - { code: PROFILE_DELETED, when: "El titular tiene lápida.", http: 410 }
+      - { code: PROFILE_DEACTIVATED, when: "El perfil está deactivated.", http: 409 }
+      - { code: ADDRESS_NOT_FOUND, when: "El perfil del titular no tiene una dirección con ese addressId.", http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: "Otra escritura confirmó antes sobre el mismo perfil.", http: 409 }
+    emits: [AddressRemoved]
+
+  setMyDefaultAddress:
+    description: "Marca una dirección del titular como la predeterminada de su tipo y desmarca la anterior."
+    kind: command
+    input:
+      fields:
+        callerSubject: { type: SubjectIdentifier, required: true }
+        addressId:     { type: uuid, required: true }
+    output: { entity: UserProfile }
+    rules:
+      - "Antes de nada ejecuta provisionProfileFromIdentity; sus errores se propagan tal cual: 403 SUBJECT_NOT_PROVISIONABLE con un token de máquina y 410 PROFILE_DELETED con lápida."
+      - Si la dirección ya es la predeterminada de su tipo, no hay mutación ni evento.
+      - Si no, desmarca la predeterminada anterior de ese tipo (si la había) en la misma transacción, recalcula el status y publica DefaultAddressChanged con previousAddressId (null si no había).
+    transitions:
+      - { entity: UserProfile, from: [draft, complete], to: complete }
+      - { entity: UserProfile, from: [draft], to: draft }
+    errors:
+      - { code: PROFILE_DELETED, when: "El titular tiene lápida.", http: 410 }
+      - { code: PROFILE_DEACTIVATED, when: "El perfil está deactivated.", http: 409 }
+      - { code: ADDRESS_NOT_FOUND, when: "El perfil del titular no tiene una dirección con ese addressId.", http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: "Otra escritura confirmó antes sobre el mismo perfil.", http: 409 }
+    emits: [DefaultAddressChanged]
+
+  deleteMyProfile:
+    description: "Borra el perfil del titular con sus direcciones y deja una lápida self-service. Repetirlo devuelve el mismo éxito."
+    kind: command
+    input:
+      fields:
+        callerSubject: { type: SubjectIdentifier, required: true }
+    output: "void"
+    rules:
+      - No ejecuta provisionProfileFromIdentity. Un token de máquina no tiene nunca perfil ni lápida, así que recibe PROFILE_NOT_FOUND.
+      - "Si existe perfil (en cualquier estado, también deactivated): en una sola transacción borra el perfil con sus direcciones, escribe la lápida con reason self-service, deletedBy = callerSubject y deletedAt = ahora, y publica ProfileDeleted."
+      - Si no hay perfil pero existe lápida, responde el mismo éxito sin reescribir la lápida y sin publicar evento.
+      - Si dos borrados del mismo perfil chocan, el que pierde relee y responde como una repetición.
+    errors:
+      - { code: PROFILE_NOT_FOUND, when: "No existe perfil ni lápida para el titular.", http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: "Otra escritura que no es un borrado confirmó antes sobre el mismo perfil.", http: 409 }
+    emits: [ProfileDeleted]
+
+  # ------------------------------- Superficie de back-office -------------------------------
+
+  listProfiles:
+    description: "Lista perfiles, sin direcciones, filtrables por estado y por prefijo de email o nombre visible."
+    kind: query
+    input:
+      fields:
+        status: { type: ProfileStatus }
+        search: { type: string, match: prefix, compare: ignore-case-accents, constraints: { minLength: 1, maxLength: 254 }, description: "Prefijo que se busca en contactEmail o en displayName." }
+    output: { entity: UserProfile, paginated: true, exclude: [addresses], sort: [createdAt:desc] }
+    rules:
+      - "Con search, un perfil casa si contactEmail O displayName empieza por search (prefijo, no subcadena), sin distinguir mayúsculas ni acentos."
+      - Con status y search a la vez, un perfil tiene que cumplir los dos (AND).
+      - Sin filtros se listan todos los perfiles; los borrados no están porque solo queda su lápida.
+
+  getProfile:
+    description: "Devuelve el perfil de un subject con sus direcciones."
+    kind: query
+    input:
+      fields:
+        subject: { type: SubjectIdentifier, required: true }
+    output: { entity: UserProfile }
+    rules:
+      - addresses viaja en orden de alta, de la más antigua a la más reciente.
+    errors:
+      - { code: PROFILE_NOT_FOUND, when: "No existe perfil ni lápida para ese subject.", http: 404 }
+      - { code: PROFILE_DELETED, when: "El subject tiene lápida.", http: 410 }
+
+  deactivateProfile:
+    description: "Desactiva un perfil: conserva todos sus datos y deja de admitir mutaciones por la API."
+    kind: command
+    input:
+      fields:
+        subject:       { type: SubjectIdentifier, required: true }
+        callerSubject: { type: SubjectIdentifier, required: true, description: "Subject del operador; lo estampa el servidor." }
+    output: { entity: UserProfile }
+    rules:
+      - Escribe deactivatedBy = callerSubject (el operador) y deactivatedAt = ahora, y publica ProfileDeactivated con los dos.
+    transitions:
+      - { entity: UserProfile, from: [draft, complete], to: deactivated }
+    errors:
+      - { code: PROFILE_NOT_FOUND, when: "No existe perfil ni lápida para ese subject.", http: 404 }
+      - { code: PROFILE_DELETED, when: "El subject tiene lápida.", http: 410 }
+      - { code: PROFILE_ALREADY_DEACTIVATED, when: "El perfil ya está deactivated.", http: 409 }
+      - { code: CONCURRENT_MODIFICATION, when: "Otra escritura confirmó antes sobre el mismo perfil.", http: 409 }
+    emits: [ProfileDeactivated]
+
+  reactivateProfile:
+    description: "Reactiva un perfil desactivado; el status vuelve a draft o complete según sus datos."
+    kind: command
+    input:
+      fields:
+        subject: { type: SubjectIdentifier, required: true }
+    output: { entity: UserProfile }
+    rules:
+      - El status se recalcula con la regla de completitud, deactivatedBy y deactivatedAt vuelven a null, y publica ProfileReactivated.
+    transitions:
+      - { entity: UserProfile, from: [deactivated], to: draft }
+      - { entity: UserProfile, from: [deactivated], to: complete }
+    errors:
+      - { code: PROFILE_NOT_FOUND, when: "No existe perfil ni lápida para ese subject.", http: 404 }
+      - { code: PROFILE_DELETED, when: "El subject tiene lápida.", http: 410 }
+      - { code: PROFILE_NOT_DEACTIVATED, when: "El perfil no está deactivated.", http: 409 }
+      - { code: CONCURRENT_MODIFICATION, when: "Otra escritura confirmó antes sobre el mismo perfil.", http: 409 }
+    emits: [ProfileReactivated]
+
+  deleteProfile:
+    description: "Borra el perfil de un subject con sus direcciones y deja una lápida back-office. Devuelve la lápida; un reintento devuelve la original."
+    kind: command
+    input:
+      fields:
+        subject:       { type: SubjectIdentifier, required: true }
+        callerSubject: { type: SubjectIdentifier, required: true, description: "Subject del operador; lo estampa el servidor." }
+    output: { entity: DeletedSubject }
+    rules:
+      - "Si existe perfil (en cualquier estado): en una sola transacción borra el perfil con sus direcciones, escribe la lápida con reason back-office, deletedBy = callerSubject (el operador) y deletedAt = ahora, publica ProfileDeleted y devuelve la lápida."
+      - Si no hay perfil pero existe lápida, devuelve esa lápida original tal cual (aunque fuera self-service), sin reescribirla y sin publicar evento.
+      - Si dos borrados del mismo perfil chocan, el que pierde relee y devuelve la lápida del ganador.
+    errors:
+      - { code: PROFILE_NOT_FOUND, when: "No existe perfil ni lápida para ese subject.", http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: "Otra escritura que no es un borrado confirmó antes sobre el mismo perfil.", http: 409 }
+    emits: [ProfileDeleted]
+
+  reinstateSubject:
+    description: "Levanta la lápida de un subject para que pueda volver a aprovisionarse. No restaura nada ni publica evento."
+    kind: command
+    input:
+      fields:
+        subject: { type: SubjectIdentifier, required: true }
+    output: "void"
+    rules:
+      - Borra la lápida. La siguiente petición del titular a /me aprovisiona un perfil nuevo en draft, sin ningún dato del anterior.
+    errors:
+      - { code: SUBJECT_NOT_DELETED, when: "No existe lápida para ese subject.", http: 404 }
+
+  # ------------------------------- Superficie servidor-a-servidor -------------------------------
+
+  resolveContactForServices:
+    description: "Devuelve la proyección de contacto de un subject, sin dirección, para otros servidores."
+    kind: query
+    input:
+      fields:
+        subject: { type: SubjectIdentifier, required: true }
+    output:
+      fields:
+        subject:      { type: SubjectIdentifier, required: true }
+        displayName:  { type: PersonName }
+        givenName:    { type: PersonName }
+        familyName:   { type: PersonName }
+        contactEmail: { type: EmailAddress }
+        contactPhone: { type: PhoneNumber }
+        status:       { type: ProfileStatus, required: true }
+        version:      { type: int, required: true, description: "lockVersion del perfil." }
+        updatedAt:    { type: timestamp, required: true }
+    cache:
+      ttlSeconds: 60
+      keyFields: [subject]
+      invalidatedBy: [ProfileProvisioned, ProfileContactEmailRefreshed, ProfileContactDetailsChanged, AddressAdded, AddressChanged, AddressRemoved, DefaultAddressChanged, ProfileDeactivated, ProfileReactivated, ProfileDeleted]
+    rules:
+      - Resuelve cualquier subject con perfil, en cualquier estado; el status viaja en la respuesta y el consumidor decide.
+      - No aprovisiona.
+      - La caché se invalida por los diez eventos porque el status viaja en la respuesta; el TTL es el respaldo, no el mecanismo de frescura.
+    errors:
+      - { code: PROFILE_NOT_FOUND, when: "No existe perfil ni lápida para ese subject.", http: 404 }
+      - { code: PROFILE_DELETED, when: "El subject tiene lápida.", http: 410 }
+
+  resolveDeliveryProfileForServices:
+    description: "Devuelve la proyección de entrega de un subject (contacto más dirección shipping predeterminada) para otros servidores."
+    kind: query
+    input:
+      fields:
+        subject: { type: SubjectIdentifier, required: true }
+    output:
+      fields:
+        subject:         { type: SubjectIdentifier, required: true }
+        displayName:     { type: PersonName, required: true }
+        givenName:       { type: PersonName }
+        familyName:      { type: PersonName }
+        contactEmail:    { type: EmailAddress, required: true }
+        contactPhone:    { type: PhoneNumber, required: true }
+        status:          { type: ProfileStatus, required: true }
+        version:         { type: int, required: true, description: "lockVersion del perfil." }
+        updatedAt:       { type: timestamp, required: true }
+        shippingAddress: { type: PostalAddress, required: true }
+    cache:
+      ttlSeconds: 60
+      keyFields: [subject]
+      invalidatedBy: [ProfileProvisioned, ProfileContactEmailRefreshed, ProfileContactDetailsChanged, AddressAdded, AddressChanged, AddressRemoved, DefaultAddressChanged, ProfileDeactivated, ProfileReactivated, ProfileDeleted]
+    rules:
+      - "La entregabilidad se evalúa sobre los datos, no sobre el status: un perfil es entregable si tiene contactEmail, contactPhone, displayName y una dirección shipping predeterminada. Un perfil deactivated con esos datos se resuelve, con status deactivated."
+      - "Si no es entregable, falla con PROFILE_INCOMPLETE y el campo details del cuerpo de error enumera lo que falta con estos nombres estables y en este orden: contactEmail, contactPhone, displayName, defaultShippingAddress."
+      - No aprovisiona.
+      - La caché se invalida por los diez eventos; el TTL es el respaldo.
+    errors:
+      - { code: PROFILE_NOT_FOUND, when: "No existe perfil ni lápida para ese subject.", http: 404 }
+      - { code: PROFILE_DELETED, when: "El subject tiene lápida.", http: 410 }
+      - { code: PROFILE_INCOMPLETE, when: "El perfil no tiene contactEmail, contactPhone, displayName o dirección shipping predeterminada.", http: 409 }
+
+  resolveContactsBatchForServices:
+    description: "Resuelve la proyección de contacto de hasta 100 subjects en una llamada. Sirve también para arrancar o reconciliar una réplica."
+    kind: query
+    input:
+      fields:
+        subjects: { type: SubjectIdentifier, list: true, required: true }
+    output:
+      fields:
+        profiles:   { type: ContactDetails, list: true, required: true }
+        unresolved: { type: UnresolvedSubject, list: true, required: true }
+    preconditions:
+      - subjects tiene como mucho 100 elementos, contados tal como llegan (antes de deduplicar).
+    rules:
+      - Un subject con forma inválida (vacío o de más de 255 caracteres) es un error de contrato del llamante y rechaza el lote entero con 400, igual que un lote vacío.
+      - Los subjects repetidos se deduplican; cada subject sale una sola vez, en profiles o en unresolved.
+      - profiles y unresolved conservan el orden de la primera aparición de cada subject en la petición.
+      - "Nunca falla entero por un subject: los que no tienen perfil ni lápida van a unresolved con reason not-found, y los que tienen lápida con reason deleted."
+      - No usa caché y no aprovisiona.
+    errors:
+      - { code: TOO_MANY_SUBJECTS, when: "La petición trae más de 100 subjects.", http: 422 }
+
+  resolveDeliveryProfilesBatchForServices:
+    description: "Resuelve la proyección de entrega de hasta 100 subjects en una llamada. Sirve también para arrancar o reconciliar una réplica."
+    kind: query
+    input:
+      fields:
+        subjects: { type: SubjectIdentifier, list: true, required: true }
+    output:
+      fields:
+        profiles:   { type: DeliveryProfile, list: true, required: true }
+        unresolved: { type: UnresolvedSubject, list: true, required: true }
+    preconditions:
+      - subjects tiene como mucho 100 elementos, contados tal como llegan (antes de deduplicar).
+    rules:
+      - Un subject con forma inválida (vacío o de más de 255 caracteres) es un error de contrato del llamante y rechaza el lote entero con 400, igual que un lote vacío.
+      - Los subjects repetidos se deduplican; cada subject sale una sola vez, en profiles o en unresolved.
+      - profiles y unresolved conservan el orden de la primera aparición de cada subject en la petición.
+      - "Nunca falla entero por un subject: sin perfil ni lápida → reason not-found; con lápida → deleted; con perfil no entregable (misma regla que resolveDeliveryProfileForServices) → incomplete."
+      - Un perfil deactivated entregable se resuelve, con status deactivated.
+      - No usa caché y no aprovisiona.
+    errors:
+      - { code: TOO_MANY_SUBJECTS, when: "La petición trae más de 100 subjects.", http: 422 }

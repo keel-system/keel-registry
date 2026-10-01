@@ -223,6 +223,113 @@
         "docs/notifications/INTEGRATION.md",
         "docs/notifications/postman/auth-collection.json"
       ]
+    },
+    {
+      "slug": "user-profile",
+      "family": "user-profile",
+      "variant": null,
+      "service": {
+        "name": "user-profile",
+        "version": "0.1.0",
+        "dsl": "2.18",
+        "domain": "identity",
+        "basedOn": null,
+        "description": "Guarda el perfil de negocio de cada persona autenticada (datos de contacto y direcciones postales) indexado por el sub del token, sin duplicar nada de lo que es del servidor de identidad: lo aprovisiona just-in-time en la primera petición, lo deja editar a su titular, lo gestiona desde back-office con borrado definitivo por lápida y lo sirve a otros servidores en proyecciones separadas de contacto y de entrega."
+      },
+      "metadata": {
+        "family": "user-profile",
+        "summary": "Perfil de negocio (contacto y direcciones postales internacionales) de cada persona autenticada, indexado por el sub del token y sin duplicar nada del servidor de identidad OIDC. Aprovisionamiento just-in-time en el primer acceso, edición por el titular con completitud recalculada, back-office con desactivación y borrado definitivo por lápida, y contrato servidor-a-servidor separado por scope en contacto y entrega, individual con caché y por lote. Publica diez eventos con estado versionado por outbox.\n",
+        "maturity": "draft",
+        "tags": [
+          "identity",
+          "profile",
+          "oidc",
+          "jit-provisioning",
+          "address",
+          "postal-address",
+          "lifecycle",
+          "tombstone",
+          "events",
+          "outbox",
+          "m2m",
+          "batch",
+          "cache",
+          "idempotency",
+          "optimistic-locking",
+          "audit",
+          "pagination",
+          "search",
+          "cors"
+        ],
+        "author": "keel",
+        "license": "Apache-2.0"
+      },
+      "layers": [
+        "domain",
+        "use-cases",
+        "api",
+        "security",
+        "messaging",
+        "persistence"
+      ],
+      "counts": {
+        "entities": 3,
+        "types": 18,
+        "aggregates": 2,
+        "operations": 18,
+        "commands": 11,
+        "queries": 7,
+        "endpoints": 17,
+        "roles": 2,
+        "serviceClients": 2,
+        "publishedEvents": 10,
+        "subscriptions": 0,
+        "persistedEntities": 3
+      },
+      "status": {
+        "ok": true,
+        "pending": 0,
+        "errors": 0
+      },
+      "derivatives": {
+        "fresh": 9,
+        "stale": 0,
+        "unstamped": 0,
+        "missing": 0,
+        "orphan": 0,
+        "notApplicable": 0
+      },
+      "docs": {
+        "design": "docs/user-profile/DESIGN.md",
+        "overview": "docs/user-profile/overview.html",
+        "openapiViewer": "docs/user-profile/openapi.html",
+        "asyncapiViewer": "docs/user-profile/asyncapi.html",
+        "integration": "docs/user-profile/INTEGRATION.md"
+      },
+      "files": [
+        "specs/user-profile/service.keel.yaml",
+        "specs/user-profile/domain.keel.yaml",
+        "specs/user-profile/use-cases.keel.yaml",
+        "specs/user-profile/api.keel.yaml",
+        "specs/user-profile/security.keel.yaml",
+        "specs/user-profile/messaging.keel.yaml",
+        "specs/user-profile/persistence.keel.yaml",
+        "specs/user-profile/design.yaml",
+        "specs/user-profile/decisions.yaml",
+        "specs/user-profile/review.yaml",
+        "specs/user-profile/flow-review.yaml",
+        "specs/user-profile/gaps.yaml",
+        "specs/user-profile/validation-scenarios.md",
+        "docs/user-profile/DESIGN.md",
+        "docs/user-profile/openapi.yaml",
+        "docs/user-profile/openapi.html",
+        "docs/user-profile/asyncapi.yaml",
+        "docs/user-profile/asyncapi.html",
+        "docs/user-profile/postman/user-profile-collection.json",
+        "docs/user-profile/overview.html",
+        "docs/user-profile/INTEGRATION.md",
+        "docs/user-profile/postman/auth-collection.json"
+      ]
     }
   ],
   "families": [
@@ -236,6 +343,12 @@
       "name": "notifications",
       "designs": [
         "notifications"
+      ]
+    },
+    {
+      "name": "user-profile",
+      "designs": [
+        "user-profile"
       ]
     }
   ]

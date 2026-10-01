@@ -1,0 +1,82 @@
+reviewedAt: 0.1.0
+passes: 3
+scenariosSha256: 1e3de19e316e915b1f103e15d37aa025d82be6c74c584de8ac9646f977284593
+conventionsSha256: 296871e7da736cbf5091219f94bf5656351ab083d4d5796e12e01937b72d31db
+flows:
+  - { id: FL-PRV-001, sha256: 00554ff8946b261c7eb0663e6cf560e82d735b3881dbce6aa97304e0e3c76bbe }
+  - { id: FL-PRV-002, sha256: a1f466445e90ce22ea3b736c112bf2ecd5991329f566cdba54016c4049b40a11 }
+  - { id: FL-PRV-003, sha256: f3c18d8b331b627c97fc8ed3967f177c3ddf959004834bd29c80670d5cabe1bb }
+  - { id: FL-PRV-004, sha256: 2eaac08562022ecb519aff9451dedcf49c79b7c5f12415345094220c9b662443 }
+  - { id: FL-PRV-005, sha256: d04b09d80d38ceee05679fe4786e13f0e3d202a426747f6618bf16fe9fc9699e }
+  - { id: FL-PRV-006, sha256: 5484581ed175302177825b5794bda2eb7e720135fcaa747cc198529fd56cbdf1 }
+  - { id: FL-PRV-007, sha256: 0d4b1433ecb3745614e917bcbc30b15075dd8af7705821adf2ecf1a2760ceda2 }
+  - { id: FL-ME-001, sha256: fdc8664f4e6a9250fb79ec24cac9ad3fb4f493c82612351b3a6c22ef655af85f }
+  - { id: FL-ME-002, sha256: 30d89daba60db6dbfbad8cab42d4e1f7008c7d25f90d2d3789514229b15e98f0 }
+  - { id: FL-ADR-001, sha256: 5584f993f5542f95a4b29fb2b42019573bec993afa8f367b1f79430f7fa32d9d }
+  - { id: FL-ADR-002, sha256: 8f822fb2f50275ca33328fb3b6fa5c5b97c8cd414ddedcdd5f99a0c9116b7d78 }
+  - { id: FL-ADR-003, sha256: d255471ad3b4dd7302abf738e5330beaf4aff7d6313f482d72426535e5edcdee }
+  - { id: FL-ADR-004, sha256: 17c94c2d6bcb4f90d5bd919a1082f4ec7904349ded61420797f4662f230a33e6 }
+  - { id: FL-ADR-005, sha256: 68c8f55c91258b38ed4bd44d68d5fed85972ebeb533c4b28d304ea73deb57ec0 }
+  - { id: FL-ADR-006, sha256: c157750175017a05c555e452e7fca64fc60a86aaabf819001ab4a97648238797 }
+  - { id: FL-ADR-007, sha256: e68c17ffbfb917392a6e525e7512bc6392e7365bc9202304c1aff7a1bb271141 }
+  - { id: FL-ADR-008, sha256: 3f1f98e8e160a4ce1765851292f73dddc34d9869d09a0ed1d2ee038a1a4c56a8 }
+  - { id: FL-ADR-009, sha256: f80123350b9bf57d5959b46538e99081fb8b9b3a68209bc4b19d88a0380ebd3f }
+  - { id: FL-ADR-010, sha256: 7fda1604bb9c3c842f7e9c3d4380834404be2f4b50df7e0125658c98b34a059b }
+  - { id: FL-DEL-001, sha256: 452e399f01deb876f00855224a63c7b8dd2df08818e36702c406b14b96cf5efb }
+  - { id: FL-DEL-002, sha256: f360778adb599b662c27e0d4d1811d7ae9ba90bda898ab1d7c1055b703dcfa2e }
+  - { id: FL-DEL-003, sha256: 911d182ae02ce37978c45e641421442e49d251f9fb1e207f9ed7a3728597c821 }
+  - { id: FL-DEL-004, sha256: 61fb7badee187ce5d95f4e4805a3d3f37410824038d558212008f82ea60bd937 }
+  - { id: FL-DEL-005, sha256: aef4d7bf4cc2592b11ed0cbc94df9cdf7eb7be9c311ba32ed323281250a60ab7 }
+  - { id: FL-BO-001, sha256: d713b314d02c1292ea7309fd5478edceb8ffd9583d6c50365fa88a4a14110e72 }
+  - { id: FL-BO-002, sha256: 7027285cdf423de120c90bc2b18f0f609c3e8a27b2150e9476be1324af776c2d }
+  - { id: FL-BO-003, sha256: 0455df982618788bbd6e5cf72621c14e6efb6638d7333917e21d8291b43e16c9 }
+  - { id: FL-BO-004, sha256: 2ae4f141f99ae29edb3e2356d648d21802666afb695e9f7ebb2f2af9c644402c }
+  - { id: FL-M2M-001, sha256: 7b23a6c52d976e8e8a2b076eef1d19e5222dcc928034b540c4ce5313e6c8e41a }
+  - { id: FL-M2M-002, sha256: f153b2bd363c41ed746ab937c9458d69678de932aeac9ae3ccb22c43b1118ead }
+  - { id: FL-M2M-003, sha256: 5719679e9932e69842f174a911b8b8ebf8ad559c458be80262bd2ac4980d16de }
+  - { id: FL-M2M-004, sha256: f72065da0cfe08687063a5003366ddcf89cc6c30de3f8c722fd6b2945e2cf571 }
+  - { id: FL-M2M-005, sha256: b1c41fdf9d3b5d7478219685d4a2fb7609b5a8041201b2792533c5df6dc58d3b }
+  - { id: FL-M2M-006, sha256: 830dedb8926d68c1a5ff9994ebde727da9546b62f7bcb3ece701f4eaac7ccf42 }
+  - { id: FL-OBX-001, sha256: 7248152a080ccee8edf40cc292edb4488b36f2ac7573fd75a713ec784f22819e }
+  - { id: FL-OBX-002, sha256: 6c567ce73510ff8655938bc91a57ab0bddb070fbeadaf6654d9b39773461e901 }
+  - { id: FL-CORS-001, sha256: 303e390431f1bc730ec21fc4ef2e6fba2562600c2b0199a1a15ac901fe058b75 }
+  - { id: FL-CORS-002, sha256: 9c2b9d20b5868867a15bc47c0487f504e7905d9e7eb0871af6c6ce91382b2a98 }
+findings:
+  - flow: FL-BO-001
+    step: "Given; Then 1, 3, 4 y 12"
+    kind: carried-state
+    resolution: scenario
+    sealAfter: 560de429014e3ad7ccb3e618c178b7d9eb42451c8010236d1facedf8ed78ef60
+    artifact: use-cases.listProfiles.output.sort
+    evidence: >-
+      Los Then afirman un orden exacto (dora, cleo, beto, ana; [dora, cleo] / [beto, ana] al paginar;
+      [dora, cleo, ana] tras el borrado). listProfiles ordena por createdAt:desc y desempata por id,
+      que es un uuid generado. El Given dice que «los createdAt quedan en ese orden», pero nada en el
+      diseño ni en las convenciones lo garantiza: las convenciones fijan los instantes con precisión de
+      milisegundo y solo por forma y relación. Si dos de los cuatro GET /me/profile seguidos confirman
+      en el mismo milisegundo, sus createdAt empatan, decide el desempate por uuid y el orden afirmado
+      deja de deducirse. La paginación de Then 3 y 4 depende de lo mismo.
+    proposal: >-
+      Fijarlo en el Given: «entre cada aprovisionamiento pasa al menos 1 ms, así que sus createdAt
+      son estrictamente crecientes» (o «el Given comprueba que los createdAt devueltos son estrictamente
+      crecientes»). La otra opción es afirmar el orden en función de los createdAt leídos en el Given
+      (desc, con desempate por id) en vez de con nombres fijos.
+
+  - flow: FL-ADR-004
+    step: "Casos borde"
+    kind: other
+    resolution: scenario
+    sealAfter: 9cab6a69237a442b9788d684022a159525381df41264211f292b9333797ede20
+    artifact: validation-scenarios.md (FL-ADR-004, encabezado de Casos borde)
+    evidence: >-
+      El encabezado dice «Casos borde (todos `400`, sin cambios)», pero dos de sus tres viñetas
+      esperan `201`: la dirección sin adminAreaCode/adminAreaName/postalCode y la de
+      adminAreaCode "CO-ZZZ". Las dos viñetas se deducen del diseño (solo line1, countryCode y
+      localityName son obligatorios; SubdivisionCode solo valida la forma y "CO-ZZZ" la cumple), pero
+      un 201 sí es un cambio: sube lockVersion, añade una dirección y publica AddressAdded. Quien
+      traduzca el bloque no sabe si manda el encabezado o la viñeta, ni si esos casos se ejecutan antes
+      del Then 5 («lockVersion 1 y solo a1, ningún evento»), que dejaría de cumplirse.
+    proposal: >-
+      Partir el bloque: «Casos borde (todos 400, sin cambios)» para la primera viñeta y otro
+      «Casos borde (201; cada uno sobre un perfil propio, fuera de la secuencia del Then 5)» para las
+      otras dos.

@@ -1,0 +1,130 @@
+# Capa messaging — eventos que publica el servicio.
+# Canales lógicos y agnósticos del broker: se materializan en topic/cola al generar.
+#
+# Solo publica; no se suscribe a nada. En particular, no consume eventos del servidor de identidad:
+# el email se refresca al aprovisionar desde el token, y nada más del perfil depende de la identidad.
+#
+# Los diez eventos llevan ESTADO, no solo el subject, y todos llevan version = lockVersion del perfil
+# tras el cambio: un consumidor ordena y descarta duplicados por (subject, version). La lista cubre
+# todas las vías de mutación del agregado; cada transacción publica como mucho uno.
+# ProfileDeleted CIERRA la encarnación del subject: el consumidor olvida todo lo de ese subject, incluida
+# la última version vista. Si después se levanta la lápida, el perfil nuevo es otra encarnación y su
+# ProfileProvisioned vuelve a empezar en version 0.
+# Hoy no hay consumidores declarados. Coste aceptado: el broker contiene PII (nombres, email,
+# teléfono, direcciones), salvo ProfileDeleted, que no lleva ninguna.
+
+channels:
+  profileEvents:
+    description: "Ciclo de vida del perfil de negocio y de sus direcciones, en orden de version por subject."
+
+publishing:
+  reliability: outbox
+  events:
+    ProfileProvisioned:
+      description: "Se creó el perfil de un subject en su primera petición autenticada (siempre en draft)."
+      channel: profileEvents
+      payload:
+        subject:      { type: SubjectIdentifier, required: true }
+        version:      { type: int, required: true }
+        status:       { type: ProfileStatus, required: true }
+        contactEmail: { type: EmailAddress }
+        givenName:    { type: PersonName }
+        familyName:   { type: PersonName }
+        displayName:  { type: PersonName }
+
+    ProfileContactEmailRefreshed:
+      description: "El aprovisionamiento refrescó contactEmail porque el claim email del token cambió."
+      channel: profileEvents
+      payload:
+        subject:      { type: SubjectIdentifier, required: true }
+        version:      { type: int, required: true }
+        status:       { type: ProfileStatus, required: true }
+        contactEmail: { type: EmailAddress, required: true }
+
+    ProfileContactDetailsChanged:
+      description: "El titular reemplazó su bloque de contacto. Lleva el status porque los cambios de completitud no tienen evento propio."
+      channel: profileEvents
+      payload:
+        subject:      { type: SubjectIdentifier, required: true }
+        version:      { type: int, required: true }
+        status:       { type: ProfileStatus, required: true }
+        givenName:    { type: PersonName }
+        familyName:   { type: PersonName }
+        displayName:  { type: PersonName }
+        contactPhone: { type: PhoneNumber }
+
+    AddressAdded:
+      description: "El titular añadió una dirección. Si llegó como predeterminada, previousDefaultAddressId dice cuál dejó de serlo: no se publica además DefaultAddressChanged."
+      channel: profileEvents
+      payload:
+        subject:                  { type: SubjectIdentifier, required: true }
+        version:                  { type: int, required: true }
+        status:                   { type: ProfileStatus, required: true }
+        addressId:                { type: uuid, required: true }
+        label:                    { type: string }
+        type:                     { type: AddressType, required: true }
+        isDefault:                { type: boolean, required: true }
+        postal:                   { type: PostalAddress, required: true }
+        previousDefaultAddressId: { type: uuid, description: "La predeterminada de ese tipo que quedó desmarcada; null si no había o si la nueva no es predeterminada." }
+
+    AddressChanged:
+      description: "El titular reemplazó una dirección. Si cambió de tipo, isDefault llega a false."
+      channel: profileEvents
+      payload:
+        subject:   { type: SubjectIdentifier, required: true }
+        version:   { type: int, required: true }
+        status:    { type: ProfileStatus, required: true }
+        addressId: { type: uuid, required: true }
+        label:     { type: string }
+        type:      { type: AddressType, required: true }
+        isDefault: { type: boolean, required: true }
+        postal:    { type: PostalAddress, required: true }
+
+    AddressRemoved:
+      description: "El titular quitó una dirección; si era la predeterminada, su tipo se queda sin predeterminada."
+      channel: profileEvents
+      payload:
+        subject:    { type: SubjectIdentifier, required: true }
+        version:    { type: int, required: true }
+        status:     { type: ProfileStatus, required: true }
+        addressId:  { type: uuid, required: true }
+        type:       { type: AddressType, required: true }
+        wasDefault: { type: boolean, required: true }
+
+    DefaultAddressChanged:
+      description: "El titular marcó otra dirección como predeterminada de su tipo."
+      channel: profileEvents
+      payload:
+        subject:           { type: SubjectIdentifier, required: true }
+        version:           { type: int, required: true }
+        status:            { type: ProfileStatus, required: true }
+        addressId:         { type: uuid, required: true }
+        type:              { type: AddressType, required: true }
+        previousAddressId: { type: uuid, description: "La que dejó de ser predeterminada; null si no había." }
+
+    ProfileDeactivated:
+      description: "Back-office desactivó el perfil."
+      channel: profileEvents
+      payload:
+        subject:       { type: SubjectIdentifier, required: true }
+        version:       { type: int, required: true }
+        status:        { type: ProfileStatus, required: true }
+        deactivatedBy: { type: SubjectIdentifier, required: true, description: "Subject del operador que lo desactivó." }
+        deactivatedAt: { type: timestamp, required: true, description: "El mismo instante que UserProfile.deactivatedAt." }
+
+    ProfileReactivated:
+      description: "Back-office reactivó el perfil; status es el recalculado (draft o complete)."
+      channel: profileEvents
+      payload:
+        subject: { type: SubjectIdentifier, required: true }
+        version: { type: int, required: true }
+        status:  { type: ProfileStatus, required: true }
+
+    ProfileDeleted:
+      description: "El perfil se borró y quedó su lápida. Sin PII: un consumidor debe borrar lo que tenga de ese subject, incluida la última version vista (cierra la encarnación). version es el lockVersion final más uno (el borrado es la última mutación)."
+      channel: profileEvents
+      payload:
+        subject:   { type: SubjectIdentifier, required: true }
+        version:   { type: int, required: true }
+        deletedAt: { type: timestamp, required: true, description: "El mismo instante que DeletedSubject.deletedAt de la lápida escrita en la misma transacción." }
+        reason:    { type: DeletionReason, required: true, description: "El mismo valor que DeletedSubject.reason." }

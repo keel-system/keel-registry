@@ -1,0 +1,70 @@
+# Capa security — autenticación y autorización.
+# Agnóstica del proveedor: se declara el protocolo, nunca el producto.
+#
+# El servicio no llama nunca al servidor de identidad: valida la firma del token en local.
+# Tres públicos: el titular (cualquier persona autenticada, sobre su propio perfil), el back-office
+# (por permiso; el corte entre roles es la irreversibilidad) y los servidores (por scope, uno por
+# proyección). Un scope M2M autoriza sobre cualquier subject: acotarlo acoplaría este servicio a sus
+# consumidores.
+
+authentication:
+  protocol: oidc
+  tokenLocation: header
+  callerIdentity:
+    field: callerSubject
+    from: { source: claim, name: sub }
+    description: "El titular de /me y el operador de back-office son el claim sub del token; nunca salen del cuerpo ni de la ruta."
+  serviceAuth:
+    protocol: client-credentials
+    validateAudience: true
+    audience: user-profile
+    description: "Los servidores se autentican con client_credentials y el token tiene que estar emitido para la audiencia user-profile."
+
+roles:
+  profile-support: { description: "Soporte: consulta perfiles y los desactiva o reactiva. Nada irreversible." }
+  profile-admin:   { description: "Administración: lo de soporte más el borrado definitivo y el levantamiento de lápidas." }
+
+permissions:
+  profile:read:          { description: "Listar y leer perfiles desde back-office." }
+  profile:deactivate:    { description: "Desactivar y reactivar perfiles." }
+  profile:delete:        { description: "Borrar perfiles (lápida) y levantar lápidas. Irreversible para los datos." }
+  profile-contact:read:  { description: "Resolver la proyección de contacto, sin dirección (M2M)." }
+  profile-delivery:read: { description: "Resolver la proyección de entrega, con la dirección shipping (M2M)." }
+
+roleGrants:
+  profile-support: [profile:read, profile:deactivate]
+  profile-admin:   [profile:read, profile:deactivate, profile:delete]
+
+serviceClients:
+  order-service:        { description: "Resuelve a quién y dónde entregar un pedido.", scopes: [profile-delivery:read] }
+  notification-service: { description: "Resuelve cómo contactar a una persona. Sin acceso a direcciones, ni pidiéndolas.", scopes: [profile-contact:read] }
+
+access:
+  default: { level: required }
+  rules:
+    getMyProfile:           { level: required }
+    updateMyContactDetails: { level: required }
+    addMyAddress:           { level: required }
+    updateMyAddress:        { level: required }
+    removeMyAddress:        { level: required }
+    setMyDefaultAddress:    { level: required }
+    deleteMyProfile:        { level: required }
+
+    listProfiles:      { level: admin, permissions: [profile:read] }
+    getProfile:        { level: admin, permissions: [profile:read] }
+    deactivateProfile: { level: admin, permissions: [profile:deactivate] }
+    reactivateProfile: { level: admin, permissions: [profile:deactivate] }
+    deleteProfile:     { level: admin, permissions: [profile:delete] }
+    reinstateSubject:  { level: admin, permissions: [profile:delete] }
+
+    resolveContactForServices:               { level: service, scopes: [profile-contact:read] }
+    resolveContactsBatchForServices:         { level: service, scopes: [profile-contact:read] }
+    resolveDeliveryProfileForServices:       { level: service, scopes: [profile-delivery:read] }
+    resolveDeliveryProfilesBatchForServices: { level: service, scopes: [profile-delivery:read] }
+
+cors:
+  description: "El front del titular y el de back-office llaman a la API desde el navegador con el token en la cabecera Authorization."
+  allowCredentials: false
+  allowedHeaders: [Authorization, Content-Type, Idempotency-Key]
+  exposedHeaders: [X-Correlation-Id]
+  maxAgeSeconds: 3600

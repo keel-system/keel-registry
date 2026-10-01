@@ -1,0 +1,217 @@
+# Decisiones del diseño: estructurales (tomadas por el diseñador, catálogo de /keel-design)
+# y obligaciones aceptadas por escrito (docs/design-obligations.md).
+# No forma parte del DSL: registra qué se decidió, qué se descartó y por qué.
+
+structural:
+  # ------------------------------ use-cases ------------------------------
+  - section: '3.2'
+    scope: use-cases.provisionProfileFromIdentity.idempotency
+    chosen: payload-field callerSubject, permanente (la guarda es la unicidad de subject)
+    discarded: client-key (la operación es interna y no tiene cabecera); sin idempotencia
+    reason: >-
+      El aprovisionamiento lo dispara cualquier petición de /me, y un front abre varias a la vez en el
+      primer acceso. La unicidad de subject es la guarda permanente: la petición que choca relee y
+      devuelve el ganador, así que el cliente nunca ve la colisión y solo se publica un ProfileProvisioned.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.addMyAddress.idempotency
+    chosen: client-key 86400, partitionBy [callerSubject], declarada pero no exigida
+    discarded: global por operación; obligatoria (IDEMPOTENCY_KEY_REQUIRED); sin idempotencia
+    reason: >-
+      Es el único alta no natural del titular: un doble clic o un reintento tras un timeout crearía
+      dos direcciones iguales y consumiría cupo del límite de 20. La ventana de 24 h cubre el reintento
+      de un móvil que recupera cobertura. Se acota por titular para que dos personas que generen la
+      misma clave no se vean nunca (con ámbito global, la misma clave y el mismo cuerpo devolverían el
+      perfil de otro). No se exige para no romper a clientes que no la manden.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.updateMyContactDetails/updateMyAddress/setMyDefaultAddress.idempotency
+    chosen: sin idempotency declarada (idempotentes por naturaleza; repetir es no-op sin evento)
+    discarded: client-key; mutar y publicar en cada llamada
+    reason: >-
+      Son reemplazos completos o fijan un estado: repetirlos con los mismos datos da el mismo resultado.
+      El diseñador decidió además que un resultado igual a lo guardado no es una mutación (no sube
+      lockVersion ni publica evento), para que el reintento tampoco tenga efecto aguas abajo.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.removeMyAddress.idempotency
+    chosen: sin idempotency declarada
+    discarded: client-key
+    reason: >-
+      Repetir el borrado de una dirección ya borrada responde ADDRESS_NOT_FOUND sin efecto ni evento:
+      el segundo intento no puede publicar un segundo AddressRemoved.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.deleteMyProfile/deleteProfile.idempotency
+    chosen: sin idempotency declarada (la lápida es la guarda; la repetición devuelve el éxito original)
+    discarded: client-key
+    reason: >-
+      La lápida permanente hace la repetición observable sin clave: deleteMyProfile responde el mismo
+      204 y deleteProfile devuelve la lápida original, sin reescribirla ni publicar un segundo
+      ProfileDeleted. Dos borrados concurrentes: el perdedor relee y responde como repetición.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.deactivateProfile/reactivateProfile.idempotency
+    chosen: sin idempotency declarada (irrepetibles por construcción)
+    discarded: client-key
+    reason: >-
+      Sus transiciones no tienen el destino entre sus orígenes: el segundo intento lo rechaza el
+      lifecycle con PROFILE_ALREADY_DEACTIVATED o PROFILE_NOT_DEACTIVATED, sin segundo evento.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.reinstateSubject.idempotency
+    chosen: sin idempotency declarada
+    discarded: client-key
+    reason: >-
+      No publica evento y el segundo intento responde SUBJECT_NOT_DELETED sin efecto.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases.resolveContactForServices.cache
+    chosen: ttlSeconds 60, keyFields [subject], invalidatedBy los diez eventos
+    discarded: sin caché; invalidar solo por los eventos de contacto
+    reason: >-
+      Es la lectura M2M caliente (notification-service la consulta por cada aviso). El status viaja en
+      la respuesta, así que cualquier evento del perfil la cambia: se invalida por los diez y el TTL de
+      60 s es solo el respaldo si una invalidación se pierde. No depende de quién pregunta más allá del
+      scope, que ya separa las dos operaciones.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases.resolveDeliveryProfileForServices.cache
+    chosen: ttlSeconds 60, keyFields [subject], invalidatedBy los diez eventos
+    discarded: sin caché
+    reason: >-
+      Mismo criterio que contacto: la lectura de order-service por pedido. Los diez eventos cubren todas
+      las vías de mutación del perfil y de sus direcciones; el TTL es el respaldo.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases (listProfiles, getProfile, getMyProfile, lotes M2M)
+    chosen: sin caché
+    discarded: caché con TTL
+    reason: >-
+      El back-office tiene que ver el estado real tras desactivar o borrar; getMyProfile puede escribir
+      por el aprovisionamiento; y los lotes sirven para reconciliar una réplica, donde un dato rancio
+      anula su propósito.
+    since: 0.1.0
+  # --------------------------------- api ---------------------------------
+  - section: '3.4'
+    scope: api.endpoints.resolveContactForServices.audience
+    chosen: services, operación M2M propia
+    discarded: audience both sobre getProfile; no exponerlo a máquinas
+    reason: >-
+      Los consumidores servidor necesitan una proyección estable y mínima, no la ficha de back-office.
+      Contacto y entrega son operaciones separadas por contenido y por scope: notification-service no
+      puede obtener una dirección ni pidiéndola.
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.endpoints.resolveDeliveryProfileForServices.audience
+    chosen: services, operación M2M propia
+    discarded: audience both; un único endpoint M2M con la dirección opcional
+    reason: >-
+      La entrega es la única proyección con dirección y la única que puede fallar por incompleta
+      (PROFILE_INCOMPLETE); su scope solo lo tiene order-service.
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.endpoints.resolveContactsBatchForServices/resolveDeliveryProfilesBatchForServices.audience
+    chosen: services, operaciones de lote propias (1..100, nunca fallan enteras)
+    discarded: que el consumidor haga N llamadas individuales
+    reason: >-
+      Los consumidores resuelven muchos subjects de golpe (un lote de pedidos, una campaña) y los lotes
+      sirven además para arrancar o reconciliar una réplica. Sin caché, para que la reconciliación vea
+      el estado real.
+    since: 0.1.0
+  - section: '3.8'
+    scope: api.pagination
+    chosen: offset, defaultSize 25, maxSize 100; listProfiles ordenada por createdAt desc con desempate por id
+    discarded: sin paginar
+    reason: >-
+      listProfiles es la única colección y crece con cada persona que se autentica, sin cota. Los lotes
+      M2M no paginan: su cota es la de la petición (100).
+    since: 0.1.0
+  # ------------------------------ messaging ------------------------------
+  - section: '3.1'
+    scope: messaging.publishing.reliability
+    chosen: outbox
+    discarded: best-effort
+    reason: >-
+      Los eventos llevan estado versionado para que un consumidor pueda mantener una réplica; un hueco en
+      la secuencia (el broker caído al confirmar) la deja rancia sin que nadie lo vea, y ProfileDeleted
+      perdido es PII que un consumidor no borra nunca. Se decide junto a la frontera per-operation: el
+      evento se escribe en la misma transacción que el cambio.
+    since: 0.1.0
+  # ----------------------------- persistence -----------------------------
+  - section: '3.7'
+    scope: persistence.consistency.transactionalBoundary
+    chosen: per-operation
+    discarded: per-aggregate
+    reason: >-
+      Borrar el perfil y escribir la lápida tocan dos agregados (UserProfile y DeletedSubject) y deben
+      confirmar juntos: con per-aggregate, un fallo entre las dos escrituras dejaría un perfil borrado sin
+      lápida (y el aprovisionamiento lo recrearía) o una lápida junto a un perfil vivo. El aprovisionamiento
+      es la excepción decidida: confirma en su propia transacción antes de la operación que lo dispara,
+      para que cada transacción publique un solo evento.
+    since: 0.1.0
+  - section: '3.9'
+    scope: persistence.consistency.optimisticLocking
+    chosen: declared
+    discarded: none (último gana); all
+    reason: >-
+      lockVersion solo en UserProfile; el conflicto es 409 CONCURRENT_MODIFICATION. El status se recalcula a partir de todo el agregado: dos escrituras concurrentes (añadir una
+      dirección y quitar la predeterminada) que pisan una a otra dejarían un status que no corresponde a
+      los datos. lockVersion además es la version de los eventos, así que cada mutación tiene que subirla
+      exactamente una vez. DeletedSubject no lo necesita: se escribe una vez y nunca se reescribe.
+    since: 0.1.0
+  - section: '3.9b'
+    scope: persistence.audit.timestamps
+    chosen: declared
+    discarded: all; none
+    reason: >-
+      createdAt/updatedAt en UserProfile y Address. Son contrato: createdAt ordena el listado de back-office y updatedAt viaja en las proyecciones M2M.
+    since: 0.1.0
+  - section: '3.9b'
+    scope: persistence.audit.authorship
+    chosen: all
+    discarded: declared; none
+    reason: >-
+      La autoría de fila registra quién hizo la ÚLTIMA escritura de cada fila (el titular, el operador o el
+      centinela), fuera de todo contrato y sin historial. Lo que sí es contrato se declara como dato de
+      dominio: quién y cuándo desactivó (deactivatedBy/deactivatedAt, que solo escribe deactivateProfile y
+      que el aprovisionamiento no pisa) y quién borró (deletedBy en la lápida). Decidido por el diseñador
+      tras la revisión semántica (REV-DOMAIN-PROMISED-STATE).
+    since: 0.1.0
+
+decisions:
+  - id: CHK-PERSIST-BOUNDARY-DEFAULT
+    scope: persistence.consistency.transactionalBoundary
+    reason: >-
+      per-operation es elección del diseñador, no el default de la plantilla: el borrado cruza los dos
+      agregados (perfil y lápida) y tiene que ser atómico. Ver structural 3.7.
+    since: 0.1.0
+  - id: CHK-API-QUERY-NOT-GET
+    scope: api.endpoints.resolveContactsBatchForServices.method
+    reason: >-
+      Los subjects son opacos (hasta 255 caracteres, cualquier carácter) y el lote llega a 100: no caben
+      con garantías en una query string. Decidido por el diseñador.
+    since: 0.1.0
+  - id: CHK-API-QUERY-NOT-GET
+    scope: api.endpoints.resolveDeliveryProfilesBatchForServices.method
+    reason: Mismo criterio que el lote de contacto.
+    since: 0.1.0
+  - id: CHK-API-CREATED-NO-READ
+    scope: api.endpoints.addMyAddress
+    reason: >-
+      El 201 sale sin Location a propósito: el recurso del titular es siempre /me/profile, sin id en la
+      ruta, y el cuerpo ya trae el perfil completo con la dirección nueva. Decidido por el diseñador.
+    since: 0.1.0
+  - id: OBL-IDEM-KEY-REQUIRED
+    scope: use-cases
+    reason: >-
+      La Idempotency-Key se declara pero no se exige: sin cabecera, addMyAddress se ejecuta sin deduplicar
+      y un reintento puede crear una segunda dirección (acotada por el límite de 20). Decidido por el
+      diseñador para no romper a clientes que no la manden; el front propio la manda siempre.
+    since: 0.1.0
+  - id: OBL-CONCURRENCY-CODE
+    scope: persistence
+    reason: >-
+      Se usa el canónico 409 CONCURRENT_MODIFICATION, y cada mutación del perfil lo declara en sus errors.
+      El índice único condicionado de la dirección predeterminada responde con el mismo code.
+    since: 0.1.0

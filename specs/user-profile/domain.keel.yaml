@@ -1,0 +1,204 @@
+# Capa domain — modelado del dominio: value types, entidades, relaciones, ciclo de vida e invariantes.
+# Cero tecnología: nada de tablas, ORMs ni frameworks.
+#
+# Tesis: la identidad es del servidor de identidad OIDC y el perfil de negocio es de este servicio.
+# Ningún dato tiene dos dueños; lo único que comparten es el sub del token (SubjectIdentifier).
+
+types:
+  # ------------------------------ Escalares ------------------------------
+
+  SubjectIdentifier:
+    base: string
+    description: "Identificador opaco del sujeto (claim sub del token). Inmutable y clave de negocio del perfil. No se interpreta ni se normaliza: se compara byte a byte."
+    constraints: { minLength: 1, maxLength: 255 }
+
+  EmailAddress:
+    base: string
+    description: "Dirección de correo con forma simple (algo@algo.algo). Nunca es clave: puede cambiar de dueño."
+    constraints: { maxLength: 254, pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" }
+
+  PhoneNumber:
+    base: string
+    description: "Teléfono en formato E.164: + seguido de entre 2 y 15 dígitos, sin espacios ni separadores."
+    constraints: { pattern: "^\\+[1-9][0-9]{1,14}$" }
+
+  PersonName:
+    base: string
+    description: "Nombre de persona (nombre de pila, apellidos o nombre visible) en texto libre."
+    constraints: { minLength: 1, maxLength: 100 }
+
+  CountryCode:
+    base: string
+    description: "País en ISO 3166-1 alpha-2, en mayúsculas."
+    constraints: { pattern: "^[A-Z]{2}$" }
+
+  PostalCode:
+    base: string
+    description: "Código postal tal como lo escribe el país. Sin patrón a propósito: cada país tiene su formato y algunos no tienen código postal."
+    constraints: { minLength: 1, maxLength: 16 }
+
+  SubdivisionCode:
+    base: string
+    description: "Subdivisión de primer nivel en ISO 3166-2 (CO-ANT, ES-M, US-CA). El prefijo es el país."
+    constraints: { pattern: "^[A-Z]{2}-[A-Z0-9]{1,3}$" }
+
+  TerritoryCode:
+    base: string
+    description: "Código opaco de segundo nivel territorial (municipio, ciudad, comuna). No existe una codificación universal: se interpreta según el país."
+    constraints: { minLength: 1, maxLength: 32 }
+
+  TerritoryName:
+    base: string
+    description: "Nombre de una unidad territorial, copiado al guardar y nunca resuelto de nuevo."
+    constraints: { minLength: 1, maxLength: 120 }
+
+  AddressLine:
+    base: string
+    description: "Una línea de dirección postal."
+    constraints: { minLength: 1, maxLength: 140 }
+
+  # -------------------------------- Enums --------------------------------
+
+  ProfileStatus:
+    description: "Situación del perfil. draft es un estado normal (faltan datos para operar), no un error."
+    values: [draft, complete, deactivated]
+
+  AddressType:
+    description: "Uso de una dirección."
+    values: [shipping, billing]
+
+  DeletionReason:
+    description: "Por qué vía se borró el perfil. Cerrado a propósito: la lápida no puede acumular PII en texto libre."
+    values: [self-service, back-office]
+
+  UnresolvedReason:
+    description: "Por qué un subject pedido en lote no se resolvió."
+    values:
+      - not-found    # nunca hubo perfil ni lápida
+      - deleted      # tiene lápida
+      - incomplete   # solo en delivery: el perfil no tiene lo necesario para entregar
+
+  # ---------------------------- Value objects ----------------------------
+
+  PostalAddress:
+    description: "Dirección postal internacional. Es la unidad que viaja (respuestas, eventos, M2M). Los dos niveles territoriales tienen nombres genéricos; el nombre se denormaliza al guardar y no se vuelve a resolver: que código y nombre diverjan con los años es historia, no inconsistencia. localityCode se interpreta según countryCode. De los códigos territoriales solo se valida la forma, nunca su existencia: el servicio no consulta ningún catálogo territorial; eso es responsabilidad del llamante."
+    fields:
+      line1:         { type: AddressLine, required: true, description: "Primera línea: vía y número." }
+      line2:         { type: AddressLine, description: "Segunda línea: piso, apartamento, referencia." }
+      line3:         { type: AddressLine, description: "Tercera línea, para los países que la usan." }
+      postalCode:    { type: PostalCode, description: "Código postal; opcional porque hay países sin él." }
+      countryCode:   { type: CountryCode, required: true, description: "País de la dirección." }
+      adminAreaCode: { type: SubdivisionCode, description: "Nivel territorial 1 (departamento, estado, provincia) en ISO 3166-2." }
+      adminAreaName: { type: TerritoryName, description: "Nombre del nivel 1 tal como lo mandó el llamante. Obligatorio si viene adminAreaCode." }
+      localityCode:  { type: TerritoryCode, description: "Nivel territorial 2 (municipio, ciudad), opaco e interpretado según el país." }
+      localityName:  { type: TerritoryName, required: true, description: "Nombre del nivel 2 (ciudad o municipio). Es el único nivel territorial obligatorio." }
+
+  ContactDetails:
+    description: "Proyección M2M de contacto de un perfil, sin ninguna dirección."
+    fields:
+      subject:      { type: SubjectIdentifier, required: true }
+      displayName:  { type: PersonName }
+      givenName:    { type: PersonName }
+      familyName:   { type: PersonName }
+      contactEmail: { type: EmailAddress }
+      contactPhone: { type: PhoneNumber }
+      status:       { type: ProfileStatus, required: true }
+      version:      { type: int, required: true, description: "lockVersion del perfil en el momento de la lectura; el mismo número que llevan los eventos." }
+      updatedAt:    { type: timestamp, required: true }
+
+  DeliveryProfile:
+    description: "Proyección M2M de entrega: el contacto más la dirección shipping por defecto, sin id, label ni isDefault."
+    fields:
+      subject:         { type: SubjectIdentifier, required: true }
+      displayName:     { type: PersonName, required: true }
+      givenName:       { type: PersonName }
+      familyName:      { type: PersonName }
+      contactEmail:    { type: EmailAddress, required: true }
+      contactPhone:    { type: PhoneNumber, required: true }
+      status:          { type: ProfileStatus, required: true }
+      version:         { type: int, required: true, description: "lockVersion del perfil en el momento de la lectura." }
+      updatedAt:       { type: timestamp, required: true }
+      shippingAddress: { type: PostalAddress, required: true, description: "La dirección shipping marcada como predeterminada." }
+
+  UnresolvedSubject:
+    description: "Un subject de un lote que no se resolvió, con su motivo."
+    fields:
+      subject: { type: SubjectIdentifier, required: true }
+      reason:  { type: UnresolvedReason, required: true }
+
+entities:
+  UserProfile:
+    description: "Perfil de negocio de una persona autenticada. Se crea solo por aprovisionamiento just-in-time; no guarda credenciales, MFA, sesiones ni roles."
+    fields:
+      id:           { type: uuid, id: true, generated: true }
+      subject:      { type: SubjectIdentifier, required: true, unique: true, description: "sub del token. Inmutable; es la clave de negocio y la única pieza compartida con el servidor de identidad." }
+      contactEmail: { type: EmailAddress, description: "Réplica de solo lectura del claim email del token. Ninguna operación de la API lo cambia: solo lo escribe el aprovisionamiento." }
+      givenName:    { type: PersonName, description: "Nombre de pila." }
+      familyName:   { type: PersonName, description: "Apellidos." }
+      displayName:  { type: PersonName, description: "Nombre con el que se muestra a la persona." }
+      contactPhone: { type: PhoneNumber, description: "Teléfono de contacto de negocio. No es el teléfono de MFA, aunque coincida." }
+      status:       { type: ProfileStatus, required: true, default: draft, description: "Se recalcula en cada mutación; ver invariantes." }
+      deactivatedBy: { type: SubjectIdentifier, description: "Subject del operador que desactivó el perfil; null si no está deactivated." }
+      deactivatedAt: { type: timestamp, description: "Cuándo se desactivó; null si no está deactivated." }
+      lockVersion:  { type: int, generated: true }
+      createdAt:    { type: timestamp, generated: true }
+      updatedAt:    { type: timestamp, generated: true }
+    relations:
+      addresses: { entity: Address, cardinality: one-to-many, description: "Direcciones del perfil, como máximo 20, siempre en orden de alta (de la más antigua a la más reciente)." }
+    lifecycle:
+      field: status
+      transitions:
+        # Los bucles (draft → draft, complete → complete, deactivated → deactivated) son una mutación que deja el estado igual.
+        draft:       [draft, complete, deactivated]
+        complete:    [complete, draft, deactivated]
+        deactivated: [draft, complete, deactivated]
+    invariants:
+      - "Fuera de deactivated, el status es complete si y solo si el perfil tiene contactEmail, contactPhone y displayName y una dirección de tipo shipping con isDefault true; si falta cualquiera de las cuatro, es draft."
+      - El status se recalcula en cada mutación del agregado, incluida la reactivación.
+      - Un perfil deactivated conserva todos sus datos.
+      - deactivatedBy y deactivatedAt tienen valor si y solo si el status es deactivated; solo los escribe deactivateProfile y los vacía reactivateProfile.
+      - El subject no cambia nunca después de creado.
+      - contactEmail solo lo escribe el aprovisionamiento.
+      - Un perfil tiene como máximo 20 direcciones, sumando las de ambos tipos.
+      - Por cada tipo de dirección hay como mucho una con isDefault true.
+      - "lockVersion empieza en 0 al crear el perfil y aumenta exactamente en 1 con cada mutación confirmada del agregado, incluidas las de sus direcciones."
+      - updatedAt del perfil avanza con cada mutación confirmada del agregado, también cuando solo cambia una dirección.
+      - addresses se expone en orden de alta; las altas de un mismo perfil las serializa el bloqueo optimista, así que la última dirección añadida es siempre la última de la lista.
+      - No hay retención automática ni purga por inactividad.
+
+  Address:
+    description: "Dirección postal guardada en un perfil, con su uso y si es la predeterminada de ese uso."
+    fields:
+      id:        { type: uuid, id: true, generated: true }
+      label:     { type: string, description: "Etiqueta libre que pone la persona (Casa, Oficina).", constraints: { minLength: 1, maxLength: 60 } }
+      type:      { type: AddressType, required: true, description: "Uso de la dirección." }
+      postal:    { type: PostalAddress, required: true, description: "La dirección en sí." }
+      isDefault: { type: boolean, required: true, default: false, description: "Predeterminada de su tipo." }
+      createdAt: { type: timestamp, generated: true }
+      updatedAt: { type: timestamp, generated: true }
+    relations:
+      userProfile: { entity: UserProfile, cardinality: many-to-one, required: true, description: "Perfil al que pertenece." }
+    invariants:
+      - Si postal.adminAreaCode tiene valor, postal.adminAreaName también, y el prefijo de adminAreaCode (antes del guion) es igual a postal.countryCode.
+      - updatedAt de una dirección avanza con cualquier cambio de sus campos, también al perder isDefault porque otra pasa a ser la predeterminada.
+
+  DeletedSubject:
+    description: "Lápida de un perfil borrado. Sin PII. Es permanente hasta que un acto administrativo la levanta, y mientras existe el aprovisionamiento no crea perfil para ese subject."
+    fields:
+      subject:   { type: SubjectIdentifier, id: true, description: "Subject del perfil borrado." }
+      deletedAt: { type: timestamp, required: true, description: "Cuándo se borró el perfil." }
+      deletedBy: { type: SubjectIdentifier, required: true, description: "Subject de quien borró: el propio titular (self-service) o el operador (back-office)." }
+      reason:    { type: DeletionReason, required: true, description: "Vía del borrado." }
+    invariants:
+      - Una lápida no se reescribe nunca; un borrado repetido la deja tal cual.
+      - La lápida no guarda ningún dato personal del perfil borrado.
+      - La escritura de la lápida y la creación de un perfil del mismo subject se serializan; nunca coexisten.
+
+aggregates:
+  UserProfile:
+    description: "El perfil y sus direcciones cambian juntos: la completitud y la dirección por defecto son invariantes que cruzan los dos."
+    root: UserProfile
+    entities: [Address]
+  DeletedSubject:
+    description: "La lápida es su propia frontera. Que nunca coexista con un perfil del mismo subject lo garantiza la transacción por operación que borra uno y escribe la otra (persistence)."
+    root: DeletedSubject

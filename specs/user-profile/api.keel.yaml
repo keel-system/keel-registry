@@ -1,0 +1,43 @@
+# Capa api — integración con el cliente: exposición REST de las operaciones.
+# La seguridad de estos endpoints se declara en security.keel.yaml, no aquí.
+#
+# Tres superficies por prefijo de ruta, sin endpoints compartidos:
+#   /me/...          el titular del token (el subject sale del token, nunca del cuerpo ni de la ruta)
+#   /management/...  back-office, indexado por subject (no por id técnico); la lápida es un recurso propio
+#   /services/...    servidor-a-servidor, separado por contenido (contacto / entrega) y por scope
+# Dentro de v1 solo se admiten cambios aditivos. Un subject en la ruta viaja codificado como segmento de URL.
+
+style: rest
+basePath: /api/v1
+auto: false
+defaultAudience: users
+
+endpoints:
+  # ------------------------------ Titular (/me) ------------------------------
+  getMyProfile:           { method: GET,    path: "/me/profile" }
+  updateMyContactDetails: { method: PUT,    path: "/me/profile/contact-details", successStatus: 200 }
+  addMyAddress:           { method: POST,   path: "/me/profile/addresses", successStatus: 201 }
+  updateMyAddress:        { method: PUT,    path: "/me/profile/addresses/{addressId}", successStatus: 200 }
+  removeMyAddress:        { method: DELETE, path: "/me/profile/addresses/{addressId}", successStatus: 200 }
+  setMyDefaultAddress:    { method: PUT,    path: "/me/profile/addresses/{addressId}/default", successStatus: 200 }
+  deleteMyProfile:        { method: DELETE, path: "/me/profile", successStatus: 204 }
+
+  # ------------------------------ Back-office ------------------------------
+  listProfiles:      { method: GET,    path: "/management/profiles" }
+  getProfile:        { method: GET,    path: "/management/profiles/{subject}" }
+  deactivateProfile: { method: POST,   path: "/management/profiles/{subject}/deactivate", successStatus: 200 }
+  reactivateProfile: { method: POST,   path: "/management/profiles/{subject}/reactivate", successStatus: 200 }
+  deleteProfile:     { method: DELETE, path: "/management/profiles/{subject}", successStatus: 200 }
+  reinstateSubject:  { method: POST,   path: "/management/deleted-subjects/{subject}/reinstate", successStatus: 204 }
+
+  # ------------------------------ Servidor-a-servidor ------------------------------
+  # Los lotes van por POST: los subjects son opacos y no caben con garantías en una query.
+  resolveContactForServices:               { method: GET,  path: "/services/profiles/{subject}/contact", audience: services }
+  resolveDeliveryProfileForServices:       { method: GET,  path: "/services/profiles/{subject}/delivery", audience: services }
+  resolveContactsBatchForServices:         { method: POST, path: "/services/profiles/contact/batch", successStatus: 200, audience: services }
+  resolveDeliveryProfilesBatchForServices: { method: POST, path: "/services/profiles/delivery/batch", successStatus: 200, audience: services }
+
+pagination:
+  style: offset
+  defaultSize: 25
+  maxSize: 100

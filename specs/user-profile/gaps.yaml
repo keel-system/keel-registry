@@ -1,0 +1,202 @@
+reviewedBy: keel-gap-sweep
+reviewedAt: 0.1.0
+
+coverage:
+  - class: 1
+    units: [UserProfile, Address, DeletedSubject]
+    result: clean
+  - class: 2
+    units: [provisionProfileFromIdentity, updateMyContactDetails, addMyAddress, updateMyAddress, removeMyAddress, setMyDefaultAddress, deleteMyProfile, deactivateProfile, reactivateProfile, deleteProfile, reinstateSubject]
+    result: findings
+  - class: 3
+    units: [UserProfile, Address, DeletedSubject]
+    result: findings
+  - class: 4
+    units: [provisionProfileFromIdentity, updateMyContactDetails, addMyAddress, updateMyAddress, removeMyAddress, setMyDefaultAddress, deleteMyProfile, deactivateProfile, reactivateProfile, deleteProfile, reinstateSubject]
+    result: findings
+  - class: 5
+    units: [getMyProfile, listProfiles, getProfile, resolveContactForServices, resolveDeliveryProfileForServices, resolveContactsBatchForServices, resolveDeliveryProfilesBatchForServices]
+    result: findings
+  - class: 6
+    units: [UserProfile, Address, DeletedSubject]
+    result: findings
+  - class: 7
+    units: [publishing.ProfileProvisioned, publishing.ProfileContactEmailRefreshed, publishing.ProfileContactDetailsChanged, publishing.AddressAdded, publishing.AddressChanged, publishing.AddressRemoved, publishing.DefaultAddressChanged, publishing.ProfileDeactivated, publishing.ProfileReactivated, publishing.ProfileDeleted]
+    result: findings
+  - class: 9
+    units: [provisionProfileFromIdentity, getMyProfile, updateMyContactDetails, addMyAddress, updateMyAddress, removeMyAddress, setMyDefaultAddress, deleteMyProfile, listProfiles, getProfile, deactivateProfile, reactivateProfile, deleteProfile, reinstateSubject, resolveContactForServices, resolveDeliveryProfileForServices, resolveContactsBatchForServices, resolveDeliveryProfilesBatchForServices]
+    result: findings
+  - class: 11
+    units: [resolveContactForServices, resolveDeliveryProfileForServices, resolveContactsBatchForServices, resolveDeliveryProfilesBatchForServices, serviceClients.order-service, serviceClients.notification-service]
+    result: clean
+  - class: 12
+    units: [service]
+    result: findings
+  - class: 14
+    units: [UserProfile, Address, DeletedSubject]
+    result: findings
+  - class: 15
+    units: [getMyProfile, updateMyContactDetails, addMyAddress, updateMyAddress, removeMyAddress, setMyDefaultAddress, deleteMyProfile, listProfiles, getProfile, deactivateProfile, reactivateProfile, deleteProfile, reinstateSubject, resolveContactForServices, resolveDeliveryProfileForServices, resolveContactsBatchForServices, resolveDeliveryProfilesBatchForServices]
+    result: findings
+  - class: 16
+    units: ['3.1', '3.2', '3.3', '3.4', '3.7', '3.8', '3.9', '3.9b']
+    result: clean
+
+findings:
+  # ------------------------------ 2. Guardas ↔ errores ------------------------------
+  - class: 2
+    unit: provisionProfileFromIdentity
+    what: "Su 403 SUBJECT_NOT_PROVISIONABLE se propaga, según sus rules, a getMyProfile, updateMyContactDetails, addMyAddress, updateMyAddress, removeMyAddress y setMyDefaultAddress, pero ninguna de ellas lo declara en errors (sí declaran PROFILE_DELETED): el contrato de esas seis operaciones omite un error alcanzable."
+    severity: gap
+    state: accepted
+    reason: 'Decisión del diseñador: el 403 se declara solo en provisionProfileFromIdentity (interna) para no levantar OBL-RESOURCE-SCOPE, que lo confundiría con acotación por recurso; las rules de las seis operaciones de /me nombran su propagación (403 y 410) y los escenarios lo cubren. Coste aceptado: el error no está en los errors de esas operaciones; /keel-docs lo documenta en el OpenAPI de /me como propagado del aprovisionamiento.'
+  - class: 2
+    unit: addMyAddress
+    what: "Los 422 de forma cruzada (SUBDIVISION_CODE_COUNTRY_MISMATCH, TERRITORY_NAME_MISSING) van detrás de PROFILE_DELETED, PROFILE_DEACTIVATED y ADDRESS_LIMIT_REACHED, mientras la validación de forma de cada campo (patrón de countryCode, line1 ausente) no tiene sitio en el orden: no se dice si un cuerpo mal formado se rechaza antes o después de idempotencia, aprovisionamiento y estado (lo mismo en updateMyAddress)."
+    severity: risk
+    state: decided
+    reason: 'La validación de forma (400) va antes que cualquier otra guarda, incluida la idempotencia. Regla común en la cabecera de use-cases.'
+
+  # ------------------------------ 3. Determinación del estado ------------------------------
+  - class: 3
+    unit: UserProfile
+    what: "No dice si updatedAt del perfil avanza cuando la mutación es solo de una dirección (addMyAddress, updateMyAddress, removeMyAddress, setMyDefaultAddress), aunque lockVersion sí sube y updatedAt viaja en ContactDetails y DeliveryProfile."
+    severity: gap
+    state: decided
+    reason: 'updatedAt del perfil avanza con toda mutación confirmada del agregado, también si solo cambia una dirección (invariante de UserProfile), igual que lockVersion.'
+  - class: 3
+    unit: Address
+    what: "No dice si desmarcar la predeterminada anterior (setMyDefaultAddress, addMyAddress con isDefault true) o perder isDefault al cambiar de tipo actualiza el updatedAt de esa dirección, que es visible en la respuesta."
+    severity: risk
+    state: decided
+    reason: 'updatedAt de una dirección avanza con cualquier cambio de sus campos, también al perder isDefault (invariante de Address).'
+
+  # ------------------------------ 4. Concurrencia y unicidad ------------------------------
+  - class: 4
+    unit: updateMyContactDetails
+    what: "El bloqueo optimista solo detecta carreras dentro del servidor: ningún input lleva la versión que el cliente leyó (ni If-Match), así que dos dispositivos del mismo titular editando a la vez es último-escritor-gana sin que el diseño lo diga (igual en updateMyAddress y setMyDefaultAddress)."
+    severity: risk
+    state: accepted
+    reason: 'El diseñador acepta que entre dos dispositivos del mismo titular gane la última escritura: el único que escribe es el titular y el bloque se reemplaza entero. Solo lo estrictamente simultáneo choca con CONCURRENT_MODIFICATION. Regla en updateMyContactDetails.'
+  - class: 4
+    unit: addMyAddress
+    what: "No dice qué responde una mutación de /me cuando el perfil se borra entre que el aprovisionamiento confirma (en su propia transacción) y la operación lo lee: no hay perfil, hay lápida, y ningún error cubre ese caso fuera del propio aprovisionamiento (aplica a todas las mutaciones de /me)."
+    severity: risk
+    state: decided
+    reason: 'Si el perfil se borra entre el aprovisionamiento y la operación, esta responde PROFILE_DELETED (410). Regla común en la cabecera de use-cases.'
+
+  # ------------------------------ 5. Consultas ------------------------------
+  - class: 5
+    unit: getMyProfile
+    what: "La colección addresses del perfil no tiene orden declarado; dos stacks devolverán las direcciones en órdenes distintos (afecta también a la salida de todas las mutaciones de /me)."
+    severity: gap
+    state: decided
+    reason: 'addresses viaja en orden de alta, de la más antigua a la más reciente (relación y invariante en domain, regla en getMyProfile).'
+  - class: 5
+    unit: getProfile
+    what: "La colección addresses del perfil devuelto no tiene orden declarado."
+    severity: gap
+    state: decided
+    reason: 'Mismo orden de alta en getProfile (regla en la operación).'
+  - class: 5
+    unit: listProfiles
+    what: "No dice cómo se combinan status y search cuando llegan los dos (se supone AND, pero no está escrito)."
+    severity: risk
+    state: decided
+    reason: 'status y search se combinan con AND (regla en listProfiles).'
+  - class: 5
+    unit: resolveContactsBatchForServices
+    what: "No dice qué pasa con un lote vacío (subjects: []) ni con un subject del lote que viola SubjectIdentifier (vacío o de más de 255 caracteres): ¿rechazo entero o va a unresolved? decisions.yaml habla de 1..100 pero la precondición solo acota el máximo."
+    severity: gap
+    state: decided
+    reason: 'Un lote vacío o con un subject de forma inválida (vacío o de más de 255 caracteres) es un error de contrato del llamante y se rechaza entero con 400; nunca fallar entero se refiere a la resolución (regla en el lote).'
+  - class: 5
+    unit: resolveDeliveryProfilesBatchForServices
+    what: "No dice qué pasa con un lote vacío ni con un subject mal formado dentro del lote (misma omisión que en el lote de contacto)."
+    severity: gap
+    state: decided
+    reason: 'Mismo criterio que el lote de contacto (regla en el lote).'
+
+  # ------------------------------ 6. Fronteras del agregado ------------------------------
+  - class: 6
+    unit: DeletedSubject
+    what: "La invariante «perfil y lápida nunca coexisten» cruza dos agregados y solo la sostiene el lado del borrado (una transacción); en el lado del aprovisionamiento, comprobar la lápida y crear el perfil no está protegido por ninguna unicidad ni aislamiento declarado, así que un aprovisionamiento concurrente con un borrado puede recrear el perfil junto a la lápida."
+    severity: gap
+    state: decided
+    reason: 'La creación del perfil y la escritura de la lápida del mismo subject se serializan; si confirma antes la lápida, el aprovisionamiento no crea y responde PROFILE_DELETED (invariante de DeletedSubject, regla en provisionProfileFromIdentity).'
+
+  # ------------------------------ 7. Contrato de eventos ------------------------------
+  - class: 7
+    unit: publishing.ProfileProvisioned
+    what: "Tras reinstateSubject el perfil nuevo empieza con lockVersion 0, así que su ProfileProvisioned lleva version 0 para un subject cuyo último evento (ProfileDeleted) tenía una version mayor: un consumidor que ordena y deduplica por (subject, version), como promete el canal, lo descartará."
+    severity: gap
+    state: decided
+    reason: 'ProfileDeleted cierra la encarnación del subject: el consumidor olvida todo lo del subject, también la última version vista, y un ProfileProvisioned posterior a un reinstateSubject es una encarnación nueva que empieza en 0 (contrato del canal en messaging).'
+  - class: 7
+    unit: publishing.ProfileDeleted
+    what: "Nueve de los diez eventos llevan PII y el canal profileEvents no declara retención: tras el borrado, los datos siguen en el broker (y en el outbox) sin que el diseño diga cuánto tiempo; el coste aceptado en messaging cubre que el broker contenga PII, no que sobreviva al borrado."
+    severity: risk
+    state: accepted
+    reason: 'Coste aceptado por el diseñador desde el encargo: el broker contiene PII. La retención del canal es despliegue; ProfileDeleted es la señal para que cada consumidor borre lo suyo, y el outbox solo conserva lo pendiente de publicar.'
+
+  # ------------------------------ 9. Autorización a nivel de dato ------------------------------
+  - class: 9
+    unit: provisionProfileFromIdentity
+    what: "No dice con qué criterio se distingue un token de cliente máquina de uno de persona (actorIsPerson): sin él, cada generador elige su heurística (grant, audiencia, ausencia de claims) y un token de servicio puede acabar aprovisionando un perfil."
+    severity: gap
+    state: decided
+    reason: 'actorIsPerson es false cuando el token lo emitió el flujo client-credentials (el mismo tipo de credencial que serviceAuth); cómo lo marca el proveedor lo resuelve el generador (regla en provisionProfileFromIdentity).'
+  - class: 9
+    unit: deleteMyProfile
+    what: "No ejecuta el aprovisionamiento, así que no tiene la guarda SUBJECT_NOT_PROVISIONABLE: no dice qué ve un token de cliente máquina (level required) en DELETE /me/profile ni si puede borrar el perfil cuyo subject coincida con su sub."
+    severity: gap
+    state: decided
+    reason: 'Un token de máquina en DELETE /me/profile recibe PROFILE_NOT_FOUND (404): un sujeto máquina no se aprovisiona nunca, así que nunca tiene perfil ni lápida (regla en deleteMyProfile).'
+  - class: 9
+    unit: reactivateProfile
+    what: "No dice si un operador puede actuar sobre su propio perfil desde back-office (reactivar el suyo desactivado, borrarlo o levantar su propia lápida con reinstateSubject)."
+    severity: risk
+    state: decided
+    reason: 'Back-office actúa sobre cualquier subject, también el del propio operador: no da más poder que el rol, y borrarse ya es posible por /me. Regla común en la cabecera de use-cases.'
+
+  # ------------------------------ 12. Zonas grises ------------------------------
+  - class: 12
+    unit: service
+    what: "No fija la zona ni la precisión de los timestamp (createdAt, updatedAt, deletedAt): UTC con milisegundos u otra, y es lo que viaja en las proyecciones M2M y en ProfileDeleted."
+    severity: gap
+    state: decided
+    reason: 'Instantes en UTC, ISO-8601 con milisegundos y sufijo Z (convención del encargo, en las Convenciones de determinación de los escenarios).'
+  - class: 12
+    unit: service
+    what: "No dice si el texto de los mensajes de error (idioma, contenido) es contrato o solo lo es el code; tampoco la forma de details fuera de PROFILE_INCOMPLETE."
+    severity: gap
+    state: decided
+    reason: 'El code y el status son contrato; el texto del mensaje no. details solo es contrato en PROFILE_INCOMPLETE (lista de requisitos ausentes con nombres estables); en el resto no se afirma.'
+
+  # ------------------------------ 14. Estado persistido ------------------------------
+  - class: 14
+    unit: UserProfile
+    what: "Los índices [contactEmail] y [displayName] no sostienen la búsqueda de listProfiles, que es por prefijo sin distinguir mayúsculas ni acentos y combinada en OR sobre los dos campos con orden createdAt desc: falta decidir si se guarda una forma normalizada de ambos campos."
+    severity: risk
+    state: accepted
+    reason: 'Los índices declaran la intención (prefijo sobre contactEmail y displayName); materializar la comparación sin mayúsculas ni acentos (columna normalizada, colación, índice funcional) es del generador y del motor. El contrato observable lo fijan match: prefix y compare: ignore-case-accents.'
+
+  # ------------------------------ 15. Superficie HTTP ------------------------------
+  - class: 15
+    unit: addMyAddress
+    what: "El 201 devuelve el perfil entero y no el id de la dirección creada: con addresses sin orden declarado y direcciones duplicadas permitidas, el cliente no puede saber con certeza qué addressId acaba de crear."
+    severity: gap
+    state: decided
+    reason: 'addresses viaja en orden de alta y la dirección añadida es siempre la última de la lista: las altas sobre un mismo perfil las serializa el bloqueo optimista (regla en addMyAddress, invariante en domain).'
+  - class: 15
+    unit: removeMyAddress
+    what: "DELETE con 200 y el perfil completo en el cuerpo: el diseño no anota por qué no es 204 + void (no reasigna la predeterminada; solo puede cambiar el status)."
+    severity: risk
+    state: accepted
+    reason: 'Decisión del encargo: toda mutación de /me devuelve el perfil completo porque el status recalculado no es predecible; quitar una dirección puede devolver el perfil a draft, y el 200 con cuerpo ahorra un GET que el cliente no podría predecir (docs/dsl/api.md lo admite).'
+  - class: 15
+    unit: getProfile
+    what: "Las rutas con {subject} (getProfile, deactivate, reactivate, deleteProfile, reinstateSubject, resolve*ForServices) llevan un identificador opaco de hasta 255 caracteres codificado como segmento, pero no dicen qué pasa con caracteres como «/» (%2F), que muchos servidores y proxies rechazan; el mismo argumento justificó sacar los lotes a POST."
+    severity: risk
+    state: accepted
+    reason: 'Los subjects de OIDC suelen ser seguros para URL; uno con caracteres reservados viaja codificado en % como segmento de ruta (nota en api). Se acepta el riesgo de proxies que rechacen %2F en vez de mover el subject al cuerpo.'

@@ -1,0 +1,34 @@
+# Metadatos de publicación en el registry. No forma parte del DSL: describe cómo se distribuye y
+# se descubre el diseño, no lo que el servicio hace.
+
+family: user-profile
+summary: >
+  Perfil de negocio (contacto y direcciones postales internacionales) de cada persona autenticada,
+  indexado por el sub del token y sin duplicar nada del servidor de identidad OIDC. Aprovisionamiento
+  just-in-time en el primer acceso, edición por el titular con completitud recalculada, back-office con
+  desactivación y borrado definitivo por lápida, y contrato servidor-a-servidor separado por scope en
+  contacto y entrega, individual con caché y por lote. Publica diez eventos con estado versionado por
+  outbox.
+maturity: draft
+tags:
+  - identity
+  - profile
+  - oidc
+  - jit-provisioning
+  - address
+  - postal-address
+  - lifecycle
+  - tombstone
+  - events
+  - outbox
+  - m2m
+  - batch
+  - cache
+  - idempotency
+  - optimistic-locking
+  - audit
+  - pagination
+  - search
+  - cors
+author: keel
+license: Apache-2.0
