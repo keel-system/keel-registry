@@ -1,7 +1,7 @@
 # notifications — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/notifications v0.1.1. Contrato de validación para la fase de generación.
+> specs/notifications v0.1.2. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -709,14 +709,16 @@ antes de que pase el despacho.
 
 ### FL-DSP-021: el relay rechaza a uno y acepta al otro
 
-**Given**: P-TPL. El relay rechaza de forma definitiva solo `luis@example.com`. `billing` pide R1 (`m1`).
+**Given**: P-TPL. `billing` pide R1 con `recipients: ["ana@example.com", "luis@rejected.invalid"]` (`m1`). El relay rechaza de
+forma definitiva solo `luis@rejected.invalid`: el TLD `.invalid` es el dominio reservado que el relay de pruebas
+rechaza siempre (ver `validation-scenarios.md` del método), y es lo que hace reproducible un rechazo selectivo.
 
 **When**: pasa un ciclo del despacho.
 
 **Then**:
 1. `m1` → `sent`, con `sentAt`; `EmailSent` publicado.
 2. El buzón recibe el correo para `ana@example.com`.
-3. `listSuppressedAddresses` de `billing` → solo `luis@example.com`, `reason: "hard-bounce"`.
+3. `listSuppressedAddresses` de `billing` → solo `luis@rejected.invalid`, `reason: "hard-bounce"`.
 
 ### FL-DSP-022: con el relay caído el mensaje falla y no se reintenta
 

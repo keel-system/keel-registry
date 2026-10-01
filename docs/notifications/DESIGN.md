@@ -1,6 +1,6 @@
 # notifications — Documento de diseño
 
-> specs/notifications v0.1.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/notifications v0.1.2. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -78,7 +78,8 @@ Application, EmailTemplate, EmailTemplateVersion y SuppressedAddress. EmailMessa
   plantilla → versión activa → variables required → supresiones → longitud del asunto renderizado.
 - **La guarda del envío es la transición `queued → sending`**, confirmada en su propia transacción
   **antes** de contactar con el relay. Lo que se queda en `sending` más de `sendingTimeoutMinutes` (15)
-  lo rescata el despacho a `failed/sending-timeout` y **nunca lo reenvía**.
+  lo rescata el despacho a `failed/sending-timeout` y **nunca lo reenvía**. Ese plazo es contrato, no
+  mecánica del generador: la transición del rescate lo declara como su `stalledAfter`.
 - En `sendQueuedMessage` se comprueban de nuevo la suspensión y las supresiones: lo aceptado no sale si
   entre tanto la aplicación se suspendió o un destinatario quedó suprimido.
 - **Correo**:
@@ -128,7 +129,8 @@ por eventos, de `metadata.source`.
 ### Procesos
 
 - `dispatchQueuedMessages`, cada minuto y sin solape:
-  - Primero rescata lo atascado en `sending`.
+  - Primero rescata lo atascado en `sending` más de `sendingTimeoutMinutes` (`stalledAfter` de la
+    transición `sending → failed`).
   - Después toma hasta 200 mensajes en `queued` por `requestedAt` y llama a `sendQueuedMessage`,
     interna y única operación que produce correo.
 - `purgeMessagePersonalData`, diario a las 03:00 UTC y sin solape. Procesa lotes de 5000 hasta vaciar.

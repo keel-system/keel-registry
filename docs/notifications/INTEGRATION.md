@@ -1,6 +1,6 @@
 ---
 service: notifications
-version: 0.1.1
+version: 0.1.2
 domain: communications
 basePath: /api/v1
 m2mAuth:

@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: notifications
-  version: 0.1.1
+  version: 0.1.2
   description: >-
     Envía correo transaccional en nombre de varias aplicaciones consumidoras a partir de plantillas que mantiene negocio
     sin desplegar: acepta peticiones por HTTP servidor-a-servidor y por eventos con el mismo contrato, garantiza que la

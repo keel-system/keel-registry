@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "notifications — flujos de validación",
-    "description": "Una carpeta por flujo FL-* de specs/notifications/validation-scenarios.md (v0.1.1). Importa y ejecuta antes la colección de auth. Los Given (preparaciones P-APP, P-TPL) y lo que se observa fuera de HTTP (buzón de pruebas, canal notificationEvents, despacho) están en el documento de escenarios.",
+    "description": "Una carpeta por flujo FL-* de specs/notifications/validation-scenarios.md (v0.1.2). Importa y ejecuta antes la colección de auth. Los Given (preparaciones P-APP, P-TPL) y lo que se observa fuera de HTTP (buzón de pruebas, canal notificationEvents, despacho) están en el documento de escenarios.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -2623,7 +2623,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"inv-2026-0001\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"inv-2026-0001\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"ana@example.com\",\n    \"luis@rejected.invalid\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -2639,7 +2639,7 @@
           ]
         },
         {
-          "name": "FL-DSP-021 · B — Solo luis suprimido (200)",
+          "name": "FL-DSP-021 · B — Solo luis@rejected.invalid suprimido (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -4023,7 +4023,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.1.1"
+      "value": "0.1.2"
     },
     {
       "key": "messageId",

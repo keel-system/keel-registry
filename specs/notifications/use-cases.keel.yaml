@@ -379,7 +379,7 @@ operations:
     output: "void"
     schedule: { cron: "* * * * *", description: "Cada minuto, en UTC." }
     transitions:
-      - { entity: EmailMessage, from: [sending], to: failed, description: "Rescate de los atascados." }
+      - { entity: EmailMessage, from: [sending], to: failed, stalledAfter: { parameter: sendingTimeoutMinutes, unit: minutes }, description: "Rescate de los atascados." }
     emits: [EmailDeliveryFailed]
     rules:
       - Solo corre un barrido a la vez en todo el servicio; si el anterior sigue en curso, el ciclo se salta.

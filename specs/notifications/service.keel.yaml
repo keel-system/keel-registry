@@ -1,11 +1,11 @@
 # Manifiesto del servicio — punto de entrada del diseño.
 # Declara la identidad del servicio y qué capas de diseño existen.
 # Regla: una capa opcional existe si y solo si está declarada aquí (y su archivo existe).
-keel: "2.17"
+keel: "2.18"
 
 service:
   name: notifications
-  version: 0.1.1
+  version: 0.1.2
   # keel validate trata cualquier description que empiece por "TODO" como placeholder pendiente.
   description: "Envía correo transaccional en nombre de varias aplicaciones consumidoras a partir de plantillas que mantiene negocio sin desplegar: acepta peticiones por HTTP servidor-a-servidor y por eventos con el mismo contrato, garantiza que la misma petición nunca produce dos correos, respeta las supresiones por aplicación y publica el desenlace terminal de cada envío."
   domain: communications
