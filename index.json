@@ -117,114 +117,6 @@
       ]
     },
     {
-      "slug": "notifications",
-      "family": "notifications",
-      "variant": null,
-      "service": {
-        "name": "notifications",
-        "version": "0.1.2",
-        "dsl": "2.18",
-        "domain": "communications",
-        "basedOn": null,
-        "description": "Envía correo transaccional en nombre de varias aplicaciones consumidoras a partir de plantillas que mantiene negocio sin desplegar: acepta peticiones por HTTP servidor-a-servidor y por eventos con el mismo contrato, garantiza que la misma petición nunca produce dos correos, respeta las supresiones por aplicación y publica el desenlace terminal de cada envío."
-      },
-      "metadata": {
-        "family": "notifications",
-        "summary": "Correo transaccional multi-aplicación: cada aplicación consumidora pide envíos por HTTP servidor-a-servidor o por eventos, con el mismo contrato, a partir de plantillas versionadas que negocio publica sin desplegar. Idempotencia permanente por clave de la aplicación (sobrevive a la purga de datos personales), cola con despacho único y rescate que nunca reenvía, supresiones por aplicación alimentadas por los rebotes del proveedor, fallo terminal publicado como evento, alcance por aplicación en el back-office y purga de datos personales a los 18 meses.\n",
-        "maturity": "draft",
-        "tags": [
-          "notifications",
-          "email",
-          "smtp",
-          "templates",
-          "versioning",
-          "multi-tenant",
-          "m2m",
-          "events",
-          "idempotency",
-          "suppression",
-          "bounces",
-          "scheduled",
-          "personal-data",
-          "optimistic-locking",
-          "audit",
-          "pagination",
-          "cors"
-        ],
-        "author": "keel",
-        "license": "Apache-2.0"
-      },
-      "layers": [
-        "domain",
-        "use-cases",
-        "api",
-        "security",
-        "messaging",
-        "persistence",
-        "mail"
-      ],
-      "counts": {
-        "entities": 5,
-        "types": 14,
-        "aggregates": 3,
-        "operations": 27,
-        "commands": 17,
-        "queries": 10,
-        "endpoints": 24,
-        "roles": 4,
-        "serviceClients": 4,
-        "publishedEvents": 2,
-        "subscriptions": 1,
-        "persistedEntities": 5,
-        "mailSenders": 1
-      },
-      "status": {
-        "ok": false,
-        "pending": 0,
-        "errors": 1
-      },
-      "derivatives": {
-        "fresh": 9,
-        "stale": 0,
-        "unstamped": 0,
-        "missing": 0,
-        "orphan": 0,
-        "notApplicable": 0
-      },
-      "docs": {
-        "design": "docs/notifications/DESIGN.md",
-        "overview": "docs/notifications/overview.html",
-        "openapiViewer": "docs/notifications/openapi.html",
-        "asyncapiViewer": "docs/notifications/asyncapi.html",
-        "integration": "docs/notifications/INTEGRATION.md"
-      },
-      "files": [
-        "specs/notifications/service.keel.yaml",
-        "specs/notifications/domain.keel.yaml",
-        "specs/notifications/use-cases.keel.yaml",
-        "specs/notifications/api.keel.yaml",
-        "specs/notifications/security.keel.yaml",
-        "specs/notifications/messaging.keel.yaml",
-        "specs/notifications/persistence.keel.yaml",
-        "specs/notifications/mail.keel.yaml",
-        "specs/notifications/design.yaml",
-        "specs/notifications/decisions.yaml",
-        "specs/notifications/review.yaml",
-        "specs/notifications/flow-review.yaml",
-        "specs/notifications/gaps.yaml",
-        "specs/notifications/validation-scenarios.md",
-        "docs/notifications/DESIGN.md",
-        "docs/notifications/openapi.yaml",
-        "docs/notifications/openapi.html",
-        "docs/notifications/asyncapi.yaml",
-        "docs/notifications/asyncapi.html",
-        "docs/notifications/postman/notifications-collection.json",
-        "docs/notifications/overview.html",
-        "docs/notifications/INTEGRATION.md",
-        "docs/notifications/postman/auth-collection.json"
-      ]
-    },
-    {
       "slug": "payment",
       "family": "payment",
       "variant": null,
@@ -445,12 +337,6 @@
       "name": "catalog",
       "designs": [
         "catalog"
-      ]
-    },
-    {
-      "name": "notifications",
-      "designs": [
-        "notifications"
       ]
     },
     {
