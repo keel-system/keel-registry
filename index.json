@@ -3,7 +3,7 @@
   "generatedBy": {
     "keelCore": "0.3.4",
     "dsl": [
-      "2.18"
+      "2.19"
     ]
   },
   "designs": [
@@ -179,9 +179,9 @@
         "mailSenders": 1
       },
       "status": {
-        "ok": true,
+        "ok": false,
         "pending": 0,
-        "errors": 0
+        "errors": 1
       },
       "derivatives": {
         "fresh": 9,
@@ -222,6 +222,114 @@
         "docs/notifications/overview.html",
         "docs/notifications/INTEGRATION.md",
         "docs/notifications/postman/auth-collection.json"
+      ]
+    },
+    {
+      "slug": "payment",
+      "family": "payment",
+      "variant": null,
+      "service": {
+        "name": "payment",
+        "version": "0.1.0",
+        "dsl": "2.19",
+        "domain": "commerce",
+        "basedOn": null,
+        "description": "Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente."
+      },
+      "metadata": {
+        "family": "payment",
+        "summary": "Cobros con tarjeta a través de una pasarela intercambiable, pedidos por los servidores de una aplicación: autorizar y capturar o anular, autenticación del cliente (3DS) con plazo, devoluciones parciales con clave propia, y medios de pago guardados por titular (tope, preferente, caducidad) para cobrar sin el cliente presente. Claves de negocio permanentes contra el doble cargo y la doble devolución, estados en vuelo con barrido de reconciliación que nunca repite a ciegas, moneda por petición con escala ISO 4217, y desenlaces publicados por outbox.\n",
+        "maturity": "draft",
+        "tags": [
+          "payments",
+          "cards",
+          "gateway",
+          "authorize-capture",
+          "three-d-secure",
+          "refunds",
+          "saved-payment-methods",
+          "off-session",
+          "reconciliation",
+          "scheduled",
+          "lifecycle",
+          "events",
+          "outbox",
+          "m2m",
+          "idempotency",
+          "optimistic-locking",
+          "audit",
+          "pagination"
+        ],
+        "author": "keel",
+        "license": "Apache-2.0"
+      },
+      "layers": [
+        "domain",
+        "use-cases",
+        "api",
+        "security",
+        "messaging",
+        "persistence",
+        "payments"
+      ],
+      "counts": {
+        "entities": 4,
+        "types": 9,
+        "aggregates": 2,
+        "operations": 18,
+        "commands": 14,
+        "queries": 4,
+        "endpoints": 11,
+        "roles": 0,
+        "serviceClients": 2,
+        "publishedEvents": 7,
+        "subscriptions": 0,
+        "persistedEntities": 4
+      },
+      "status": {
+        "ok": true,
+        "pending": 0,
+        "errors": 0
+      },
+      "derivatives": {
+        "fresh": 9,
+        "stale": 0,
+        "unstamped": 0,
+        "missing": 0,
+        "orphan": 0,
+        "notApplicable": 0
+      },
+      "docs": {
+        "design": "docs/payment/DESIGN.md",
+        "overview": "docs/payment/overview.html",
+        "openapiViewer": "docs/payment/openapi.html",
+        "asyncapiViewer": "docs/payment/asyncapi.html",
+        "integration": "docs/payment/INTEGRATION.md"
+      },
+      "files": [
+        "specs/payment/service.keel.yaml",
+        "specs/payment/domain.keel.yaml",
+        "specs/payment/use-cases.keel.yaml",
+        "specs/payment/api.keel.yaml",
+        "specs/payment/security.keel.yaml",
+        "specs/payment/messaging.keel.yaml",
+        "specs/payment/persistence.keel.yaml",
+        "specs/payment/payments.keel.yaml",
+        "specs/payment/design.yaml",
+        "specs/payment/decisions.yaml",
+        "specs/payment/review.yaml",
+        "specs/payment/flow-review.yaml",
+        "specs/payment/gaps.yaml",
+        "specs/payment/validation-scenarios.md",
+        "docs/payment/DESIGN.md",
+        "docs/payment/openapi.yaml",
+        "docs/payment/openapi.html",
+        "docs/payment/asyncapi.yaml",
+        "docs/payment/asyncapi.html",
+        "docs/payment/postman/payment-collection.json",
+        "docs/payment/overview.html",
+        "docs/payment/INTEGRATION.md",
+        "docs/payment/postman/auth-collection.json"
       ]
     },
     {
@@ -287,9 +395,9 @@
         "persistedEntities": 3
       },
       "status": {
-        "ok": true,
+        "ok": false,
         "pending": 0,
-        "errors": 0
+        "errors": 1
       },
       "derivatives": {
         "fresh": 9,
@@ -343,6 +451,12 @@
       "name": "notifications",
       "designs": [
         "notifications"
+      ]
+    },
+    {
+      "name": "payment",
+      "designs": [
+        "payment"
       ]
     },
     {

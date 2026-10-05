@@ -1,0 +1,380 @@
+# Capa use-cases — los casos de uso del servicio.
+# Aquí viven también las políticas propias del caso de uso: idempotencia, caché y schedule,
+# y las transiciones del lifecycle de domain que cada operación ejecuta.
+# Quién los activa se declara en la capa que los expone (api: endpoints, messaging: subscriptions);
+# una operación sin trigger debe marcar internal: true o tener schedule.
+
+operations:
+
+  # ── Cobro ────────────────────────────────────────────────────────────────────────────────
+
+  requestCharge:
+    description: >-
+      Pide un cobro (autorización) con un token de un solo uso o con un medio guardado del titular.
+      Registra el cobro en pending antes de llamar a la pasarela y responde con el cobro en el estado
+      que haya alcanzado: authorized, actionRequired, failed, o pending si la pasarela no contestó.
+    kind: command
+    input:
+      fields:
+        chargeRequestId: { type: string, required: true, constraints: { minLength: 1, maxLength: 100, pattern: "^[A-Za-z0-9._:-]+$" }, description: "Clave de negocio del cobro (mismas cotas que RequestReference)." }
+        customerRef:     { type: CustomerRef, required: true }
+        amount:          { type: decimal, required: true, constraints: { min: 0.001, scale: 3, scalePolicy: reject }, description: "Importe en unidades mayores (mismas cotas que Amount)." }
+        currency:        { type: CurrencyCode, required: true }
+        paymentToken:    { type: string, constraints: { maxLength: 255 }, description: Token de un solo uso que produce el componente de la pasarela en el navegador (cliente presente). }
+        paymentMethodId: { type: uuid, description: Id de un medio guardado del titular (cliente ausente). }
+    output: { entity: Payment }
+    idempotency: { keySource: payload-field, keyField: chargeRequestId }
+    preconditions:
+      - "Se indica exactamente una fuente de pago: paymentToken o paymentMethodId."
+      - Si se indica paymentMethodId, el medio existe, está active y pertenece al Wallet de customerRef.
+    rules:
+      - "La clave se comprueba antes que cualquier otra guarda: si ya existe un cobro con ese chargeRequestId y los mismos customerRef, amount, currency y fuente de pago, se devuelve ese cobro en su estado actual sin volver a llamar a la pasarela, aunque el medio se haya retirado después; si existe con otro contenido, CHARGE_REQUEST_CONFLICT. La fuente se compara por su clase cuando es un token (el token no se guarda) y por paymentMethodId cuando es un medio guardado."
+      - "Dos peticiones con el mismo chargeRequestId a la vez: la que choca con la clave natural al registrar el cobro relee el ganador y aplica la regla anterior — con el mismo contenido responde ese cobro (201); con otro, CHARGE_REQUEST_CONFLICT. Nunca hay un segundo cobro ni una segunda llamada a la pasarela."
+      - "Responde 201 tanto al crear el cobro como al repetirlo, sea cual sea el estado en que esté."
+      - currency debe ser un código vigente de ISO 4217 (la tabla vigente del estándar), y amount no puede tener más decimales que los de esa moneda.
+      - "El importe lo fija el servidor consumidor, que es de confianza; el servicio no le pone tope ni lo contrasta con nada."
+      - El cobro se registra en pending, con awaitingSince estampado, antes de llamar a la pasarela.
+      - "La respuesta de la pasarela se aplica con su operación de desenlace (markAuthorized, markActionRequired o markFailed); si no llega, el cobro se queda en pending y lo resuelve el barrido."
+      - Un rechazo de la pasarela no es un error de la petición — el cobro se devuelve en failed con su failureReason (una moneda que la pasarela no admite falla con processingError).
+      - "Si al aplicar el desenlace el cobro ya salió de pending por otra vía (el aviso de la pasarela), se relee y se responde el cobro tal como esté, sin error."
+      - "El cobro en pending se confirma en su propia transacción antes de llamar a la pasarela, y el desenlace en otra: la frontera por operación vale para cada una de las dos escrituras."
+      - Si se cobra con un medio guardado, el cobro anota su paymentMethodId. Un medio retirado mientras se cobra no se detecta; vale tal como estaba al validar la petición.
+      - El paymentToken no se guarda; solo viaja a la pasarela.
+    errors:
+      - { code: PAYMENT_SOURCE_INVALID, when: No se indica ninguna fuente de pago o se indican las dos., http: 400 }
+      - { code: CURRENCY_UNKNOWN, when: currency no es un código vigente de ISO 4217., http: 400 }
+      - { code: AMOUNT_SCALE_INVALID, when: amount tiene más decimales que los de la moneda., http: 400 }
+      - { code: PAYMENT_METHOD_UNAVAILABLE, when: "El medio indicado no existe, está retirado o no es del titular (no se distingue cuál).", http: 422 }
+      - { code: CHARGE_REQUEST_CONFLICT, when: Ya existe un cobro con ese chargeRequestId y con otro contenido., http: 409 }
+
+  capturePayment:
+    description: Captura entero el importe de un cobro autorizado.
+    kind: command
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Payment }
+    transitions:
+      - { entity: Payment, from: [authorized], to: capturing }
+      - { entity: Payment, from: [capturing], to: authorized }
+    rules:
+      - "La repetición se comprueba antes que cualquier otra guarda: si el cobro ya está en capturing, captured, refunding o refunded, se devuelve tal cual (200) sin volver a llamar a la pasarela."
+      - El cobro pasa a capturing, con awaitingSince estampado, antes de llamar a la pasarela.
+      - Si la pasarela captura, se aplica markCaptured; si no contesta, el cobro se queda en capturing y lo resuelve el barrido.
+      - Si la pasarela rechaza porque la autorización ya caducó, se aplica markCanceled y responde AUTHORIZATION_EXPIRED.
+      - Si la pasarela rechaza por otro motivo, el cobro vuelve a authorized, se vacía awaitingSince, se publica PaymentActionRejected y responde CAPTURE_REJECTED.
+      - "Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan."
+      - "Un rechazo de la pasarela confirma el cambio de estado y el evento aunque la operación responda con error."
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese id., http: 404 }
+      - { code: PAYMENT_NOT_CAPTURABLE, when: "El cobro no está en authorized, capturing ni captured.", http: 409 }
+      - { code: AUTHORIZATION_EXPIRED, when: La pasarela ya había cancelado la autorización., http: 409 }
+      - { code: CAPTURE_REJECTED, when: La pasarela rechazó la captura por otro motivo., http: 422 }
+      - { code: CONCURRENT_MODIFICATION, when: El cobro cambió mientras se procesaba la petición., http: 409 }
+    emits: [PaymentActionRejected]
+
+  cancelPayment:
+    description: Anula un cobro autorizado o que espera la autenticación del cliente, sin capturarlo.
+    kind: command
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Payment }
+    transitions:
+      - { entity: Payment, from: [authorized, actionRequired], to: canceling }
+      - { entity: Payment, from: [canceling], to: authorized }
+      - { entity: Payment, from: [canceling], to: actionRequired }
+    rules:
+      - "La repetición se comprueba antes que cualquier otra guarda: si el cobro ya está en canceling o canceled, se devuelve tal cual (200) sin volver a llamar a la pasarela."
+      - "El cobro pasa a canceling antes de llamar a la pasarela: estampa awaitingSince, anota en cancelOrigin el estado del que sale y conserva customerAction y actionRequiredSince si venía de actionRequired."
+      - Si la pasarela anula, se aplica markCanceled; si no contesta, el cobro se queda en canceling y lo resuelve el barrido.
+      - "Si la pasarela responde que el cobro ya terminó fallido (p. ej. el cliente falló la autenticación), se aplica markFailed con su motivo y la operación responde 200 con el cobro en failed."
+      - "Si la pasarela rechaza la anulación, el cobro vuelve al estado que dice cancelOrigin (con awaitingSince renovado si vuelve a actionRequired, vacío si vuelve a authorized), se vacía cancelOrigin, se publica PaymentActionRejected y responde CANCEL_REJECTED."
+      - "Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan."
+      - "Un rechazo de la pasarela confirma el cambio de estado y el evento aunque la operación responda con error."
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese id., http: 404 }
+      - { code: PAYMENT_NOT_CANCELABLE, when: "El cobro no está en authorized, actionRequired, canceling ni canceled.", http: 409 }
+      - { code: CANCEL_REJECTED, when: La pasarela rechazó la anulación., http: 422 }
+      - { code: CONCURRENT_MODIFICATION, when: El cobro cambió mientras se procesaba la petición., http: 409 }
+    emits: [PaymentActionRejected]
+
+  refundPayment:
+    description: Devuelve todo o parte de lo que queda por devolver de un cobro capturado.
+    kind: command
+    input:
+      fields:
+        id:              { type: uuid, required: true }
+        refundRequestId: { type: RequestReference, required: true }
+        amount:          { type: decimal, constraints: { min: 0.001, scale: 3, scalePolicy: reject }, description: "Importe a devolver (mismas cotas que Amount); si se omite, todo lo que queda por devolver." }
+        reason:          { type: string, constraints: { maxLength: 200 } }
+    output: { entity: Payment }
+    transitions:
+      - { entity: Payment, from: [captured], to: refunding }
+      - { entity: Payment, from: [refunding], to: captured }
+    rules:
+      - "La clave se comprueba justo después de que el cobro exista y antes que cualquier otra guarda: si ya existe una devolución con ese refundRequestId sobre este cobro y la petición trae el mismo amount o lo omite, se devuelve el cobro en su estado actual (200) sin volver a llamar a la pasarela, esté la devolución pending, succeeded o failed; si existe con otro amount o sobre otro cobro, REFUND_REQUEST_CONFLICT. Una devolución failed no se reintenta con la misma clave: hace falta otro refundRequestId."
+      - "Dos devoluciones con el mismo refundRequestId a la vez: la que choca con la clave natural relee y aplica la regla anterior. Nunca hay una segunda devolución ni una segunda llamada a la pasarela."
+      - amount no puede tener más decimales que los de la moneda del cobro.
+      - Se crea la devolución en pending y el cobro pasa a refunding, con awaitingSince estampado, antes de llamar a la pasarela.
+      - Si la pasarela devuelve, se aplica markRefunded; si no contesta, el cobro se queda en refunding y lo resuelve el barrido.
+      - Si la pasarela rechaza, la devolución pasa a failed, el cobro vuelve a captured con awaitingSince vacío, se publica PaymentActionRejected y responde REFUND_REJECTED.
+      - "Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan."
+      - "Un rechazo de la pasarela confirma el cambio de estado y el evento aunque la operación responda con error."
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese id., http: 404 }
+      - { code: PAYMENT_NOT_REFUNDABLE, when: El cobro no está en captured (incluido el que ya tiene una devolución en curso)., http: 409 }
+      - { code: AMOUNT_SCALE_INVALID, when: amount tiene más decimales que los de la moneda del cobro., http: 400 }
+      - { code: REFUND_AMOUNT_EXCEEDED, when: amount supera lo que queda por devolver., http: 422 }
+      - { code: REFUND_REQUEST_CONFLICT, when: "Ya existe una devolución con ese refundRequestId con otro importe o sobre otro cobro.", http: 409 }
+      - { code: REFUND_REJECTED, when: La pasarela rechazó la devolución., http: 422 }
+      - { code: CONCURRENT_MODIFICATION, when: El cobro cambió mientras se procesaba la petición., http: 409 }
+    emits: [PaymentActionRejected]
+
+  getPayment:
+    description: Recupera un cobro por su id, con sus devoluciones.
+    kind: query
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: Payment }
+    rules:
+      - Las devoluciones viajan dentro del cobro, de la más antigua a la más reciente (createdAt y, a igualdad, id).
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese id., http: 404 }
+
+  getPaymentByChargeRequest:
+    description: Recupera un cobro por la clave de negocio con la que lo pidió el consumidor.
+    kind: query
+    input:
+      fields:
+        chargeRequestId: { type: RequestReference, required: true }
+    output: { entity: Payment }
+    rules:
+      - Las devoluciones viajan dentro del cobro, de la más antigua a la más reciente (createdAt y, a igualdad, id).
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese chargeRequestId., http: 404 }
+
+  listPaymentsByCustomer:
+    description: Lista los cobros de un titular, del más reciente al más antiguo.
+    kind: query
+    input:
+      fields:
+        customerRef: { type: CustomerRef, required: true }
+    output: { entity: Payment, paginated: true, sort: [createdAt:desc, id:desc] }
+    rules:
+      - Un titular sin cobros devuelve una página vacía, no un error.
+
+  # ── Desenlaces (los aplica el servicio al conocerlos: respuesta, aviso o barrido) ─────────
+
+  markAuthorized:
+    description: Registra que la pasarela autorizó el cobro.
+    kind: command
+    internal: true
+    input:
+      fields:
+        chargeRequestId:  { type: RequestReference, required: true }
+        gatewayPaymentId: { type: string, required: true, constraints: { maxLength: 255 } }
+    output: "void"
+    transitions:
+      - { entity: Payment, from: [pending, actionRequired], to: authorized }
+    rules:
+      - Guarda gatewayPaymentId y vacía awaitingSince, customerAction y actionRequiredSince.
+      - Si el cobro ya no está en pending ni actionRequired, no hace nada y no es un error.
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese chargeRequestId., http: 404 }
+    emits: [PaymentAuthorized]
+
+  markActionRequired:
+    description: Registra que el cobro necesita una acción del cliente (3DS) para completarse.
+    kind: command
+    internal: true
+    input:
+      fields:
+        chargeRequestId:  { type: RequestReference, required: true }
+        gatewayPaymentId: { type: string, required: true, constraints: { maxLength: 255 } }
+        customerAction:   { type: json, required: true }
+    output: "void"
+    transitions:
+      - { entity: Payment, from: [pending], to: actionRequired }
+    rules:
+      - Guarda gatewayPaymentId y customerAction, y estampa awaitingSince y actionRequiredSince.
+      - Si el cobro ya no está en pending, no hace nada y no es un error.
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese chargeRequestId., http: 404 }
+    emits: [PaymentActionRequired]
+
+  markCaptured:
+    description: Registra que la pasarela capturó el cobro.
+    kind: command
+    internal: true
+    input:
+      fields:
+        chargeRequestId:  { type: RequestReference, required: true }
+        gatewayPaymentId: { type: string, required: true, constraints: { maxLength: 255 } }
+    output: "void"
+    transitions:
+      - { entity: Payment, from: [capturing], to: captured }
+    rules:
+      - Vacía awaitingSince.
+      - Si el cobro ya no está en capturing, no hace nada y no es un error.
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese chargeRequestId., http: 404 }
+    emits: [PaymentCaptured]
+
+  markFailed:
+    description: Registra que el cobro falló, con el motivo en el vocabulario neutro.
+    kind: command
+    internal: true
+    input:
+      fields:
+        chargeRequestId:  { type: RequestReference, required: true }
+        gatewayPaymentId: { type: string, constraints: { maxLength: 255 }, description: Vacío si la pasarela no conoce el cobro. }
+        failureReason:    { type: FailureReason, required: true }
+    output: "void"
+    transitions:
+      - { entity: Payment, from: [pending, actionRequired, canceling], to: failed }
+    rules:
+      - Guarda failureReason y gatewayPaymentId si llega, y vacía awaitingSince, customerAction, actionRequiredSince y cancelOrigin.
+      - Si el cobro ya no está en pending, actionRequired ni canceling, no hace nada y no es un error.
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese chargeRequestId., http: 404 }
+    emits: [PaymentFailed]
+
+  markCanceled:
+    description: Registra que la autorización quedó anulada, a petición nuestra o porque la pasarela la expiró.
+    kind: command
+    internal: true
+    input:
+      fields:
+        chargeRequestId:  { type: RequestReference, required: true }
+        gatewayPaymentId: { type: string, constraints: { maxLength: 255 } }
+    output: "void"
+    transitions:
+      - { entity: Payment, from: [pending, actionRequired, authorized, capturing, canceling], to: canceled }
+    rules:
+      - Vacía awaitingSince, customerAction, actionRequiredSince y cancelOrigin.
+      - "El evento lleva requested a true si el cobro venía de canceling (lo pidió el consumidor o venció el plazo del 3DS) y a false si lo cerró la pasarela por su cuenta."
+      - Si el cobro ya está en canceled o en un estado que no admite la transición, no hace nada y no es un error.
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese chargeRequestId., http: 404 }
+    emits: [PaymentCanceled]
+
+  markRefunded:
+    description: Registra que la pasarela completó la devolución en curso del cobro.
+    kind: command
+    internal: true
+    input:
+      fields:
+        chargeRequestId:  { type: RequestReference, required: true }
+        gatewayPaymentId: { type: string, constraints: { maxLength: 255 } }
+        amount:           { type: decimal, required: true, constraints: { min: 0.001, scale: 3, scalePolicy: reject }, description: "Importe devuelto (mismas cotas que Amount)." }
+    output: "void"
+    transitions:
+      - { entity: Payment, from: [refunding], to: captured }
+      - { entity: Payment, from: [refunding], to: refunded }
+    rules:
+      - La devolución en pending del cobro pasa a succeeded con el importe que informa la pasarela (que manda si difiere del pedido), y se vacía awaitingSince.
+      - El cobro pasa a refunded si refundedAmount llega a amount; si no, vuelve a captured.
+      - Si el cobro ya no está en refunding, no hace nada y no es un error.
+    errors:
+      - { code: PAYMENT_NOT_FOUND, when: No existe un cobro con ese chargeRequestId., http: 404 }
+    emits: [PaymentRefunded]
+
+  sweepPendingPayments:
+    description: Consulta a la pasarela los cobros que llevan más de 15 minutos esperando un desenlace sin respuesta y aplica lo que diga.
+    kind: command
+    input: "void"
+    output: "void"
+    schedule: { cron: "*/5 * * * *" }
+    transitions:
+      - { entity: Payment, from: [capturing], to: authorized }
+      - { entity: Payment, from: [canceling], to: authorized }
+      - { entity: Payment, from: [canceling], to: actionRequired }
+      - { entity: Payment, from: [refunding], to: captured }
+      - entity: Payment
+        from: [actionRequired]
+        to: canceling
+        stalledAfter: { parameter: actionRequiredTimeoutHours, unit: hours }
+    rules:
+      - "Selecciona los cobros en pending, actionRequired, capturing, canceling o refunding cuyo awaitingSince es anterior a hace 15 minutos, los más antiguos primero, hasta 100 por ejecución."
+      - Antes de consultar cada cobro renueva su awaitingSince; así otra réplica que corra a la vez no lo toma en la misma pasada.
+      - Tras una parada recupera todo lo pendiente, sin límite de antigüedad.
+      - "Aplica el desenlace que diga la pasarela con su operación (markAuthorized, markActionRequired, markCaptured, markFailed, markCanceled, markRefunded)."
+      - Un cobro en pending que la pasarela no conoce se da por fallido con failureReason notReceived.
+      - "Si la pasarela dice que una acción en vuelo fue rechazada, o que nunca la recibió, el cobro vuelve al estado del que salió (cancelOrigin en una anulación; una devolución pasa a failed) y se publica PaymentActionRejected. Al volver a authorized o captured se vacía awaitingSince; al volver a actionRequired se renueva."
+      - "Un cobro en actionRequired cuyo actionRequiredSince es anterior a hace actionRequiredTimeoutHours, y que la pasarela sigue dando por pendiente del cliente, se anula como en cancelPayment: pasa a canceling con cancelOrigin actionRequired y se pide la anulación a la pasarela. El plazo se cuenta con actionRequiredSince, no con awaitingSince, que el barrido renueva en cada consulta."
+      - "Cada cobro se procesa aislado: un fallo con uno no aborta la pasada ni deshace los demás."
+      - "Si la pasarela no contesta, el cobro se queda como estaba y se vuelve a consultar en la siguiente pasada en que vuelva a superar el umbral, sin techo de intentos: un cobro cuyo estado real tiene la pasarela no se da por fallido a ciegas."
+    errors:
+      - { code: CONCURRENT_MODIFICATION, when: Un desenlace se aplicó a la vez por otra vía; se descarta y lo resuelve la siguiente pasada., http: 409 }
+    emits: [PaymentActionRejected]
+
+  # ── Medios de pago guardados ───────────────────────────────────────────────────────────────
+
+  savePaymentMethod:
+    description: Guarda en el Wallet del titular el medio de pago que representa un token de la pasarela, para cobrarle después sin que esté presente.
+    kind: command
+    input:
+      fields:
+        customerRef:  { type: CustomerRef, required: true }
+        paymentToken: { type: string, required: true, constraints: { maxLength: 255 } }
+        makeDefault:  { type: boolean, default: false }
+    output: { entity: PaymentMethod, exclude: [gatewayMethodRef] }
+    idempotency: { keySource: client-key, ttlSeconds: 86400 }
+    rules:
+      - "El tope de 10 medios active se comprueba antes de llamar a la pasarela."
+      - Si el titular no tiene Wallet, se crea con este primer medio.
+      - El medio se guarda solo si la pasarela lo acepta; guarda su referencia opaca y el resumen de la tarjeta.
+      - El medio queda por defecto si makeDefault es true o si el titular no tenía ningún medio active; el anterior por defecto deja de serlo.
+      - El paymentToken no se guarda; solo viaja a la pasarela.
+      - "Guardar dos veces la misma tarjeta crea dos medios: el servicio no reconoce tarjetas iguales. Un timeout de la pasarela puede dejar el medio guardado allí sin registro aquí; nunca se cobra."
+    errors:
+      - { code: IDEMPOTENCY_KEY_REQUIRED, when: La petición no trae la cabecera Idempotency-Key., http: 400 }
+      - { code: PAYMENT_METHOD_LIMIT_REACHED, when: El titular ya tiene 10 medios active., http: 422 }
+      - { code: PAYMENT_METHOD_AUTHENTICATION_REQUIRED, when: "La pasarela exige autenticar al cliente (3DS) para guardar el medio; el frontend debe completarla al tokenizar y volver a pedir el guardado.", http: 422 }
+      - { code: PAYMENT_METHOD_REJECTED, when: "La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza el medio.", http: 422 }
+      - { code: GATEWAY_UNAVAILABLE, when: "La pasarela no contestó; aquí no se guardó nada y se puede reintentar con un token nuevo.", http: 503 }
+      - { code: CONCURRENT_MODIFICATION, when: El Wallet cambió mientras se procesaba la petición., http: 409 }
+
+  listPaymentMethods:
+    description: Lista los medios active de un titular, primero el que está por defecto.
+    kind: query
+    input:
+      fields:
+        customerRef: { type: CustomerRef, required: true }
+    output: { entity: PaymentMethod, list: true, sort: [isDefault:desc], exclude: [gatewayMethodRef] }
+    rules:
+      - Solo devuelve medios active, caducados incluidos (con expired a true); como mucho son 10, así que no se pagina.
+      - "A igualdad de isDefault, el orden es por id: es total."
+      - Un titular sin Wallet devuelve una lista vacía, no un error.
+
+  setDefaultPaymentMethod:
+    description: Marca un medio del titular como el preferente.
+    kind: command
+    input:
+      fields:
+        customerRef:     { type: CustomerRef, required: true }
+        paymentMethodId: { type: uuid, required: true }
+    output: { entity: PaymentMethod, exclude: [gatewayMethodRef] }
+    rules:
+      - El medio anterior por defecto deja de serlo; si el medio ya era el preferente, no cambia nada.
+    errors:
+      - { code: PAYMENT_METHOD_NOT_FOUND, when: "El medio no existe, está retirado o no es del titular (no se distingue cuál).", http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: El Wallet cambió mientras se procesaba la petición., http: 409 }
+
+  removePaymentMethod:
+    description: Retira un medio guardado del titular; deja de poder cobrarse.
+    kind: command
+    input:
+      fields:
+        customerRef:     { type: CustomerRef, required: true }
+        paymentMethodId: { type: uuid, required: true }
+    output: "void"
+    rules:
+      - El medio pasa a removed y, si era el preferente, el titular se queda sin medio por defecto.
+      - Retirar un medio del titular que ya estaba removed no hace nada y no es un error.
+      - Los cobros ya hechos con el medio conservan su paymentMethodId.
+    errors:
+      - { code: PAYMENT_METHOD_NOT_FOUND, when: El medio no existe o no es del titular (no se distingue cuál)., http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: El Wallet cambió mientras se procesaba la petición., http: 409 }

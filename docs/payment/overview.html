@@ -1,0 +1,2723 @@
+<!doctype html>
+<!-- keel:version 0.1.0 -->
+<!--
+  Panel de servicio Keel — plantilla de forma fija.
+  NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
+  únicamente el marcador de datos de la constante KEEL (más abajo) por el objeto JSON derivado
+  del diseño. Contrato del objeto y token exacto a sustituir: ../overview-html-guide.md
+-->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel del servicio</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #fbfcfd;
+    --border: #dfe3e8;
+    --text: #1b1f24;
+    --muted: #5c6773;
+    --accent: #2f6feb;
+    --ok-bg: #e7f5ed; --ok-fg: #17663a;
+    --off-bg: #f0f1f3; --off-fg: #6b7280;
+    --warn-bg: #fdf3e0; --warn-fg: #8a5a00;
+    --tag-bg: #eef2ff; --tag-fg: #33409e;
+    --code-bg: #f2f4f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --panel: #191d24; --panel-2: #1e232b; --border: #2c333d;
+      --text: #e6e9ee; --muted: #9aa5b1; --accent: #6ea0ff;
+      --ok-bg: #17311f; --ok-fg: #7fd6a0;
+      --off-bg: #23272e; --off-fg: #8b95a1;
+      --warn-bg: #362a11; --warn-fg: #e5bf74;
+      --tag-bg: #222a44; --tag-fg: #9fb2ff;
+      --code-bg: #12161c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+  a { color: var(--accent); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+
+  header.top { margin-bottom: 22px; }
+  .eyebrow { color: var(--muted); font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+  h1 { margin: 6px 0 8px; font-size: 30px; }
+  .lead { color: var(--muted); max-width: 72ch; margin: 0 0 12px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  h2 { font-size: 20px; margin: 34px 0 12px; }
+  h3 { font-size: 16px; margin: 22px 0 8px; }
+
+  .chip, .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 999px; font-size: 12px; white-space: nowrap;
+    background: var(--off-bg); color: var(--off-fg); border: 1px solid transparent;
+  }
+  .chip.on, .badge.on { background: var(--ok-bg); color: var(--ok-fg); }
+  .chip.tag, .badge.tag { background: var(--tag-bg); color: var(--tag-fg); }
+  .chip.warn, .badge.warn { background: var(--warn-bg); color: var(--warn-fg); }
+
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .links a {
+    display: inline-block; padding: 7px 13px; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--panel); text-decoration: none; font-size: 14px;
+  }
+  .links a:hover { border-color: var(--accent); }
+
+  .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 15px; }
+  .card.off { opacity: .62; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .card-label { font-weight: 600; }
+  .card-headline { color: var(--text); margin: 0 0 8px; font-size: 14px; }
+  .facts { margin: 0; font-size: 13px; color: var(--muted); }
+  .facts div { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  .facts .k { color: var(--muted); }
+  .facts .v { color: var(--text); text-align: right; }
+  .card .note { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 14px; }
+  .toolbar input[type=search] {
+    flex: 1 1 240px; min-width: 200px; padding: 8px 11px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit;
+  }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tabs button {
+    padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font: inherit; cursor: pointer;
+  }
+  .tabs button[aria-selected=true] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  details.item {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  details.item > summary {
+    list-style: none; cursor: pointer; padding: 11px 14px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  }
+  details.item > summary::-webkit-details-marker { display: none; }
+  details.item > summary::before { content: "▸"; color: var(--muted); }
+  details.item[open] > summary::before { content: "▾"; }
+  details.item[open] > summary { border-bottom: 1px solid var(--border); background: var(--panel-2); }
+  .item-name { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .item-desc { color: var(--muted); font-size: 13px; flex: 1 1 200px; }
+  .body { padding: 12px 14px 16px; }
+  .body > section { margin-bottom: 14px; }
+  .body > section:last-child { margin-bottom: 0; }
+  .body h4 { margin: 0 0 6px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .body ul { margin: 0; padding-left: 20px; }
+  .body p { margin: 0 0 6px; }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  td.mono, th.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; font-size: 13.5px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+
+  .empty { color: var(--muted); font-style: italic; }
+  .gaps { background: var(--warn-bg); color: var(--warn-fg); border-radius: 10px; padding: 12px 16px; }
+  .gaps ul { margin: 6px 0 0; }
+  footer { margin-top: 44px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 12px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Servicio Keel</div>
+    <h1 id="svc-name">—</h1>
+    <p class="lead" id="svc-desc"></p>
+    <div class="meta" id="svc-meta"></div>
+    <nav class="links" id="links"></nav>
+  </header>
+
+  <section id="gaps-wrap" hidden>
+    <h2>Huecos del diseño</h2>
+    <div class="gaps">
+      <strong>Estos datos no se pudieron derivar del diseño:</strong>
+      <ul id="gaps"></ul>
+    </div>
+  </section>
+
+  <h2>Capacidades</h2>
+  <div class="cards" id="capabilities"></div>
+
+  <h2>Casos de uso</h2>
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Filtrar por nombre, descripción, campo, error…" aria-label="Filtrar">
+    <div class="tabs" id="tabs" role="tablist"></div>
+  </div>
+  <div id="use-cases"></div>
+
+  <section id="events-wrap" hidden>
+    <h2>Eventos</h2>
+    <div id="events"></div>
+  </section>
+
+  <section id="clients-wrap" hidden>
+    <h2>Clientes HTTP salientes</h2>
+    <div id="clients"></div>
+  </section>
+
+  <section id="domain-wrap" hidden>
+    <h2>Modelo de dominio</h2>
+    <div id="domain"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Datos del servicio. `/keel-docs` sustituye el marcador de la línea siguiente por el
+// objeto derivado del diseño (contrato y token exacto: ../overview-html-guide.md).
+// ---------------------------------------------------------------------------
+const KEEL = {
+  "service": {
+    "name": "payment",
+    "version": "0.1.0",
+    "description": "Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente.",
+    "domain": "commerce",
+    "generatedAt": "2026-10-05"
+  },
+  "links": [
+    {
+      "label": "OpenAPI (visor)",
+      "href": "openapi.html",
+      "description": "Contrato HTTP renderizado."
+    },
+    {
+      "label": "AsyncAPI (visor)",
+      "href": "asyncapi.html",
+      "description": "Contrato de eventos renderizado."
+    },
+    {
+      "label": "openapi.yaml",
+      "href": "openapi.yaml",
+      "description": "Contrato HTTP (OpenAPI 3.1)."
+    },
+    {
+      "label": "asyncapi.yaml",
+      "href": "asyncapi.yaml",
+      "description": "Contrato de eventos (AsyncAPI 3.0)."
+    },
+    {
+      "label": "Colecciones Postman",
+      "href": "postman/",
+      "description": "Flujos FL-* y tokens de los clientes máquina."
+    },
+    {
+      "label": "Contrato de integración",
+      "href": "INTEGRATION.md",
+      "description": "Cómo integrarse servidor a servidor."
+    },
+    {
+      "label": "Documento de diseño",
+      "href": "DESIGN.md",
+      "description": "Características y decisiones con su porqué."
+    }
+  ],
+  "gaps": [],
+  "capabilities": [
+    {
+      "id": "persistence",
+      "label": "Persistencia",
+      "active": true,
+      "state": "relacional",
+      "headline": "Guarda cobros, devoluciones, wallets y medios guardados; las claves naturales son la guarda contra el doble cargo y la doble devolución.",
+      "facts": [
+        [
+          "Modelo",
+          "relational"
+        ],
+        [
+          "Entidades persistidas",
+          "4"
+        ],
+        [
+          "Frontera transaccional",
+          "per-operation"
+        ],
+        [
+          "Claves naturales",
+          "3"
+        ],
+        [
+          "Índices",
+          "5"
+        ],
+        [
+          "Bloqueo optimista",
+          "all"
+        ]
+      ]
+    },
+    {
+      "id": "messaging",
+      "label": "Broker de mensajería",
+      "active": true,
+      "headline": "Publica los desenlaces de los cobros; no se suscribe a nada.",
+      "facts": [
+        [
+          "Canales",
+          "1 (0 external)"
+        ],
+        [
+          "Eventos publicados",
+          "7"
+        ],
+        [
+          "Suscripciones",
+          "0"
+        ]
+      ],
+      "note": "El broker concreto se decide al generar."
+    },
+    {
+      "id": "outbox",
+      "label": "Patrón outbox",
+      "active": true,
+      "headline": "Ningún desenlace se pierde si la transacción confirma.",
+      "facts": [
+        [
+          "Garantía",
+          "el evento se escribe en la misma transacción que el cambio del cobro"
+        ],
+        [
+          "Frontera transaccional",
+          "per-operation"
+        ]
+      ]
+    },
+    {
+      "id": "cache",
+      "label": "Caché de respuestas",
+      "active": false,
+      "headline": "Sin caché: el estado del cobro cambia por vías asíncronas y se consulta para saber si se resolvió.",
+      "facts": []
+    },
+    {
+      "id": "storage",
+      "label": "Almacenamiento de archivos",
+      "active": false,
+      "headline": "El servicio no declara capa de storage: no guarda archivos.",
+      "facts": []
+    },
+    {
+      "id": "httpClients",
+      "label": "Integraciones HTTP salientes",
+      "active": false,
+      "headline": "Sin clientes HTTP declarados: el contrato de la pasarela lo pone el generador desde la capa payments.",
+      "facts": []
+    },
+    {
+      "id": "dependencies",
+      "label": "Depende de",
+      "active": false,
+      "headline": "No depende de otros servidores Keel: el titular es una referencia opaca del consumidor.",
+      "facts": []
+    },
+    {
+      "id": "payments",
+      "label": "Cobros",
+      "active": true,
+      "state": "authorize-capture",
+      "headline": "Cobra con tarjeta a través de una pasarela intercambiable, con estados en vuelo y barrido de reconciliación.",
+      "facts": [
+        [
+          "Flujo",
+          "authorize-capture"
+        ],
+        [
+          "Capacidades exigidas a la pasarela",
+          "partial-refund, customer-action, off-session"
+        ],
+        [
+          "charge",
+          "requestCharge"
+        ],
+        [
+          "capture",
+          "capturePayment · en vuelo: capturing"
+        ],
+        [
+          "void",
+          "cancelPayment · en vuelo: canceling"
+        ],
+        [
+          "refund",
+          "refundPayment · en vuelo: refunding"
+        ],
+        [
+          "savePaymentMethod",
+          "savePaymentMethod"
+        ],
+        [
+          "desenlace authorized",
+          "markAuthorized → PaymentAuthorized"
+        ],
+        [
+          "desenlace captured",
+          "markCaptured → PaymentCaptured"
+        ],
+        [
+          "desenlace failed",
+          "markFailed → PaymentFailed"
+        ],
+        [
+          "desenlace actionRequired",
+          "markActionRequired → PaymentActionRequired"
+        ],
+        [
+          "desenlace refunded",
+          "markRefunded → PaymentRefunded"
+        ],
+        [
+          "desenlace canceled",
+          "markCanceled → PaymentCanceled"
+        ],
+        [
+          "Barrido",
+          "sweepPendingPayments · umbral 900 s"
+        ]
+      ],
+      "note": "La pasarela se elige al generar; el diseño no la nombra."
+    },
+    {
+      "id": "mail",
+      "label": "Correo saliente",
+      "active": false,
+      "headline": "El servicio no manda correo.",
+      "facts": []
+    },
+    {
+      "id": "security",
+      "label": "Seguridad",
+      "active": true,
+      "state": "M2M",
+      "headline": "Solo servidores: credencial de máquina con audiencia validada y un scope por capacidad.",
+      "facts": [
+        [
+          "Protocolo",
+          "oidc"
+        ],
+        [
+          "M2M",
+          "client-credentials"
+        ],
+        [
+          "Roles",
+          "0"
+        ],
+        [
+          "Permisos",
+          "5"
+        ],
+        [
+          "Clientes máquina",
+          "2"
+        ]
+      ]
+    },
+    {
+      "id": "schedule",
+      "label": "Trabajos programados",
+      "active": true,
+      "headline": "El barrido de reconciliación consulta a la pasarela lo que espera sin respuesta.",
+      "facts": [
+        [
+          "sweepPendingPayments",
+          "*/5 * * * *"
+        ]
+      ]
+    }
+  ],
+  "useCases": [
+    {
+      "name": "requestCharge",
+      "kind": "command",
+      "description": "Pide un cobro (autorización) con un token de un solo uso o con un medio guardado del titular. Registra el cobro en pending antes de llamar a la pasarela y responde con el cobro en el estado que haya alcanzado: authorized, actionRequired, failed, o pending si la pasarela no contestó.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/payments"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "chargeRequestId",
+            "type": "string",
+            "required": true,
+            "list": false,
+            "description": "Clave de negocio del cobro (mismas cotas que RequestReference)."
+          },
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "amount",
+            "type": "decimal",
+            "required": true,
+            "list": false,
+            "description": "Importe en unidades mayores (mismas cotas que Amount)."
+          },
+          {
+            "name": "currency",
+            "type": "CurrencyCode",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "paymentToken",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": "Token de un solo uso que produce el componente de la pasarela en el navegador (cliente presente)."
+          },
+          {
+            "name": "paymentMethodId",
+            "type": "uuid",
+            "required": false,
+            "list": false,
+            "description": "Id de un medio guardado del titular (cliente ausente)."
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Payment",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "preconditions": [
+        "Se indica exactamente una fuente de pago: paymentToken o paymentMethodId.",
+        "Si se indica paymentMethodId, el medio existe, está active y pertenece al Wallet de customerRef."
+      ],
+      "rules": [
+        "La clave se comprueba antes que cualquier otra guarda: si ya existe un cobro con ese chargeRequestId y los mismos customerRef, amount, currency y fuente de pago, se devuelve ese cobro en su estado actual sin volver a llamar a la pasarela, aunque el medio se haya retirado después; si existe con otro contenido, CHARGE_REQUEST_CONFLICT. La fuente se compara por su clase cuando es un token (el token no se guarda) y por paymentMethodId cuando es un medio guardado.",
+        "Dos peticiones con el mismo chargeRequestId a la vez: la que choca con la clave natural al registrar el cobro relee el ganador y aplica la regla anterior — con el mismo contenido responde ese cobro (201); con otro, CHARGE_REQUEST_CONFLICT. Nunca hay un segundo cobro ni una segunda llamada a la pasarela.",
+        "Responde 201 tanto al crear el cobro como al repetirlo, sea cual sea el estado en que esté.",
+        "currency debe ser un código vigente de ISO 4217 (la tabla vigente del estándar), y amount no puede tener más decimales que los de esa moneda.",
+        "El importe lo fija el servidor consumidor, que es de confianza; el servicio no le pone tope ni lo contrasta con nada.",
+        "El cobro se registra en pending, con awaitingSince estampado, antes de llamar a la pasarela.",
+        "La respuesta de la pasarela se aplica con su operación de desenlace (markAuthorized, markActionRequired o markFailed); si no llega, el cobro se queda en pending y lo resuelve el barrido.",
+        "Un rechazo de la pasarela no es un error de la petición — el cobro se devuelve en failed con su failureReason (una moneda que la pasarela no admite falla con processingError).",
+        "Si al aplicar el desenlace el cobro ya salió de pending por otra vía (el aviso de la pasarela), se relee y se responde el cobro tal como esté, sin error.",
+        "El cobro en pending se confirma en su propia transacción antes de llamar a la pasarela, y el desenlace en otra: la frontera por operación vale para cada una de las dos escrituras.",
+        "Si se cobra con un medio guardado, el cobro anota su paymentMethodId. Un medio retirado mientras se cobra no se detecta; vale tal como estaba al validar la petición.",
+        "El paymentToken no se guarda; solo viaja a la pasarela."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_SOURCE_INVALID",
+          "http": 400,
+          "when": "No se indica ninguna fuente de pago o se indican las dos."
+        },
+        {
+          "code": "CURRENCY_UNKNOWN",
+          "http": 400,
+          "when": "currency no es un código vigente de ISO 4217."
+        },
+        {
+          "code": "AMOUNT_SCALE_INVALID",
+          "http": 400,
+          "when": "amount tiene más decimales que los de la moneda."
+        },
+        {
+          "code": "PAYMENT_METHOD_UNAVAILABLE",
+          "http": 422,
+          "when": "El medio indicado no existe, está retirado o no es del titular (no se distingue cuál)."
+        },
+        {
+          "code": "CHARGE_REQUEST_CONFLICT",
+          "http": 409,
+          "when": "Ya existe un cobro con ese chargeRequestId y con otro contenido."
+        }
+      ],
+      "idempotency": {
+        "keySource": "payload-field",
+        "keyField": "chargeRequestId"
+      },
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment:charge"
+        ]
+      }
+    },
+    {
+      "name": "capturePayment",
+      "kind": "command",
+      "description": "Captura entero el importe de un cobro autorizado.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/payments/{id}/capture"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Payment",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "La repetición se comprueba antes que cualquier otra guarda: si el cobro ya está en capturing, captured, refunding o refunded, se devuelve tal cual (200) sin volver a llamar a la pasarela.",
+        "El cobro pasa a capturing, con awaitingSince estampado, antes de llamar a la pasarela.",
+        "Si la pasarela captura, se aplica markCaptured; si no contesta, el cobro se queda en capturing y lo resuelve el barrido.",
+        "Si la pasarela rechaza porque la autorización ya caducó, se aplica markCanceled y responde AUTHORIZATION_EXPIRED.",
+        "Si la pasarela rechaza por otro motivo, el cobro vuelve a authorized, se vacía awaitingSince, se publica PaymentActionRejected y responde CAPTURE_REJECTED.",
+        "Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan.",
+        "Un rechazo de la pasarela confirma el cambio de estado y el evento aunque la operación responda con error."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese id."
+        },
+        {
+          "code": "PAYMENT_NOT_CAPTURABLE",
+          "http": 409,
+          "when": "El cobro no está en authorized, capturing ni captured."
+        },
+        {
+          "code": "AUTHORIZATION_EXPIRED",
+          "http": 409,
+          "when": "La pasarela ya había cancelado la autorización."
+        },
+        {
+          "code": "CAPTURE_REJECTED",
+          "http": 422,
+          "when": "La pasarela rechazó la captura por otro motivo."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "El cobro cambió mientras se procesaba la petición."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment:charge"
+        ]
+      },
+      "emits": [
+        "PaymentActionRejected"
+      ]
+    },
+    {
+      "name": "cancelPayment",
+      "kind": "command",
+      "description": "Anula un cobro autorizado o que espera la autenticación del cliente, sin capturarlo.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/payments/{id}/cancel"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Payment",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "La repetición se comprueba antes que cualquier otra guarda: si el cobro ya está en canceling o canceled, se devuelve tal cual (200) sin volver a llamar a la pasarela.",
+        "El cobro pasa a canceling antes de llamar a la pasarela: estampa awaitingSince, anota en cancelOrigin el estado del que sale y conserva customerAction y actionRequiredSince si venía de actionRequired.",
+        "Si la pasarela anula, se aplica markCanceled; si no contesta, el cobro se queda en canceling y lo resuelve el barrido.",
+        "Si la pasarela responde que el cobro ya terminó fallido (p. ej. el cliente falló la autenticación), se aplica markFailed con su motivo y la operación responde 200 con el cobro en failed.",
+        "Si la pasarela rechaza la anulación, el cobro vuelve al estado que dice cancelOrigin (con awaitingSince renovado si vuelve a actionRequired, vacío si vuelve a authorized), se vacía cancelOrigin, se publica PaymentActionRejected y responde CANCEL_REJECTED.",
+        "Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan.",
+        "Un rechazo de la pasarela confirma el cambio de estado y el evento aunque la operación responda con error."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese id."
+        },
+        {
+          "code": "PAYMENT_NOT_CANCELABLE",
+          "http": 409,
+          "when": "El cobro no está en authorized, actionRequired, canceling ni canceled."
+        },
+        {
+          "code": "CANCEL_REJECTED",
+          "http": 422,
+          "when": "La pasarela rechazó la anulación."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "El cobro cambió mientras se procesaba la petición."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment:charge"
+        ]
+      },
+      "emits": [
+        "PaymentActionRejected"
+      ]
+    },
+    {
+      "name": "refundPayment",
+      "kind": "command",
+      "description": "Devuelve todo o parte de lo que queda por devolver de un cobro capturado.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/payments/{id}/refunds"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "refundRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "amount",
+            "type": "decimal",
+            "required": false,
+            "list": false,
+            "description": "Importe a devolver (mismas cotas que Amount); si se omite, todo lo que queda por devolver."
+          },
+          {
+            "name": "reason",
+            "type": "string",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Payment",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "La clave se comprueba justo después de que el cobro exista y antes que cualquier otra guarda: si ya existe una devolución con ese refundRequestId sobre este cobro y la petición trae el mismo amount o lo omite, se devuelve el cobro en su estado actual (200) sin volver a llamar a la pasarela, esté la devolución pending, succeeded o failed; si existe con otro amount o sobre otro cobro, REFUND_REQUEST_CONFLICT. Una devolución failed no se reintenta con la misma clave: hace falta otro refundRequestId.",
+        "Dos devoluciones con el mismo refundRequestId a la vez: la que choca con la clave natural relee y aplica la regla anterior. Nunca hay una segunda devolución ni una segunda llamada a la pasarela.",
+        "amount no puede tener más decimales que los de la moneda del cobro.",
+        "Se crea la devolución en pending y el cobro pasa a refunding, con awaitingSince estampado, antes de llamar a la pasarela.",
+        "Si la pasarela devuelve, se aplica markRefunded; si no contesta, el cobro se queda en refunding y lo resuelve el barrido.",
+        "Si la pasarela rechaza, la devolución pasa a failed, el cobro vuelve a captured con awaitingSince vacío, se publica PaymentActionRejected y responde REFUND_REJECTED.",
+        "Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan.",
+        "Un rechazo de la pasarela confirma el cambio de estado y el evento aunque la operación responda con error."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese id."
+        },
+        {
+          "code": "PAYMENT_NOT_REFUNDABLE",
+          "http": 409,
+          "when": "El cobro no está en captured (incluido el que ya tiene una devolución en curso)."
+        },
+        {
+          "code": "AMOUNT_SCALE_INVALID",
+          "http": 400,
+          "when": "amount tiene más decimales que los de la moneda del cobro."
+        },
+        {
+          "code": "REFUND_AMOUNT_EXCEEDED",
+          "http": 422,
+          "when": "amount supera lo que queda por devolver."
+        },
+        {
+          "code": "REFUND_REQUEST_CONFLICT",
+          "http": 409,
+          "when": "Ya existe una devolución con ese refundRequestId con otro importe o sobre otro cobro."
+        },
+        {
+          "code": "REFUND_REJECTED",
+          "http": 422,
+          "when": "La pasarela rechazó la devolución."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "El cobro cambió mientras se procesaba la petición."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment:refund"
+        ]
+      },
+      "emits": [
+        "PaymentActionRejected"
+      ]
+    },
+    {
+      "name": "getPayment",
+      "kind": "query",
+      "description": "Recupera un cobro por su id, con sus devoluciones.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/payments/{id}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Payment",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Las devoluciones viajan dentro del cobro, de la más antigua a la más reciente (createdAt y, a igualdad, id)."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese id."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment:read"
+        ]
+      }
+    },
+    {
+      "name": "getPaymentByChargeRequest",
+      "kind": "query",
+      "description": "Recupera un cobro por la clave de negocio con la que lo pidió el consumidor.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/payments/by-charge-request/{chargeRequestId}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Payment",
+        "list": false,
+        "paginated": false,
+        "exclude": []
+      },
+      "rules": [
+        "Las devoluciones viajan dentro del cobro, de la más antigua a la más reciente (createdAt y, a igualdad, id)."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese chargeRequestId."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment:read"
+        ]
+      }
+    },
+    {
+      "name": "listPaymentsByCustomer",
+      "kind": "query",
+      "description": "Lista los cobros de un titular, del más reciente al más antiguo.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/payments"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "Payment",
+        "list": false,
+        "paginated": true,
+        "exclude": []
+      },
+      "rules": [
+        "Un titular sin cobros devuelve una página vacía, no un error."
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment:read"
+        ]
+      }
+    },
+    {
+      "name": "markAuthorized",
+      "kind": "command",
+      "description": "Registra que la pasarela autorizó el cobro.",
+      "audience": "internal",
+      "trigger": {
+        "type": "internal"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "gatewayPaymentId",
+            "type": "string",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "rules": [
+        "Guarda gatewayPaymentId y vacía awaitingSince, customerAction y actionRequiredSince.",
+        "Si el cobro ya no está en pending ni actionRequired, no hace nada y no es un error."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese chargeRequestId."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": null,
+      "emits": [
+        "PaymentAuthorized"
+      ]
+    },
+    {
+      "name": "markActionRequired",
+      "kind": "command",
+      "description": "Registra que el cobro necesita una acción del cliente (3DS) para completarse.",
+      "audience": "internal",
+      "trigger": {
+        "type": "internal"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "gatewayPaymentId",
+            "type": "string",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "customerAction",
+            "type": "json",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "rules": [
+        "Guarda gatewayPaymentId y customerAction, y estampa awaitingSince y actionRequiredSince.",
+        "Si el cobro ya no está en pending, no hace nada y no es un error."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese chargeRequestId."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": null,
+      "emits": [
+        "PaymentActionRequired"
+      ]
+    },
+    {
+      "name": "markCaptured",
+      "kind": "command",
+      "description": "Registra que la pasarela capturó el cobro.",
+      "audience": "internal",
+      "trigger": {
+        "type": "internal"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "gatewayPaymentId",
+            "type": "string",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "rules": [
+        "Vacía awaitingSince.",
+        "Si el cobro ya no está en capturing, no hace nada y no es un error."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese chargeRequestId."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": null,
+      "emits": [
+        "PaymentCaptured"
+      ]
+    },
+    {
+      "name": "markFailed",
+      "kind": "command",
+      "description": "Registra que el cobro falló, con el motivo en el vocabulario neutro.",
+      "audience": "internal",
+      "trigger": {
+        "type": "internal"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "gatewayPaymentId",
+            "type": "string",
+            "required": false,
+            "list": false,
+            "description": "Vacío si la pasarela no conoce el cobro."
+          },
+          {
+            "name": "failureReason",
+            "type": "FailureReason",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "rules": [
+        "Guarda failureReason y gatewayPaymentId si llega, y vacía awaitingSince, customerAction, actionRequiredSince y cancelOrigin.",
+        "Si el cobro ya no está en pending, actionRequired ni canceling, no hace nada y no es un error."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese chargeRequestId."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": null,
+      "emits": [
+        "PaymentFailed"
+      ]
+    },
+    {
+      "name": "markCanceled",
+      "kind": "command",
+      "description": "Registra que la autorización quedó anulada, a petición nuestra o porque la pasarela la expiró.",
+      "audience": "internal",
+      "trigger": {
+        "type": "internal"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "gatewayPaymentId",
+            "type": "string",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "rules": [
+        "Vacía awaitingSince, customerAction, actionRequiredSince y cancelOrigin.",
+        "El evento lleva requested a true si el cobro venía de canceling (lo pidió el consumidor o venció el plazo del 3DS) y a false si lo cerró la pasarela por su cuenta.",
+        "Si el cobro ya está en canceled o en un estado que no admite la transición, no hace nada y no es un error."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese chargeRequestId."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": null,
+      "emits": [
+        "PaymentCanceled"
+      ]
+    },
+    {
+      "name": "markRefunded",
+      "kind": "command",
+      "description": "Registra que la pasarela completó la devolución en curso del cobro.",
+      "audience": "internal",
+      "trigger": {
+        "type": "internal"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "gatewayPaymentId",
+            "type": "string",
+            "required": false,
+            "list": false
+          },
+          {
+            "name": "amount",
+            "type": "decimal",
+            "required": true,
+            "list": false,
+            "description": "Importe devuelto (mismas cotas que Amount)."
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "rules": [
+        "La devolución en pending del cobro pasa a succeeded con el importe que informa la pasarela (que manda si difiere del pedido), y se vacía awaitingSince.",
+        "El cobro pasa a refunded si refundedAmount llega a amount; si no, vuelve a captured.",
+        "Si el cobro ya no está en refunding, no hace nada y no es un error."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_NOT_FOUND",
+          "http": 404,
+          "when": "No existe un cobro con ese chargeRequestId."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": null,
+      "emits": [
+        "PaymentRefunded"
+      ]
+    },
+    {
+      "name": "sweepPendingPayments",
+      "kind": "command",
+      "description": "Consulta a la pasarela los cobros que llevan más de 15 minutos esperando un desenlace sin respuesta y aplica lo que diga.",
+      "audience": "internal",
+      "trigger": {
+        "type": "schedule",
+        "cron": "*/5 * * * *"
+      },
+      "input": {
+        "kind": "void"
+      },
+      "output": {
+        "kind": "void"
+      },
+      "rules": [
+        "Selecciona los cobros en pending, actionRequired, capturing, canceling o refunding cuyo awaitingSince es anterior a hace 15 minutos, los más antiguos primero, hasta 100 por ejecución.",
+        "Antes de consultar cada cobro renueva su awaitingSince; así otra réplica que corra a la vez no lo toma en la misma pasada.",
+        "Tras una parada recupera todo lo pendiente, sin límite de antigüedad.",
+        "Aplica el desenlace que diga la pasarela con su operación (markAuthorized, markActionRequired, markCaptured, markFailed, markCanceled, markRefunded).",
+        "Un cobro en pending que la pasarela no conoce se da por fallido con failureReason notReceived.",
+        "Si la pasarela dice que una acción en vuelo fue rechazada, o que nunca la recibió, el cobro vuelve al estado del que salió (cancelOrigin en una anulación; una devolución pasa a failed) y se publica PaymentActionRejected. Al volver a authorized o captured se vacía awaitingSince; al volver a actionRequired se renueva.",
+        "Un cobro en actionRequired cuyo actionRequiredSince es anterior a hace actionRequiredTimeoutHours, y que la pasarela sigue dando por pendiente del cliente, se anula como en cancelPayment: pasa a canceling con cancelOrigin actionRequired y se pide la anulación a la pasarela. El plazo se cuenta con actionRequiredSince, no con awaitingSince, que el barrido renueva en cada consulta.",
+        "Cada cobro se procesa aislado: un fallo con uno no aborta la pasada ni deshace los demás.",
+        "Si la pasarela no contesta, el cobro se queda como estaba y se vuelve a consultar en la siguiente pasada en que vuelva a superar el umbral, sin techo de intentos: un cobro cuyo estado real tiene la pasarela no se da por fallido a ciegas."
+      ],
+      "errors": [
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "Un desenlace se aplicó a la vez por otra vía; se descarta y lo resuelve la siguiente pasada."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": {
+        "cron": "*/5 * * * *"
+      },
+      "security": null,
+      "emits": [
+        "PaymentActionRejected"
+      ]
+    },
+    {
+      "name": "savePaymentMethod",
+      "kind": "command",
+      "description": "Guarda en el Wallet del titular el medio de pago que representa un token de la pasarela, para cobrarle después sin que esté presente.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/payment-methods"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "paymentToken",
+            "type": "string",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "makeDefault",
+            "type": "boolean",
+            "required": false,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "PaymentMethod",
+        "list": false,
+        "paginated": false,
+        "exclude": [
+          "gatewayMethodRef"
+        ]
+      },
+      "rules": [
+        "El tope de 10 medios active se comprueba antes de llamar a la pasarela.",
+        "Si el titular no tiene Wallet, se crea con este primer medio.",
+        "El medio se guarda solo si la pasarela lo acepta; guarda su referencia opaca y el resumen de la tarjeta.",
+        "El medio queda por defecto si makeDefault es true o si el titular no tenía ningún medio active; el anterior por defecto deja de serlo.",
+        "El paymentToken no se guarda; solo viaja a la pasarela.",
+        "Guardar dos veces la misma tarjeta crea dos medios: el servicio no reconoce tarjetas iguales. Un timeout de la pasarela puede dejar el medio guardado allí sin registro aquí; nunca se cobra."
+      ],
+      "errors": [
+        {
+          "code": "IDEMPOTENCY_KEY_REQUIRED",
+          "http": 400,
+          "when": "La petición no trae la cabecera Idempotency-Key."
+        },
+        {
+          "code": "PAYMENT_METHOD_LIMIT_REACHED",
+          "http": 422,
+          "when": "El titular ya tiene 10 medios active."
+        },
+        {
+          "code": "PAYMENT_METHOD_AUTHENTICATION_REQUIRED",
+          "http": 422,
+          "when": "La pasarela exige autenticar al cliente (3DS) para guardar el medio; el frontend debe completarla al tokenizar y volver a pedir el guardado."
+        },
+        {
+          "code": "PAYMENT_METHOD_REJECTED",
+          "http": 422,
+          "when": "La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza el medio."
+        },
+        {
+          "code": "GATEWAY_UNAVAILABLE",
+          "http": 503,
+          "when": "La pasarela no contestó; aquí no se guardó nada y se puede reintentar con un token nuevo."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "El Wallet cambió mientras se procesaba la petición."
+        }
+      ],
+      "idempotency": {
+        "keySource": "client-key",
+        "ttlSeconds": 86400
+      },
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment-method:write"
+        ]
+      }
+    },
+    {
+      "name": "listPaymentMethods",
+      "kind": "query",
+      "description": "Lista los medios active de un titular, primero el que está por defecto.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/payment-methods"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "PaymentMethod",
+        "list": true,
+        "paginated": false,
+        "exclude": [
+          "gatewayMethodRef"
+        ]
+      },
+      "rules": [
+        "Solo devuelve medios active, caducados incluidos (con expired a true); como mucho son 10, así que no se pagina.",
+        "A igualdad de isDefault, el orden es por id: es total.",
+        "Un titular sin Wallet devuelve una lista vacía, no un error."
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment-method:read"
+        ]
+      }
+    },
+    {
+      "name": "setDefaultPaymentMethod",
+      "kind": "command",
+      "description": "Marca un medio del titular como el preferente.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "POST",
+        "path": "/api/v1/payment-methods/{paymentMethodId}/default"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "paymentMethodId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "entity",
+        "entity": "PaymentMethod",
+        "list": false,
+        "paginated": false,
+        "exclude": [
+          "gatewayMethodRef"
+        ]
+      },
+      "rules": [
+        "El medio anterior por defecto deja de serlo; si el medio ya era el preferente, no cambia nada."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_METHOD_NOT_FOUND",
+          "http": 404,
+          "when": "El medio no existe, está retirado o no es del titular (no se distingue cuál)."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "El Wallet cambió mientras se procesaba la petición."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment-method:write"
+        ]
+      }
+    },
+    {
+      "name": "removePaymentMethod",
+      "kind": "command",
+      "description": "Retira un medio guardado del titular; deja de poder cobrarse.",
+      "audience": "services",
+      "trigger": {
+        "type": "http",
+        "method": "DELETE",
+        "path": "/api/v1/payment-methods/{paymentMethodId}"
+      },
+      "input": {
+        "kind": "fields",
+        "fields": [
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "paymentMethodId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      "output": {
+        "kind": "void"
+      },
+      "rules": [
+        "El medio pasa a removed y, si era el preferente, el titular se queda sin medio por defecto.",
+        "Retirar un medio del titular que ya estaba removed no hace nada y no es un error.",
+        "Los cobros ya hechos con el medio conservan su paymentMethodId."
+      ],
+      "errors": [
+        {
+          "code": "PAYMENT_METHOD_NOT_FOUND",
+          "http": 404,
+          "when": "El medio no existe o no es del titular (no se distingue cuál)."
+        },
+        {
+          "code": "CONCURRENT_MODIFICATION",
+          "http": 409,
+          "when": "El Wallet cambió mientras se procesaba la petición."
+        }
+      ],
+      "idempotency": null,
+      "cache": null,
+      "schedule": null,
+      "security": {
+        "level": "service",
+        "scopes": [
+          "payment-method:write"
+        ]
+      }
+    }
+  ],
+  "events": {
+    "envelope": "keel",
+    "reliability": "outbox",
+    "published": [
+      {
+        "name": "PaymentAuthorized",
+        "description": "La pasarela autorizó el cobro: el importe está retenido y se puede capturar o anular.",
+        "channel": "paymentEvents",
+        "emittedBy": [
+          "markAuthorized"
+        ],
+        "payload": [
+          {
+            "name": "paymentId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "amount",
+            "type": "Amount",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "currency",
+            "type": "CurrencyCode",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "gatewayPaymentId",
+            "type": "string",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      {
+        "name": "PaymentActionRequired",
+        "description": "El cobro necesita que el cliente complete una acción (3DS). customerAction es opaca y la consume el componente de la pasarela en el navegador.",
+        "channel": "paymentEvents",
+        "emittedBy": [
+          "markActionRequired"
+        ],
+        "payload": [
+          {
+            "name": "paymentId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "amount",
+            "type": "Amount",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "currency",
+            "type": "CurrencyCode",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "customerAction",
+            "type": "json",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      {
+        "name": "PaymentCaptured",
+        "description": "La pasarela capturó el cobro entero: está cobrado.",
+        "channel": "paymentEvents",
+        "emittedBy": [
+          "markCaptured"
+        ],
+        "payload": [
+          {
+            "name": "paymentId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "amount",
+            "type": "Amount",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "currency",
+            "type": "CurrencyCode",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      {
+        "name": "PaymentFailed",
+        "description": "El cobro falló; failureReason usa el vocabulario neutro (notReceived si la pasarela nunca lo conoció).",
+        "channel": "paymentEvents",
+        "emittedBy": [
+          "markFailed"
+        ],
+        "payload": [
+          {
+            "name": "paymentId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "amount",
+            "type": "Amount",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "currency",
+            "type": "CurrencyCode",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "failureReason",
+            "type": "FailureReason",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      {
+        "name": "PaymentCanceled",
+        "description": "La autorización quedó anulada, a petición del consumidor o porque la pasarela la expiró; no se cobrará.",
+        "channel": "paymentEvents",
+        "emittedBy": [
+          "markCanceled"
+        ],
+        "payload": [
+          {
+            "name": "paymentId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "amount",
+            "type": "Amount",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "currency",
+            "type": "CurrencyCode",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "requested",
+            "type": "boolean",
+            "required": true,
+            "list": false,
+            "description": "true si la anulación la pidió el consumidor o venció el plazo del 3DS; false si la pasarela la cerró por su cuenta (autorización expirada, 3DS caducado)."
+          }
+        ]
+      },
+      {
+        "name": "PaymentRefunded",
+        "description": "La pasarela completó una devolución. status dice si el cobro quedó devuelto entero (refunded) o en parte (captured).",
+        "channel": "paymentEvents",
+        "emittedBy": [
+          "markRefunded"
+        ],
+        "payload": [
+          {
+            "name": "paymentId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "refundRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "refundAmount",
+            "type": "Amount",
+            "required": true,
+            "list": false,
+            "description": "Importe de esta devolución."
+          },
+          {
+            "name": "refundedAmount",
+            "type": "decimal",
+            "required": true,
+            "list": false,
+            "description": "Total devuelto del cobro tras esta devolución."
+          },
+          {
+            "name": "currency",
+            "type": "CurrencyCode",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "status",
+            "type": "PaymentStatus",
+            "required": true,
+            "list": false
+          }
+        ]
+      },
+      {
+        "name": "PaymentActionRejected",
+        "description": "La pasarela rechazó una captura, una anulación o una devolución; el cobro volvió al estado del que salió.",
+        "channel": "paymentEvents",
+        "emittedBy": [
+          "capturePayment",
+          "cancelPayment",
+          "refundPayment",
+          "sweepPendingPayments"
+        ],
+        "payload": [
+          {
+            "name": "paymentId",
+            "type": "uuid",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "action",
+            "type": "enum(capture, cancel, refund)",
+            "required": true,
+            "list": false
+          },
+          {
+            "name": "refundRequestId",
+            "type": "RequestReference",
+            "required": false,
+            "list": false,
+            "description": "Solo cuando action es refund."
+          },
+          {
+            "name": "refundAmount",
+            "type": "Amount",
+            "required": false,
+            "list": false,
+            "description": "Importe de la devolución rechazada; solo cuando action es refund."
+          },
+          {
+            "name": "status",
+            "type": "PaymentStatus",
+            "required": true,
+            "list": false,
+            "description": "Estado al que volvió el cobro."
+          }
+        ]
+      }
+    ],
+    "subscriptions": []
+  },
+  "domain": {
+    "entities": [
+      {
+        "name": "Payment",
+        "description": "Un cobro con tarjeta pedido por un servidor consumidor: se autoriza, se captura o se anula, y admite devoluciones parciales. Es la memoria del servicio frente a la pasarela.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "chargeRequestId",
+            "type": "RequestReference",
+            "list": false,
+            "flags": [
+              "requerido",
+              "único"
+            ],
+            "description": "Clave de negocio del cobro; dos peticiones con la misma son el mismo cobro."
+          },
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "list": false,
+            "flags": [
+              "requerido"
+            ],
+            "description": "Titular del cobro."
+          },
+          {
+            "name": "amount",
+            "type": "Amount",
+            "list": false,
+            "flags": [
+              "requerido"
+            ],
+            "description": "Importe autorizado; al capturar se cobra entero. Lo fija el servidor consumidor, que es de confianza: el servicio no lo contrasta con nada."
+          },
+          {
+            "name": "currency",
+            "type": "CurrencyCode",
+            "list": false,
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "status",
+            "type": "PaymentStatus",
+            "list": false,
+            "flags": [
+              "default: pending"
+            ]
+          },
+          {
+            "name": "gatewayPaymentId",
+            "type": "string",
+            "list": false,
+            "flags": [],
+            "description": "Id que asigna la pasarela; vacío mientras no ha contestado."
+          },
+          {
+            "name": "awaitingSince",
+            "type": "timestamp",
+            "list": false,
+            "flags": [],
+            "description": "Desde cuándo espera sin respuesta un desenlace de la pasarela; solo tiene valor en estados de espera."
+          },
+          {
+            "name": "failureReason",
+            "type": "FailureReason",
+            "list": false,
+            "flags": [],
+            "description": "Por qué falló el cobro; solo en failed."
+          },
+          {
+            "name": "customerAction",
+            "type": "json",
+            "list": false,
+            "flags": [],
+            "description": "Acción opaca que el cliente debe completar (3DS); en actionRequired, y se conserva mientras se anula un cobro que venía de actionRequired."
+          },
+          {
+            "name": "actionRequiredSince",
+            "type": "timestamp",
+            "list": false,
+            "flags": [],
+            "description": "Desde cuándo espera el cobro la autenticación del cliente; lo estampa la entrada en actionRequired y no lo renuevan las consultas del barrido. Es el reloj del plazo del 3DS."
+          },
+          {
+            "name": "cancelOrigin",
+            "type": "enum(authorized, actionRequired)",
+            "list": false,
+            "flags": [],
+            "description": "Estado del que salió el cobro al entrar en canceling; solo en canceling. Es a donde vuelve si la pasarela rechaza la anulación."
+          },
+          {
+            "name": "paymentMethodId",
+            "type": "uuid",
+            "list": false,
+            "flags": [],
+            "description": "Medio guardado con el que se cobró; vacío si se cobró con un token de un solo uso. Es un valor y no una relación: el medio vive dentro del agregado Wallet."
+          },
+          {
+            "name": "refundedAmount",
+            "type": "decimal",
+            "list": false,
+            "flags": [
+              "calculado"
+            ],
+            "description": "Calculado: Suma de los importes de las devoluciones del cobro en estado succeeded; cero si no hay ninguna."
+          },
+          {
+            "name": "createdAt",
+            "type": "timestamp",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "updatedAt",
+            "type": "timestamp",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "refunds",
+            "entity": "Refund",
+            "cardinality": "one-to-many"
+          }
+        ],
+        "invariants": [
+          "awaitingSince tiene valor si y solo si el cobro está en pending, actionRequired, capturing, canceling o refunding.",
+          "customerAction tiene valor si y solo si el cobro está en actionRequired, o en canceling con cancelOrigin actionRequired.",
+          "cancelOrigin tiene valor si y solo si el cobro está en canceling.",
+          "actionRequiredSince tiene valor si y solo si el cobro está en actionRequired, o en canceling con cancelOrigin actionRequired.",
+          "failureReason tiene valor si y solo si el cobro está en failed.",
+          "Si el cobro tiene paymentMethodId, el medio pertenece al Wallet cuyo customerRef es el del cobro.",
+          "refundedAmount nunca supera amount.",
+          "Un cobro está en refunded si y solo si refundedAmount es igual a amount.",
+          "Un cobro tiene como mucho una devolución en pending, y solo mientras está en refunding.",
+          "La moneda de un cobro no cambia nunca después de crearlo.",
+          "Los decimales de amount no superan los de la moneda según ISO 4217 (JPY 0, EUR 2, KWD 3)."
+        ],
+        "lifecycle": {
+          "field": "status",
+          "transitions": {
+            "pending": [
+              "authorized",
+              "actionRequired",
+              "failed",
+              "canceled"
+            ],
+            "actionRequired": [
+              "authorized",
+              "failed",
+              "canceling",
+              "canceled"
+            ],
+            "authorized": [
+              "capturing",
+              "canceling",
+              "canceled"
+            ],
+            "capturing": [
+              "captured",
+              "authorized",
+              "canceled"
+            ],
+            "canceling": [
+              "canceled",
+              "authorized",
+              "actionRequired",
+              "failed"
+            ],
+            "captured": [
+              "refunding"
+            ],
+            "refunding": [
+              "captured",
+              "refunded"
+            ],
+            "refunded": [],
+            "canceled": [],
+            "failed": []
+          }
+        }
+      },
+      {
+        "name": "Refund",
+        "description": "Una devolución, total o parcial, de un cobro capturado.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "refundRequestId",
+            "type": "RequestReference",
+            "list": false,
+            "flags": [
+              "requerido",
+              "único"
+            ],
+            "description": "Clave de negocio de la devolución; dos peticiones con la misma son la misma devolución."
+          },
+          {
+            "name": "amount",
+            "type": "Amount",
+            "list": false,
+            "flags": [
+              "requerido"
+            ],
+            "description": "Importe pedido; si la pasarela informa al completarla un importe devuelto distinto, se guarda el informado."
+          },
+          {
+            "name": "reason",
+            "type": "string",
+            "list": false,
+            "flags": [],
+            "description": "Motivo libre que informa el consumidor, para su propio rastro."
+          },
+          {
+            "name": "status",
+            "type": "RefundStatus",
+            "list": false,
+            "flags": [
+              "default: pending"
+            ]
+          },
+          {
+            "name": "createdAt",
+            "type": "timestamp",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          },
+          {
+            "name": "updatedAt",
+            "type": "timestamp",
+            "list": false,
+            "flags": [
+              "generado"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "payment",
+            "entity": "Payment",
+            "cardinality": "many-to-one"
+          }
+        ],
+        "invariants": [
+          "El status de una devolución lo gobierna la raíz: nace en pending al entrar el cobro en refunding, y pasa a succeeded o failed en el mismo cambio en que el cobro sale de refunding.",
+          "Una devolución en succeeded o failed no vuelve a cambiar de status.",
+          "Los decimales del amount de una devolución no superan los de la moneda del cobro.",
+          "La suma de los amount de las devoluciones succeeded y pending de un cobro nunca supera el amount del cobro."
+        ]
+      },
+      {
+        "name": "Wallet",
+        "description": "Los medios de pago guardados de un titular. Nace con el primer medio que se le guarda.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "customerRef",
+            "type": "CustomerRef",
+            "list": false,
+            "flags": [
+              "requerido",
+              "único"
+            ]
+          }
+        ],
+        "relations": [
+          {
+            "name": "paymentMethods",
+            "entity": "PaymentMethod",
+            "cardinality": "one-to-many"
+          }
+        ],
+        "invariants": [
+          "Un Wallet tiene como mucho 10 medios en active.",
+          "Un Wallet tiene como mucho un medio active con isDefault a true."
+        ]
+      },
+      {
+        "name": "PaymentMethod",
+        "description": "Un medio de pago guardado de un titular, para cobrarle sin que esté presente.",
+        "persisted": true,
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "list": false,
+            "flags": [
+              "id",
+              "generado"
+            ]
+          },
+          {
+            "name": "gatewayMethodRef",
+            "type": "string",
+            "list": false,
+            "flags": [
+              "requerido",
+              "sensible"
+            ],
+            "description": "Referencia opaca del medio en la pasarela; nunca sale del servicio."
+          },
+          {
+            "name": "card",
+            "type": "CardDetails",
+            "list": false,
+            "flags": [
+              "requerido"
+            ]
+          },
+          {
+            "name": "isDefault",
+            "type": "boolean",
+            "list": false,
+            "flags": [
+              "default: false"
+            ],
+            "description": "Medio preferente del titular."
+          },
+          {
+            "name": "status",
+            "type": "PaymentMethodStatus",
+            "list": false,
+            "flags": [
+              "default: active"
+            ]
+          },
+          {
+            "name": "expired",
+            "type": "boolean",
+            "list": false,
+            "flags": [
+              "calculado"
+            ],
+            "description": "Calculado: true si card.expYear y card.expMonth son anteriores al mes en curso en UTC; la tarjeta vale hasta el último día de su mes de caducidad."
+          }
+        ],
+        "relations": [
+          {
+            "name": "wallet",
+            "entity": "Wallet",
+            "cardinality": "many-to-one"
+          }
+        ],
+        "invariants": [
+          "El status de un medio lo gobierna su Wallet: pasa de active a removed al retirarlo, y removed es terminal.",
+          "Un medio removed nunca tiene isDefault a true."
+        ]
+      }
+    ],
+    "aggregates": [
+      {
+        "name": "Payment",
+        "root": "Payment",
+        "entities": [
+          "Refund"
+        ],
+        "description": "El cobro y sus devoluciones cambian juntos; lo devuelto se valida contra lo cobrado en la misma transacción."
+      },
+      {
+        "name": "Wallet",
+        "root": "Wallet",
+        "entities": [
+          "PaymentMethod"
+        ],
+        "description": "Los medios de un titular cambian juntos; el medio por defecto y el tope se validan en una sola transacción."
+      }
+    ],
+    "types": [
+      {
+        "name": "RequestReference",
+        "kind": "escalar",
+        "detail": "string · minLength 1 · maxLength 100 · pattern ^[A-Za-z0-9._:-]+$",
+        "description": "Clave de negocio con la que el servidor consumidor identifica una petición (de cobro o de devolución). La elige el consumidor y es la guarda contra la doble ejecución."
+      },
+      {
+        "name": "CustomerRef",
+        "kind": "escalar",
+        "detail": "string · minLength 1 · maxLength 200",
+        "description": "Referencia opaca del titular, asignada por el servidor consumidor (p. ej. el sub del usuario). Este servicio no conoce usuarios: solo compara referencias."
+      },
+      {
+        "name": "Amount",
+        "kind": "escalar",
+        "detail": "decimal · min 0.001 · scale 3 · scalePolicy reject",
+        "description": "Importe en unidades mayores de la moneda (12.50), siempre positivo. La escala admite hasta 3 decimales; cuántos admite de verdad lo fija la moneda (ISO 4217), y se valida en cada operación."
+      },
+      {
+        "name": "CurrencyCode",
+        "kind": "escalar",
+        "detail": "string · pattern ^[A-Z]{3}$",
+        "description": "Código de moneda ISO 4217 en mayúsculas."
+      },
+      {
+        "name": "PaymentStatus",
+        "kind": "enum",
+        "detail": "pending, actionRequired, authorized, capturing, canceling, captured, refunding, refunded, canceled, failed"
+      },
+      {
+        "name": "FailureReason",
+        "kind": "enum",
+        "detail": "declined, insufficientFunds, expiredCard, authenticationFailed, fraudSuspected, invalidPaymentMethod, notReceived, processingError",
+        "description": "Vocabulario neutro de Keel para el motivo de fallo de un cobro; cada pasarela se traduce a él."
+      },
+      {
+        "name": "RefundStatus",
+        "kind": "enum",
+        "detail": "pending, succeeded, failed"
+      },
+      {
+        "name": "PaymentMethodStatus",
+        "kind": "enum",
+        "detail": "active, removed"
+      },
+      {
+        "name": "CardDetails",
+        "kind": "value object",
+        "detail": "brand: string, last4: string, expMonth: int, expYear: int",
+        "description": "Resumen visible de una tarjeta guardada; nunca incluye el número completo."
+      }
+    ]
+  }
+};
+
+(function () {
+  'use strict';
+
+  if (!KEEL) {
+    document.getElementById('svc-name').textContent = 'Plantilla sin datos';
+    document.getElementById('svc-desc').textContent =
+      'Este archivo es la plantilla de /keel-docs: el placeholder KEEL_DATA no fue sustituido.';
+    return;
+  }
+
+  var AUDIENCES = [
+    { id: 'users',    label: 'Usuarios' },
+    { id: 'services', label: 'Servidores (M2M)' },
+    { id: 'both',     label: 'Ambos' },
+    { id: 'internal', label: 'Internos' }
+  ];
+  var LEVEL_LABEL = { public: 'pública', required: 'protegida', admin: 'admin', service: 'M2M' };
+
+  // -- helpers --------------------------------------------------------------
+  function el(tag, attrs, children) {
+    var n = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (k === 'class') n.className = attrs[k];
+      else if (k === 'text') n.textContent = attrs[k];
+      else if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) n.appendChild(c); });
+    return n;
+  }
+  function txt(tag, s, cls) { return el(tag, cls ? { class: cls, text: s } : { text: s }); }
+  function badge(label, kind) { return el('span', { class: 'badge' + (kind ? ' ' + kind : ''), text: label }); }
+  function list(arr) { return (arr && arr.length) ? arr.join(', ') : null; }
+  function has(x) { return x !== null && x !== undefined && x !== '' && !(Array.isArray(x) && !x.length); }
+  function section(title, node) { return el('section', {}, [txt('h4', title), node]); }
+  function ul(items) { return el('ul', {}, (items || []).map(function (i) { return txt('li', i); })); }
+  function kv(pairs) {
+    var d = el('dl', { class: 'kv' });
+    pairs.forEach(function (p) {
+      if (!has(p[1])) return;
+      d.appendChild(txt('dt', p[0]));
+      d.appendChild(txt('dd', String(p[1])));
+    });
+    return d.children.length ? d : null;
+  }
+  function table(headers, rows, monoCols) {
+    if (!rows || !rows.length) return null;
+    var thead = el('tr', {}, headers.map(function (h) { return txt('th', h); }));
+    var tb = el('tbody', {}, rows.map(function (r) {
+      return el('tr', {}, r.map(function (c, i) {
+        return el('td', { class: (monoCols || []).indexOf(i) >= 0 ? 'mono' : null, text: c === null || c === undefined ? '—' : String(c) });
+      }));
+    }));
+    return el('div', { class: 'scroll' }, [el('table', {}, [el('thead', {}, [thead]), tb])]);
+  }
+  function fieldsTable(fields) {
+    return table(['Campo', 'Tipo', 'Requerido', 'Descripción'], (fields || []).map(function (f) {
+      return [f.name, f.type + (f.list ? '[]' : ''), f.required ? 'sí' : 'no', f.description || '—'];
+    }), [0, 1]);
+  }
+  function payloadNode(p) {
+    if (!p) return txt('p', 'void', 'empty');
+    if (p.kind === 'void') return txt('p', 'void', 'empty');
+    if (p.kind === 'entity') {
+      var s = p.entity + (p.list ? '[] (lista)' : '') + (p.paginated ? ' — paginado' : '');
+      if (has(p.exclude)) s += ' · excluye: ' + p.exclude.join(', ');
+      return txt('p', s, 'mono');
+    }
+    return fieldsTable(p.fields) || txt('p', 'sin campos declarados', 'empty');
+  }
+
+  // -- cabecera -------------------------------------------------------------
+  var svc = KEEL.service || {};
+  document.title = svc.name ? 'Panel · ' + svc.name : 'Panel del servicio';
+  document.getElementById('svc-name').textContent = svc.name || '—';
+  document.getElementById('svc-desc').textContent = svc.description || '';
+  var meta = document.getElementById('svc-meta');
+  [['versión ' + (svc.version || '—'), 'tag'], svc.domain ? ['dominio: ' + svc.domain, null] : null,
+   svc.basedOn ? ['derivado de ' + svc.basedOn, null] : null]
+    .forEach(function (m) { if (m) meta.appendChild(badge(m[0], m[1])); });
+
+  var links = document.getElementById('links');
+  (KEEL.links || []).forEach(function (l) {
+    links.appendChild(el('a', { href: l.href, title: l.description || '', text: l.label }));
+  });
+
+  // -- huecos ---------------------------------------------------------------
+  if (has(KEEL.gaps)) {
+    document.getElementById('gaps-wrap').hidden = false;
+    var g = document.getElementById('gaps');
+    KEEL.gaps.forEach(function (s) { g.appendChild(txt('li', s)); });
+  }
+
+  // -- capacidades ----------------------------------------------------------
+  var caps = document.getElementById('capabilities');
+  (KEEL.capabilities || []).forEach(function (c) {
+    var card = el('div', { class: 'card' + (c.active ? '' : ' off') }, [
+      el('div', { class: 'card-head' }, [
+        txt('span', c.label, 'card-label'),
+        badge(c.active ? (c.state || 'sí') : 'no aplica', c.active ? 'on' : null)
+      ]),
+      c.headline ? txt('p', c.headline, 'card-headline') : null
+    ]);
+    if (has(c.facts)) {
+      var f = el('div', { class: 'facts' });
+      c.facts.forEach(function (p) {
+        f.appendChild(el('div', {}, [txt('span', p[0], 'k'), txt('span', String(p[1]), 'v')]));
+      });
+      card.appendChild(f);
+    }
+    if (c.note) card.appendChild(txt('p', c.note, 'note'));
+    caps.appendChild(card);
+  });
+
+  // -- casos de uso ---------------------------------------------------------
+  var ucs = KEEL.useCases || [];
+  var host = document.getElementById('use-cases');
+  var present = AUDIENCES.filter(function (a) {
+    return ucs.some(function (u) { return (u.audience || 'internal') === a.id; });
+  });
+  var tabs = document.getElementById('tabs');
+  var current = 'all';
+  [{ id: 'all', label: 'Todos (' + ucs.length + ')' }].concat(present.map(function (a) {
+    var n = ucs.filter(function (u) { return (u.audience || 'internal') === a.id; }).length;
+    return { id: a.id, label: a.label + ' (' + n + ')' };
+  })).forEach(function (t) {
+    var b = el('button', { type: 'button', role: 'tab', 'data-aud': t.id, text: t.label });
+    b.setAttribute('aria-selected', t.id === 'all' ? 'true' : 'false');
+    b.addEventListener('click', function () {
+      current = t.id;
+      Array.prototype.forEach.call(tabs.children, function (o) {
+        o.setAttribute('aria-selected', String(o.getAttribute('data-aud') === current));
+      });
+      applyFilter();
+    });
+    tabs.appendChild(b);
+  });
+
+  function triggerText(t) {
+    if (!t) return '—';
+    if (t.type === 'http') return (t.method || '') + ' ' + (t.path || '');
+    if (t.type === 'event') return 'evento ' + (t.event || '');
+    if (t.type === 'schedule') return 'programado · ' + (t.cron || '');
+    return 'interna';
+  }
+
+  ucs.forEach(function (u) {
+    var d = el('details', { class: 'item', 'data-aud': u.audience || 'internal' });
+    var sum = el('summary', {}, [
+      txt('span', u.name, 'item-name'),
+      badge(u.kind || 'command', 'tag'),
+      u.trigger && u.trigger.type === 'http' ? badge(triggerText(u.trigger)) : null,
+      u.trigger && u.trigger.type === 'event' ? badge('por evento') : null,
+      u.trigger && u.trigger.type === 'schedule' ? badge('programado') : null,
+      u.idempotency ? badge('idempotente', 'on') : null,
+      u.cache ? badge('cacheada', 'on') : null,
+      u.security ? badge(LEVEL_LABEL[u.security.level] || u.security.level,
+        u.security.level === 'public' ? 'warn' : 'tag') : null,
+      txt('span', u.description || '', 'item-desc')
+    ]);
+    var body = el('div', { class: 'body' });
+    if (u.description) body.appendChild(section('Qué hace', txt('p', u.description)));
+    body.appendChild(section('Disparador', txt('p', triggerText(u.trigger), 'mono')));
+    body.appendChild(section('Entrada', payloadNode(u.input)));
+    body.appendChild(section('Salida', payloadNode(u.output)));
+    if (has(u.preconditions)) body.appendChild(section('Precondiciones', ul(u.preconditions)));
+    if (has(u.rules)) body.appendChild(section('Reglas', ul(u.rules)));
+    if (has(u.errors)) {
+      body.appendChild(section('Errores', table(['Código', 'HTTP', 'Cuándo'], u.errors.map(function (e) {
+        return [e.code, e.http || '—', e.when || '—'];
+      }), [0])));
+    }
+    var pol = [];
+    if (u.idempotency) pol.push(['Idempotencia', 'keySource: ' + u.idempotency.keySource +
+      (has(u.idempotency.ttlSeconds) ? ' · TTL ' + u.idempotency.ttlSeconds + 's' : '')]);
+    if (u.cache) pol.push(['Caché', 'TTL ' + u.cache.ttlSeconds + 's' +
+      (has(u.cache.keyFields) ? ' · clave: ' + u.cache.keyFields.join(', ') : '') +
+      (has(u.cache.invalidatedBy) ? ' · invalida: ' + u.cache.invalidatedBy.join(', ') : '')]);
+    if (u.schedule) pol.push(['Programación', u.schedule.cron]);
+    if (pol.length) body.appendChild(section('Políticas', kv(pol)));
+    if (u.security) {
+      body.appendChild(section('Seguridad', kv([
+        ['Nivel', (LEVEL_LABEL[u.security.level] || u.security.level) + ' (' + u.security.level + ')'],
+        ['Roles', list(u.security.roles)],
+        ['Permisos', list(u.security.permissions)],
+        ['Scopes', list(u.security.scopes)]
+      ])));
+    }
+    if (has(u.emits)) body.appendChild(section('Eventos que emite', txt('p', u.emits.join(', '), 'mono')));
+    d.appendChild(sum);
+    d.appendChild(body);
+    d.setAttribute('data-text', (u.name + ' ' + (u.description || '') + ' ' + JSON.stringify(u)).toLowerCase());
+    host.appendChild(d);
+  });
+  if (!ucs.length) host.appendChild(txt('p', 'El diseño no declara operaciones.', 'empty'));
+
+  var q = document.getElementById('q');
+  function applyFilter() {
+    var needle = q.value.trim().toLowerCase();
+    Array.prototype.forEach.call(host.children, function (n) {
+      if (!n.getAttribute) return;
+      var okAud = current === 'all' || n.getAttribute('data-aud') === current;
+      var okTxt = !needle || (n.getAttribute('data-text') || '').indexOf(needle) >= 0;
+      n.hidden = !(okAud && okTxt);
+    });
+  }
+  q.addEventListener('input', applyFilter);
+
+  // -- eventos --------------------------------------------------------------
+  var ev = KEEL.events;
+  if (ev && (has(ev.published) || has(ev.subscriptions))) {
+    document.getElementById('events-wrap').hidden = false;
+    var eh = document.getElementById('events');
+    eh.appendChild(txt('p', 'Envoltura: ' + (ev.envelope || 'keel') +
+      ' (metadata + data)' + (ev.reliability ? ' · fiabilidad de publicación: ' + ev.reliability : ''),
+      'item-desc'));
+    if (has(ev.published)) {
+      eh.appendChild(txt('h3', 'Publicados'));
+      ev.published.forEach(function (e) {
+        var b = el('div', { class: 'body' }, [
+          e.description ? section('Descripción', txt('p', e.description)) : null,
+          section('Payload (data)', fieldsTable(e.payload) || txt('p', 'sin campos', 'empty')),
+          section('Detalles', kv([
+            ['Canal', e.channel || 'por convención del generador'],
+            ['Emitido por', list(e.emittedBy)],
+            ['Entrega', e.reliability || ev.reliability]
+          ]))
+        ]);
+        eh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', e.name, 'item-name'), badge('publicado', 'on'),
+            e.channel ? badge(e.channel) : null, txt('span', e.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+    if (has(ev.subscriptions)) {
+      eh.appendChild(txt('h3', 'Suscripciones'));
+      ev.subscriptions.forEach(function (s) {
+        var c = s.contract || {};
+        var b = el('div', { class: 'body' }, [
+          s.description ? section('Descripción', txt('p', s.description)) : null,
+          section('Payload esperado', fieldsTable(s.payload) || txt('p', 'sin campos', 'empty')),
+          section('Contrato de recepción', kv([
+            ['Origen', s.source],
+            ['Canal', s.channel],
+            ['Envoltura', c.envelope],
+            ['Ruta del payload', c.payloadPath],
+            ['Formato', c.format],
+            ['Discriminador', c.discriminator],
+            ['Clave de dedupe', c.messageId],
+            ['Campos desconocidos', c.unknownFields]
+          ])),
+          section('Al fallar', kv([
+            ['Reintentos', s.onFailure && s.onFailure.retry],
+            ['Dead letter', s.onFailure && (s.onFailure.deadLetter ? 'sí' : 'no')]
+          ]) || txt('p', 'sin política declarada', 'empty'))
+        ]);
+        eh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', s.name, 'item-name'), badge('consumido', 'tag'),
+            s.source ? badge('de ' + s.source) : null,
+            s.triggers ? badge('→ ' + s.triggers) : null,
+            txt('span', s.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+  }
+
+  // -- clientes HTTP --------------------------------------------------------
+  if (has(KEEL.httpClients)) {
+    document.getElementById('clients-wrap').hidden = false;
+    var ch = document.getElementById('clients');
+    KEEL.httpClients.forEach(function (c) {
+      var b = el('div', { class: 'body' }, [
+        c.purpose ? section('Propósito', txt('p', c.purpose)) : null,
+        section('Autenticación saliente', txt('p', c.auth || 'none', 'mono')),
+        section('Llamadas', table(
+          ['Llamada', 'Método y ruta', 'Timeout', 'Retry', 'Circuit breaker', 'Fallback'],
+          (c.calls || []).map(function (k) {
+            return [k.name, has(k.method) ? k.method + ' ' + (k.path || '') : (k.contract || '—'),
+              has(k.timeoutMs) ? k.timeoutMs + ' ms' : '—', k.retry || '—',
+              k.circuitBreaker || '—', k.fallback || '—'];
+          }), [0, 1]) || txt('p', 'sin llamadas declaradas', 'empty'))
+      ]);
+      ch.appendChild(el('details', { class: 'item' }, [
+        el('summary', {}, [txt('span', c.name, 'item-name'),
+          badge((c.calls || []).length + ' llamada(s)', 'tag'),
+          txt('span', c.purpose || '', 'item-desc')]),
+        b
+      ]));
+    });
+  }
+
+  // -- dominio --------------------------------------------------------------
+  var dom = KEEL.domain;
+  if (dom && (has(dom.entities) || has(dom.aggregates) || has(dom.types))) {
+    document.getElementById('domain-wrap').hidden = false;
+    var dh = document.getElementById('domain');
+    if (has(dom.aggregates)) {
+      dh.appendChild(txt('h3', 'Agregados'));
+      dh.appendChild(table(['Agregado', 'Raíz', 'Entidades internas', 'Descripción'],
+        dom.aggregates.map(function (a) {
+          return [a.name, a.root, list(a.entities) || '—', a.description || '—'];
+        }), [0, 1, 2]));
+    }
+    if (has(dom.entities)) {
+      dh.appendChild(txt('h3', 'Entidades'));
+      dom.entities.forEach(function (e) {
+        var b = el('div', { class: 'body' }, [
+          e.description ? section('Descripción', txt('p', e.description)) : null,
+          section('Campos', table(['Campo', 'Tipo', 'Atributos', 'Descripción'],
+            (e.fields || []).map(function (f) {
+              return [f.name, f.type + (f.list ? '[]' : ''), list(f.flags) || '—', f.description || '—'];
+            }), [0, 1]) || txt('p', 'sin campos', 'empty')),
+          has(e.relations) ? section('Relaciones', table(['Relación', 'Entidad', 'Cardinalidad'],
+            e.relations.map(function (r) { return [r.name, r.entity, r.cardinality]; }), [0, 1])) : null,
+          e.lifecycle ? section('Ciclo de vida (' + e.lifecycle.field + ')',
+            table(['Estado', 'Transiciona a'], Object.keys(e.lifecycle.transitions || {}).map(function (k) {
+              return [k, list(e.lifecycle.transitions[k]) || 'terminal'];
+            }), [0, 1])) : null,
+          has(e.invariants) ? section('Invariantes', ul(e.invariants)) : null
+        ]);
+        dh.appendChild(el('details', { class: 'item' }, [
+          el('summary', {}, [txt('span', e.name, 'item-name'),
+            badge((e.fields || []).length + ' campo(s)', 'tag'),
+            e.persisted ? badge('persistida', 'on') : null,
+            txt('span', e.description || '', 'item-desc')]),
+          b
+        ]));
+      });
+    }
+    if (has(dom.types)) {
+      dh.appendChild(txt('h3', 'Value types'));
+      dh.appendChild(table(['Tipo', 'Forma', 'Detalle', 'Descripción'], dom.types.map(function (t) {
+        return [t.name, t.kind, t.detail || '—', t.description || '—'];
+      }), [0, 1, 2]));
+    }
+  }
+
+  document.getElementById('footer').textContent =
+    'Derivado del diseño Keel de ' + (svc.name || '—') + ' v' + (svc.version || '—') +
+    (svc.generatedAt ? ' · generado el ' + svc.generatedAt : '') +
+    ' · La fuente de verdad son los artefactos de specs/. No edites este archivo a mano: regenéralo con /keel-docs.';
+})();
+</script>
+</body>
+</html>

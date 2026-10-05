@@ -1,0 +1,104 @@
+reviewedBy: keel-design-review
+reviewedAt: 0.1.0
+findings:
+- id: REV-DOMAIN-VAGUE-INVARIANT
+  scope: domain.entities.Refund.invariants
+  verdict: fixed
+  note: 'Corregido por decisión del diseñador: la invariante de Refund se reescribió como «la suma de los amount
+    de las devoluciones succeeded y pending de un cobro nunca supera el amount del cobro», que se decide mirando
+    el estado actual. El momento de pedirla lo cubre REFUND_AMOUNT_EXCEEDED en refundPayment.'
+- id: REV-DOMAIN-ENUM-NO-LIFECYCLE
+  scope: domain.entities.Refund, domain.entities.PaymentMethod
+  verdict: accepted
+  note: 'Aceptado por el diseñador. Refund y PaymentMethod son entidades internas, y su máquina de estados se declaró
+    primero y se quitó después porque CHK-DOMAIN-INNER-LIFECYCLE la señala como doble dueño del agregado. Su estado
+    lo gobierna la raíz: una devolución nace en pending y pasa a succeeded o failed en el mismo cambio en que Payment
+    sale de refunding (transiciones declaradas en refundPayment, markRefunded y sweepPendingPayments); un medio
+    pasa de active a removed solo por removePaymentMethod sobre su Wallet. Las invariantes de ambas entidades fijan
+    que los estados finales son terminales.'
+- id: REV-DOMAIN-INVARIANT-IS-TRANSITION
+  scope: domain.entities.Refund.invariants, domain.entities.PaymentMethod.invariants
+  verdict: accepted
+  note: 'Mismo motivo que REV-DOMAIN-ENUM-NO-LIFECYCLE: las tres invariantes describen la máquina de las entidades
+    internas, que la gobierna su raíz porque el detector de entidad interna con lifecycle propio impide declararla.
+    Decidido por el diseñador.'
+- id: REV-DOMAIN-COMPUTED-NOT-DERIVABLE
+  scope: domain.entities.Payment.fields.refundedAmount
+  verdict: ok
+  note: refundedAmount = suma de Refund.amount con status succeeded; Payment tiene la relación refunds one-to-many
+    y Refund tiene amount y status, todo dentro del agregado Payment.
+- id: REV-DOMAIN-PROMISED-STATE
+  scope: use-cases.operations.cancelPayment, use-cases.operations.sweepPendingPayments
+  verdict: fixed
+  note: 'Corregido por decisión del diseñador: Payment gana cancelOrigin (enum authorized | actionRequired, solo
+    en canceling), que cancelPayment y el barrido anotan al entrar en canceling; customerAction se conserva durante
+    la anulación de un cobro que venía de actionRequired, y el invariante lo admite. La vuelta tras un rechazo va
+    al estado de cancelOrigin con customerAction intacto.'
+- id: REV-DOMAIN-PARTIAL-WRITER
+  scope: domain.entities.Payment.lifecycle (actionRequired, authorized, captured)
+  verdict: fixed
+  note: 'Corregido por decisión del diseñador: la vuelta a actionRequired conserva customerAction (no se vació al
+    entrar en canceling) y renueva awaitingSince; el barrido vacía awaitingSince al devolver un cobro a authorized
+    o captured. markFailed y markCanceled vacían además cancelOrigin.'
+- id: REV-USECASES-INTERNAL-REPEAT
+  verdict: ok
+  note: 'Commands sin bloque idempotency: capturePayment y cancelPayment son idempotentes por estado (structural
+    3.2); refundPayment lo frena la naturalKey refundRequestId de Refund en persistence; los mark* devuelven sin
+    hacer nada si el cobro ya no está en el estado de origen; setDefaultPaymentMethod («si ya era el preferente,
+    no cambia nada») y removePaymentMethod («ya removed no hace nada») fijan en vez de sumar. Ningún efecto interno
+    se acumula con un reintento.'
+- id: REV-USECASES-GUARD-ORDER
+  scope: use-cases.operations.requestCharge, use-cases.operations.refundPayment
+  verdict: fixed
+  note: 'Corregido por decisión del diseñador: (1) la fuente de un cobro con token se compara por su clase, no por
+    el valor; (2) en requestCharge, capturePayment, cancelPayment y refundPayment la repetición se comprueba antes
+    que cualquier otra guarda, así que un medio retirado después no cambia la respuesta del reintento; (3) en refundPayment,
+    una petición que omite amount casa con la devolución ya registrada con esa clave.'
+- id: REV-API-DELETE-BODY
+  scope: api.endpoints.removePaymentMethod
+  verdict: ok
+  note: El único DELETE (removePaymentMethod) declara successStatus 204 y la operación tiene output void.
+- id: REV-SEC-M2M-AUDIENCE
+  scope: security.authentication.serviceAuth
+  verdict: ok
+  note: 'serviceAuth declara validateAudience true con audience payment: un token emitido para otro servicio del
+    mismo servidor de autenticación no vale aquí.'
+- id: REV-MSG-MISSING-CHANNEL
+  scope: messaging.publishing.events
+  verdict: ok
+  note: Los siete eventos (PaymentAuthorized, PaymentActionRequired, PaymentCaptured, PaymentFailed, PaymentCanceled,
+    PaymentRefunded, PaymentActionRejected) declaran channel paymentEvents, que es un canal lógico declarado en
+    channels. No hay suscripciones.
+- id: REV-PERSIST-MISSING-INDEX
+  scope: persistence.entities.Refund
+  verdict: fixed
+  note: 'Corregido por decisión del diseñador: Refund declara indexes [[payment, createdAt]], que sirve a las devoluciones
+    del cobro en su orden, al cálculo de refundedAmount y a las guardas de refundPayment y markRefunded.'
+- id: REV-PAYMENTS-AMOUNT-SOURCE
+  scope: payments.charge.amount
+  verdict: accepted
+  note: 'Aceptado por el diseñador y ahora explícito: Payment.amount y una rule de requestCharge dicen que el importe
+    lo fija el servidor consumidor, que es de confianza, y que el servicio no le pone tope ni lo contrasta con nada.'
+- id: REV-PAYMENTS-CARD-DATA
+  verdict: ok
+  note: 'Las fuentes de pago entran como referencias opacas: paymentToken (token de un solo uso del componente de
+    la pasarela, «no se guarda»), paymentMethodId (uuid propio) y savePaymentMethod.paymentToken. CardDetails (brand,
+    last4, expMonth, expYear) sale de la pasarela y solo aparece en salidas, nunca en un input; gatewayMethodRef
+    es sensitive y se excluye de todas las salidas. Ningún payload de evento lleva datos de tarjeta.'
+- id: REV-PAYMENTS-SAVED-OWNERSHIP
+  scope: use-cases.operations.requestCharge.preconditions
+  verdict: ok
+  note: 'La titularidad la atan el invariante de Payment («si el cobro tiene paymentMethodId, el medio pertenece
+    al Wallet cuyo customerRef es el del cobro») y la precondición de requestCharge («el medio existe, está active
+    y pertenece al Wallet de customerRef»), con 422 PAYMENT_METHOD_UNAVAILABLE sin distinguir el motivo. Que customerRef
+    lo ponga el consumidor y no se ate al llamante está aceptado en decisions.yaml (OBL-CALLER-IDENTITY): una sola
+    aplicación consumidora.'
+- id: REV-PAYMENTS-FAILED-RECORD
+  scope: use-cases.operations.requestCharge
+  verdict: ok
+  note: 'Los rechazos previos a la pasarela (medio inexistente, retirado o ajeno; fuente ausente o doble) son precondiciones
+    con error de petición (PAYMENT_METHOD_UNAVAILABLE 422, PAYMENT_SOURCE_INVALID 400): no se crea cobro failed,
+    así que la rule «si se cobra con un medio guardado, el cobro anota su paymentMethodId» no llega a chocar con
+    el invariante de titularidad. En el fallo de la pasarela y en el notReceived del barrido el cobro ya existe
+    con su paymentMethodId, como pide la doctrina. Queda el orden entre esa precondición y la repetición del cobro,
+    recogido en REV-USECASES-GUARD-ORDER.'

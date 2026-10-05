@@ -1,0 +1,505 @@
+asyncapi: 3.0.0
+info:
+  title: payment
+  version: 0.1.0
+  description: |-
+    Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente.
+
+    Contrato asíncrono derivado del diseño Keel (capa messaging). El broker concreto y los nombres físicos de topic/cola se deciden al generar, no aquí. Los eventos se publican por outbox: ninguno se pierde si la transacción confirma.
+defaultContentType: application/json
+channels:
+  paymentEvents:
+    address: paymentEvents
+    title: paymentEvents
+    description: 'Desenlaces de los cobros y de sus acciones de seguimiento (captura, anulación, devolución). Nombre
+      lógico: el topic/cola físico que lo respalda es parámetro de despliegue.'
+    messages:
+      PaymentAuthorized:
+        $ref: '#/components/messages/PaymentAuthorized'
+      PaymentActionRequired:
+        $ref: '#/components/messages/PaymentActionRequired'
+      PaymentCaptured:
+        $ref: '#/components/messages/PaymentCaptured'
+      PaymentFailed:
+        $ref: '#/components/messages/PaymentFailed'
+      PaymentCanceled:
+        $ref: '#/components/messages/PaymentCanceled'
+      PaymentRefunded:
+        $ref: '#/components/messages/PaymentRefunded'
+      PaymentActionRejected:
+        $ref: '#/components/messages/PaymentActionRejected'
+operations:
+  publishPaymentAuthorized:
+    action: send
+    channel:
+      $ref: '#/channels/paymentEvents'
+    summary: 'La pasarela autorizó el cobro: el importe está retenido y se puede capturar o anular.'
+    messages:
+    - $ref: '#/channels/paymentEvents/messages/PaymentAuthorized'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - markAuthorized
+  publishPaymentActionRequired:
+    action: send
+    channel:
+      $ref: '#/channels/paymentEvents'
+    summary: El cobro necesita que el cliente complete una acción (3DS). customerAction es opaca y la consume el
+      componente de la pasarela en el navegador.
+    messages:
+    - $ref: '#/channels/paymentEvents/messages/PaymentActionRequired'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - markActionRequired
+  publishPaymentCaptured:
+    action: send
+    channel:
+      $ref: '#/channels/paymentEvents'
+    summary: 'La pasarela capturó el cobro entero: está cobrado.'
+    messages:
+    - $ref: '#/channels/paymentEvents/messages/PaymentCaptured'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - markCaptured
+  publishPaymentFailed:
+    action: send
+    channel:
+      $ref: '#/channels/paymentEvents'
+    summary: El cobro falló; failureReason usa el vocabulario neutro (notReceived si la pasarela nunca lo conoció).
+    messages:
+    - $ref: '#/channels/paymentEvents/messages/PaymentFailed'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - markFailed
+  publishPaymentCanceled:
+    action: send
+    channel:
+      $ref: '#/channels/paymentEvents'
+    summary: La autorización quedó anulada, a petición del consumidor o porque la pasarela la expiró; no se cobrará.
+    messages:
+    - $ref: '#/channels/paymentEvents/messages/PaymentCanceled'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - markCanceled
+  publishPaymentRefunded:
+    action: send
+    channel:
+      $ref: '#/channels/paymentEvents'
+    summary: La pasarela completó una devolución. status dice si el cobro quedó devuelto entero (refunded) o en
+      parte (captured).
+    messages:
+    - $ref: '#/channels/paymentEvents/messages/PaymentRefunded'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - markRefunded
+  publishPaymentActionRejected:
+    action: send
+    channel:
+      $ref: '#/channels/paymentEvents'
+    summary: La pasarela rechazó una captura, una anulación o una devolución; el cobro volvió al estado del que
+      salió.
+    messages:
+    - $ref: '#/channels/paymentEvents/messages/PaymentActionRejected'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - capturePayment
+    - cancelPayment
+    - refundPayment
+    - sweepPendingPayments
+components:
+  messages:
+    PaymentAuthorized:
+      name: PaymentAuthorized
+      title: PaymentAuthorized
+      contentType: application/json
+      summary: 'La pasarela autorizó el cobro: el importe está retenido y se puede capturar o anular.'
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/PaymentAuthorizedPayload'
+    PaymentActionRequired:
+      name: PaymentActionRequired
+      title: PaymentActionRequired
+      contentType: application/json
+      summary: El cobro necesita que el cliente complete una acción (3DS). customerAction es opaca y la consume
+        el componente de la pasarela en el navegador.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/PaymentActionRequiredPayload'
+    PaymentCaptured:
+      name: PaymentCaptured
+      title: PaymentCaptured
+      contentType: application/json
+      summary: 'La pasarela capturó el cobro entero: está cobrado.'
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/PaymentCapturedPayload'
+    PaymentFailed:
+      name: PaymentFailed
+      title: PaymentFailed
+      contentType: application/json
+      summary: El cobro falló; failureReason usa el vocabulario neutro (notReceived si la pasarela nunca lo conoció).
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/PaymentFailedPayload'
+    PaymentCanceled:
+      name: PaymentCanceled
+      title: PaymentCanceled
+      contentType: application/json
+      summary: La autorización quedó anulada, a petición del consumidor o porque la pasarela la expiró; no se cobrará.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/PaymentCanceledPayload'
+    PaymentRefunded:
+      name: PaymentRefunded
+      title: PaymentRefunded
+      contentType: application/json
+      summary: La pasarela completó una devolución. status dice si el cobro quedó devuelto entero (refunded) o en
+        parte (captured).
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/PaymentRefundedPayload'
+    PaymentActionRejected:
+      name: PaymentActionRejected
+      title: PaymentActionRejected
+      contentType: application/json
+      summary: La pasarela rechazó una captura, una anulación o una devolución; el cobro volvió al estado del que
+        salió.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/PaymentActionRejectedPayload'
+  schemas:
+    KeelEventMetadata:
+      type: object
+      description: Metadata transversal de la envoltura Keel; la estampa el servicio al emitir.
+      required:
+      - eventId
+      - eventType
+      - eventVersion
+      - occurredAt
+      - source
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Id único de esta ocurrencia; clave de deduplicación del consumidor.
+        eventType:
+          type: string
+          description: Nombre del evento en el diseño; discriminador cuando el canal lleva varios tipos.
+        eventVersion:
+          type: integer
+          minimum: 1
+          description: Versión del contrato del payload.
+        occurredAt:
+          type: string
+          format: date-time
+          description: Instante UTC en que ocurrió el hecho en el dominio, no el del envío.
+        source:
+          type: string
+          description: Nombre del servicio emisor.
+        correlationId:
+          type:
+          - string
+          - 'null'
+          description: Correlación de la petición que originó el hecho; null si no hubo contexto.
+        traceparent:
+          type:
+          - string
+          - 'null'
+          description: Contexto de traza W3C (traceparent) del hecho; null si el emisor no tiene telemetría.
+    PaymentAuthorizedPayload:
+      type: object
+      required:
+      - paymentId
+      - chargeRequestId
+      - customerRef
+      - amount
+      - currency
+      - gatewayPaymentId
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        chargeRequestId:
+          $ref: '#/components/schemas/RequestReference'
+        customerRef:
+          $ref: '#/components/schemas/CustomerRef'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        gatewayPaymentId:
+          type: string
+    PaymentActionRequiredPayload:
+      type: object
+      required:
+      - paymentId
+      - chargeRequestId
+      - customerRef
+      - amount
+      - currency
+      - customerAction
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        chargeRequestId:
+          $ref: '#/components/schemas/RequestReference'
+        customerRef:
+          $ref: '#/components/schemas/CustomerRef'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        customerAction:
+          type: object
+          additionalProperties: true
+    PaymentCapturedPayload:
+      type: object
+      required:
+      - paymentId
+      - chargeRequestId
+      - customerRef
+      - amount
+      - currency
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        chargeRequestId:
+          $ref: '#/components/schemas/RequestReference'
+        customerRef:
+          $ref: '#/components/schemas/CustomerRef'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+    PaymentFailedPayload:
+      type: object
+      required:
+      - paymentId
+      - chargeRequestId
+      - customerRef
+      - amount
+      - currency
+      - failureReason
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        chargeRequestId:
+          $ref: '#/components/schemas/RequestReference'
+        customerRef:
+          $ref: '#/components/schemas/CustomerRef'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        failureReason:
+          $ref: '#/components/schemas/FailureReason'
+    PaymentCanceledPayload:
+      type: object
+      required:
+      - paymentId
+      - chargeRequestId
+      - customerRef
+      - amount
+      - currency
+      - requested
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        chargeRequestId:
+          $ref: '#/components/schemas/RequestReference'
+        customerRef:
+          $ref: '#/components/schemas/CustomerRef'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        requested:
+          type: boolean
+          description: true si la anulación la pidió el consumidor o venció el plazo del 3DS; false si la pasarela
+            la cerró por su cuenta (autorización expirada, 3DS caducado).
+    PaymentRefundedPayload:
+      type: object
+      required:
+      - paymentId
+      - chargeRequestId
+      - customerRef
+      - refundRequestId
+      - refundAmount
+      - refundedAmount
+      - currency
+      - status
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        chargeRequestId:
+          $ref: '#/components/schemas/RequestReference'
+        customerRef:
+          $ref: '#/components/schemas/CustomerRef'
+        refundRequestId:
+          $ref: '#/components/schemas/RequestReference'
+        refundAmount:
+          allOf:
+          - $ref: '#/components/schemas/Amount'
+          description: Importe de esta devolución.
+        refundedAmount:
+          type: number
+          description: Total devuelto del cobro tras esta devolución.
+        currency:
+          $ref: '#/components/schemas/CurrencyCode'
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+    PaymentActionRejectedPayload:
+      type: object
+      required:
+      - paymentId
+      - chargeRequestId
+      - customerRef
+      - action
+      - status
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        chargeRequestId:
+          $ref: '#/components/schemas/RequestReference'
+        customerRef:
+          $ref: '#/components/schemas/CustomerRef'
+        action:
+          type: string
+          enum:
+          - capture
+          - cancel
+          - refund
+        refundRequestId:
+          anyOf:
+          - $ref: '#/components/schemas/RequestReference'
+          - type: 'null'
+          description: Solo cuando action es refund.
+        refundAmount:
+          anyOf:
+          - $ref: '#/components/schemas/Amount'
+          - type: 'null'
+          description: Importe de la devolución rechazada; solo cuando action es refund.
+        status:
+          allOf:
+          - $ref: '#/components/schemas/PaymentStatus'
+          description: Estado al que volvió el cobro.
+    Amount:
+      type: number
+      minimum: 0.001
+      multipleOf: 0.001
+      description: Importe en unidades mayores de la moneda (12.50), siempre positivo. La escala admite hasta 3
+        decimales; cuántos admite de verdad lo fija la moneda (ISO 4217), y se valida en cada operación.
+    CurrencyCode:
+      type: string
+      pattern: ^[A-Z]{3}$
+      description: Código de moneda ISO 4217 en mayúsculas.
+    CustomerRef:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: 'Referencia opaca del titular, asignada por el servidor consumidor (p. ej. el sub del usuario).
+        Este servicio no conoce usuarios: solo compara referencias.'
+    FailureReason:
+      type: string
+      enum:
+      - declined
+      - insufficientFunds
+      - expiredCard
+      - authenticationFailed
+      - fraudSuspected
+      - invalidPaymentMethod
+      - notReceived
+      - processingError
+      description: Vocabulario neutro de Keel para el motivo de fallo de un cobro; cada pasarela se traduce a él.
+    PaymentStatus:
+      type: string
+      enum:
+      - pending
+      - actionRequired
+      - authorized
+      - capturing
+      - canceling
+      - captured
+      - refunding
+      - refunded
+      - canceled
+      - failed
+    RequestReference:
+      type: string
+      minLength: 1
+      maxLength: 100
+      pattern: ^[A-Za-z0-9._:-]+$
+      description: Clave de negocio con la que el servidor consumidor identifica una petición (de cobro o de devolución).
+        La elige el consumidor y es la guarda contra la doble ejecución.
+  correlationIds:
+    keelCorrelationId:
+      description: Correlación end-to-end estampada en la envoltura Keel.
+      location: $message.payload#/metadata/correlationId

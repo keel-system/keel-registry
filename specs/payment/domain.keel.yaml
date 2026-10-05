@@ -1,0 +1,154 @@
+# Capa domain — modelado del dominio: value types, entidades, relaciones, ciclo de vida e invariantes.
+# Cero tecnología: nada de tablas, ORMs ni frameworks.
+
+types:
+  RequestReference:
+    base: string
+    description: >-
+      Clave de negocio con la que el servidor consumidor identifica una petición (de cobro o de
+      devolución). La elige el consumidor y es la guarda contra la doble ejecución.
+    constraints: { minLength: 1, maxLength: 100, pattern: "^[A-Za-z0-9._:-]+$" }
+
+  CustomerRef:
+    base: string
+    description: >-
+      Referencia opaca del titular, asignada por el servidor consumidor (p. ej. el sub del usuario).
+      Este servicio no conoce usuarios: solo compara referencias.
+    constraints: { minLength: 1, maxLength: 200 }
+
+  Amount:
+    base: decimal
+    description: >-
+      Importe en unidades mayores de la moneda (12.50), siempre positivo. La escala admite hasta 3
+      decimales; cuántos admite de verdad lo fija la moneda (ISO 4217), y se valida en cada operación.
+    constraints: { min: 0.001, scale: 3, scalePolicy: reject }
+
+  CurrencyCode:
+    base: string
+    description: Código de moneda ISO 4217 en mayúsculas.
+    constraints: { pattern: "^[A-Z]{3}$" }
+
+  PaymentStatus:
+    values: [pending, actionRequired, authorized, capturing, canceling, captured, refunding, refunded, canceled, failed]
+
+  FailureReason:
+    description: Vocabulario neutro de Keel para el motivo de fallo de un cobro; cada pasarela se traduce a él.
+    values: [declined, insufficientFunds, expiredCard, authenticationFailed, fraudSuspected, invalidPaymentMethod, notReceived, processingError]
+
+  RefundStatus:
+    values: [pending, succeeded, failed]
+
+  PaymentMethodStatus:
+    values: [active, removed]
+
+  CardDetails:
+    description: Resumen visible de una tarjeta guardada; nunca incluye el número completo.
+    fields:
+      brand:    { type: string, required: true, constraints: { maxLength: 30 }, description: "Red de la tarjeta tal como la informa la pasarela (visa, mastercard…)." }
+      last4:    { type: string, required: true, constraints: { pattern: "^[0-9]{4}$" } }
+      expMonth: { type: int, required: true, constraints: { min: 1, max: 12 } }
+      expYear:  { type: int, required: true, constraints: { min: 2000, max: 2100 } }
+
+entities:
+  Payment:
+    description: >-
+      Un cobro con tarjeta pedido por un servidor consumidor: se autoriza, se captura o se anula, y
+      admite devoluciones parciales. Es la memoria del servicio frente a la pasarela.
+    fields:
+      id:               { type: uuid, id: true, generated: true }
+      chargeRequestId:  { type: RequestReference, required: true, unique: true, description: Clave de negocio del cobro; dos peticiones con la misma son el mismo cobro. }
+      customerRef:      { type: CustomerRef, required: true, description: Titular del cobro. }
+      amount:           { type: Amount, required: true, description: "Importe autorizado; al capturar se cobra entero. Lo fija el servidor consumidor, que es de confianza: el servicio no lo contrasta con nada." }
+      currency:         { type: CurrencyCode, required: true }
+      status:           { type: PaymentStatus, default: pending }
+      gatewayPaymentId: { type: string, constraints: { maxLength: 255 }, description: Id que asigna la pasarela; vacío mientras no ha contestado. }
+      awaitingSince:    { type: timestamp, description: Desde cuándo espera sin respuesta un desenlace de la pasarela; solo tiene valor en estados de espera. }
+      failureReason:    { type: FailureReason, description: Por qué falló el cobro; solo en failed. }
+      customerAction:   { type: json, description: "Acción opaca que el cliente debe completar (3DS); en actionRequired, y se conserva mientras se anula un cobro que venía de actionRequired." }
+      actionRequiredSince: { type: timestamp, description: "Desde cuándo espera el cobro la autenticación del cliente; lo estampa la entrada en actionRequired y no lo renuevan las consultas del barrido. Es el reloj del plazo del 3DS." }
+      cancelOrigin:     { type: enum, values: [authorized, actionRequired], description: "Estado del que salió el cobro al entrar en canceling; solo en canceling. Es a donde vuelve si la pasarela rechaza la anulación." }
+      paymentMethodId:  { type: uuid, description: "Medio guardado con el que se cobró; vacío si se cobró con un token de un solo uso. Es un valor y no una relación: el medio vive dentro del agregado Wallet." }
+      refundedAmount:   { type: decimal, computed: Suma de los importes de las devoluciones del cobro en estado succeeded; cero si no hay ninguna. }
+      createdAt:        { type: timestamp, generated: true }
+      updatedAt:        { type: timestamp, generated: true }
+    relations:
+      refunds: { entity: Refund, cardinality: one-to-many, description: Devoluciones pedidas sobre el cobro. }
+    lifecycle:
+      field: status
+      transitions:
+        pending:        [authorized, actionRequired, failed, canceled]
+        actionRequired: [authorized, failed, canceling, canceled]
+        authorized:     [capturing, canceling, canceled]
+        capturing:      [captured, authorized, canceled]
+        canceling:      [canceled, authorized, actionRequired, failed]
+        captured:       [refunding]
+        refunding:      [captured, refunded]
+        refunded:       []
+        canceled:       []
+        failed:         []
+    invariants:
+      - awaitingSince tiene valor si y solo si el cobro está en pending, actionRequired, capturing, canceling o refunding.
+      - customerAction tiene valor si y solo si el cobro está en actionRequired, o en canceling con cancelOrigin actionRequired.
+      - cancelOrigin tiene valor si y solo si el cobro está en canceling.
+      - actionRequiredSince tiene valor si y solo si el cobro está en actionRequired, o en canceling con cancelOrigin actionRequired.
+      - failureReason tiene valor si y solo si el cobro está en failed.
+      - Si el cobro tiene paymentMethodId, el medio pertenece al Wallet cuyo customerRef es el del cobro.
+      - refundedAmount nunca supera amount.
+      - Un cobro está en refunded si y solo si refundedAmount es igual a amount.
+      - Un cobro tiene como mucho una devolución en pending, y solo mientras está en refunding.
+      - La moneda de un cobro no cambia nunca después de crearlo.
+      - Los decimales de amount no superan los de la moneda según ISO 4217 (JPY 0, EUR 2, KWD 3).
+
+  Refund:
+    description: Una devolución, total o parcial, de un cobro capturado.
+    fields:
+      id:              { type: uuid, id: true, generated: true }
+      refundRequestId: { type: RequestReference, required: true, unique: true, description: Clave de negocio de la devolución; dos peticiones con la misma son la misma devolución. }
+      amount:          { type: Amount, required: true, description: "Importe pedido; si la pasarela informa al completarla un importe devuelto distinto, se guarda el informado." }
+      reason:          { type: string, constraints: { maxLength: 200 }, description: "Motivo libre que informa el consumidor, para su propio rastro." }
+      status:          { type: RefundStatus, default: pending }
+      createdAt:       { type: timestamp, generated: true }
+      updatedAt:       { type: timestamp, generated: true }
+    relations:
+      payment: { entity: Payment, cardinality: many-to-one, required: true, description: Cobro al que pertenece. }
+    invariants:
+      - "El status de una devolución lo gobierna la raíz: nace en pending al entrar el cobro en refunding, y pasa a succeeded o failed en el mismo cambio en que el cobro sale de refunding."
+      - Una devolución en succeeded o failed no vuelve a cambiar de status.
+      - Los decimales del amount de una devolución no superan los de la moneda del cobro.
+      - La suma de los amount de las devoluciones succeeded y pending de un cobro nunca supera el amount del cobro.
+
+  Wallet:
+    description: Los medios de pago guardados de un titular. Nace con el primer medio que se le guarda.
+    fields:
+      id:          { type: uuid, id: true, generated: true }
+      customerRef: { type: CustomerRef, required: true, unique: true }
+    relations:
+      paymentMethods: { entity: PaymentMethod, cardinality: one-to-many, description: "Medios guardados del titular, activos y retirados." }
+    invariants:
+      - Un Wallet tiene como mucho 10 medios en active.
+      - Un Wallet tiene como mucho un medio active con isDefault a true.
+
+  PaymentMethod:
+    description: Un medio de pago guardado de un titular, para cobrarle sin que esté presente.
+    fields:
+      id:               { type: uuid, id: true, generated: true }
+      gatewayMethodRef: { type: string, required: true, sensitive: true, constraints: { maxLength: 255 }, description: Referencia opaca del medio en la pasarela; nunca sale del servicio. }
+      card:             { type: CardDetails, required: true }
+      isDefault:        { type: boolean, default: false, description: Medio preferente del titular. }
+      status:           { type: PaymentMethodStatus, default: active }
+      expired:          { type: boolean, computed: "true si card.expYear y card.expMonth son anteriores al mes en curso en UTC; la tarjeta vale hasta el último día de su mes de caducidad." }
+    relations:
+      wallet: { entity: Wallet, cardinality: many-to-one, required: true, description: Wallet del titular al que pertenece. }
+    invariants:
+      - "El status de un medio lo gobierna su Wallet: pasa de active a removed al retirarlo, y removed es terminal."
+      - Un medio removed nunca tiene isDefault a true.
+
+aggregates:
+  Payment:
+    description: El cobro y sus devoluciones cambian juntos; lo devuelto se valida contra lo cobrado en la misma transacción.
+    root: Payment
+    entities: [Refund]
+  Wallet:
+    description: Los medios de un titular cambian juntos; el medio por defecto y el tope se validan en una sola transacción.
+    root: Wallet
+    entities: [PaymentMethod]

@@ -1,0 +1,43 @@
+# Capa security — autenticación y autorización.
+# Agnóstica del proveedor: se declara el protocolo, nunca el producto.
+# Un solo público: los servidores de la aplicación consumidora, con client_credentials. No hay
+# usuarios humanos ni roles: el comprador nunca llama a este servicio.
+
+authentication:
+  protocol: oidc
+  tokenLocation: header
+  serviceAuth:
+    protocol: client-credentials
+    validateAudience: true
+    audience: payment
+    description: "Los servidores se autentican con client_credentials y el token tiene que estar emitido para esta audiencia."
+
+permissions:
+  payment:charge:        { description: "Pedir cobros, capturarlos y anularlos." }
+  payment:refund:        { description: "Devolver, total o parcialmente, lo cobrado." }
+  payment:read:          { description: "Consultar cobros y sus devoluciones." }
+  payment-method:write:  { description: "Guardar medios de pago, marcar el preferente y retirarlos." }
+  payment-method:read:   { description: "Listar los medios guardados de un titular." }
+
+serviceClients:
+  checkout:
+    description: "Backend del checkout de la aplicación: cobra, captura o anula y gestiona los medios del titular. No devuelve dinero."
+    scopes: [payment:charge, payment:read, payment-method:write, payment-method:read]
+  backoffice:
+    description: "Backend de atención al cliente: consulta cobros y hace devoluciones."
+    scopes: [payment:read, payment:refund]
+
+access:
+  default: { level: service, scopes: [payment:read] }
+  rules:
+    requestCharge:             { level: service, scopes: [payment:charge] }
+    capturePayment:            { level: service, scopes: [payment:charge] }
+    cancelPayment:             { level: service, scopes: [payment:charge] }
+    refundPayment:             { level: service, scopes: [payment:refund] }
+    getPayment:                { level: service, scopes: [payment:read] }
+    getPaymentByChargeRequest: { level: service, scopes: [payment:read] }
+    listPaymentsByCustomer:    { level: service, scopes: [payment:read] }
+    savePaymentMethod:         { level: service, scopes: [payment-method:write] }
+    setDefaultPaymentMethod:   { level: service, scopes: [payment-method:write] }
+    removePaymentMethod:       { level: service, scopes: [payment-method:write] }
+    listPaymentMethods:        { level: service, scopes: [payment-method:read] }

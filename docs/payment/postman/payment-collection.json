@@ -1,0 +1,2814 @@
+{
+  "info": {
+    "name": "payment — flujos y operaciones",
+    "description": "Derivada de specs/payment v0.1.0. Importa antes auth-collection.json.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "FL-MTH-001 — se guarda el primer medio de un titular, y su repetición",
+      "item": [
+        {
+          "name": "FL-MTH-001 · A — Guardar el primer medio (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m1"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-1\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-001 · B — Listar los medios del titular (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods?customerRef=cus-1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-001 · C — Repetir con la misma clave (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m1"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-1\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-001 · D — Misma clave, otro cuerpo (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m1"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-1\",\n  \"paymentToken\": \"{{paymentToken}}\",\n  \"makeDefault\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-001 · E — Sin Idempotency-Key (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-1\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-MTH-002 — el mismo guardado a la vez",
+      "item": [
+        {
+          "name": "FL-MTH-002 · A — Guardar (una de las dos peticiones simultáneas) (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m2"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-2\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-MTH-003 — varios medios, el preferente y la retirada",
+      "item": [
+        {
+          "name": "FL-MTH-003 · A — Guardar un segundo medio por defecto (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m3"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-1\",\n  \"paymentToken\": \"{{paymentToken}}\",\n  \"makeDefault\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-003 · B — Marcar el primero como preferente (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods/{{paymentMethodId}}/default",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-003 · C — Retirar el primero (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods/{{paymentMethodId}}?customerRef=cus-1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-003 · D — Marcar como preferente un medio retirado (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods/{{paymentMethodId}}/default",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-003 · E — Retirar el medio de otro titular (404)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods/{{otherPaymentMethodId}}?customerRef=cus-9"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-MTH-004 — lo que no se puede guardar",
+      "item": [
+        {
+          "name": "FL-MTH-004 · A — Titular con 10 medios (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m4a"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-3\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-004 · B — La pasarela rechaza el medio (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m4b"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-4\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-004 · C — La pasarela exige autenticación (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m4c"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-4\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-004 · D — La pasarela no contesta (503)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m4d"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-4\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 503', () => pm.response.to.have.status(503));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CHG-001 — un cobro con el cliente presente se autoriza",
+      "item": [
+        {
+          "name": "FL-CHG-001 · A — Pedir el cobro (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-001\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 25.9,\n  \"currency\": \"EUR\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-001 · B — Leer el cobro por id (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-001 · C — Leer el cobro por su clave (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/by-charge-request/ch-001"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CHG-002 — la pasarela rechaza el cobro",
+      "item": [
+        {
+          "name": "FL-CHG-002 · A — Cobro rechazado por fondos insuficientes (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-002\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 40.0,\n  \"currency\": \"EUR\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-002 · B — Capturar un cobro fallido (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-002 · C — Moneda que la pasarela no admite (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-003\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 5000,\n  \"currency\": \"XAF\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CHG-003 — la pasarela pide autenticar al cliente",
+      "item": [
+        {
+          "name": "FL-CHG-003 · A — Cobro que exige 3DS (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-010\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 60.0,\n  \"currency\": \"EUR\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-003 · B — Leer el cobro en actionRequired (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CHG-004 — la misma petición de cobro otra vez",
+      "item": [
+        {
+          "name": "FL-CHG-004 · A — Cobro con medio guardado (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-020\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 15.0,\n  \"currency\": \"EUR\",\n  \"paymentMethodId\": \"{{paymentMethodId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-004 · B — Repetir la misma petición (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-020\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 15.0,\n  \"currency\": \"EUR\",\n  \"paymentMethodId\": \"{{paymentMethodId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-004 · C — Misma clave, otro importe (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-020\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 16.0,\n  \"currency\": \"EUR\",\n  \"paymentMethodId\": \"{{paymentMethodId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-004 · D — La clave distingue mayúsculas (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/by-charge-request/CH-020"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CHG-005 — la misma petición de cobro a la vez",
+      "item": [
+        {
+          "name": "FL-CHG-005 · A — Pedir el cobro (una de las dos peticiones simultáneas) (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-030\",\n  \"customerRef\": \"cus-5\",\n  \"amount\": 9.99,\n  \"currency\": \"EUR\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-005 · B — Contar los cobros del titular (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments?customerRef=cus-5&page=0&size=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CHG-006 — las peticiones de cobro que se rechazan",
+      "item": [
+        {
+          "name": "FL-CHG-006 · A — Sin fuente de pago (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-040\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 10.0,\n  \"currency\": \"EUR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-006 · B — Moneda desconocida (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-042\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 10.0,\n  \"currency\": \"ZZZ\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-006 · C — Demasiados decimales (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-043\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 10.555,\n  \"currency\": \"EUR\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-006 · D — Medio de otro titular (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-045\",\n  \"customerRef\": \"cus-2\",\n  \"amount\": 10.0,\n  \"currency\": \"EUR\",\n  \"paymentMethodId\": \"{{paymentMethodId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-CHG-006 · E — Tres decimales en KWD (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-048\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 1.234,\n  \"currency\": \"KWD\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CHG-007 — un cobro con un medio guardado",
+      "item": [
+        {
+          "name": "FL-CHG-007 · A — Cobrar con el medio guardado (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-050\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 30.0,\n  \"currency\": \"EUR\",\n  \"paymentMethodId\": \"{{paymentMethodId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-STL-001 — se captura un cobro autorizado, y la captura repetida",
+      "item": [
+        {
+          "name": "FL-STL-001 · A — Capturar (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-001 · B — Repetir la captura (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-STL-002 — lo que no se puede capturar",
+      "item": [
+        {
+          "name": "FL-STL-002 · A — Capturar un cobro en pending (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-002 · B — Capturar un cobro inexistente (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{unknownId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-002 · C — Autorización caducada (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{expiredPaymentId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-002 · D — La pasarela rechaza la captura (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{rejectedPaymentId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-STL-003 — se anula una autorización",
+      "item": [
+        {
+          "name": "FL-STL-003 · A — Anular (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-003 · B — Repetir la anulación (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-003 · C — La pasarela rechaza la anulación (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{rejectedPaymentId}}/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-003 · D — Anular un cobro capturado (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{capturedPaymentId}}/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-003 · E — Anular un cobro inexistente (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{unknownId}}/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-STL-004 — se anula un cobro que espera la autenticación del cliente",
+      "item": [
+        {
+          "name": "FL-STL-004 · A — Anular un cobro en actionRequired (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-004 · B — La pasarela rechaza la anulación (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{rejectedPaymentId}}/cancel"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-STL-005 — devoluciones parciales hasta devolverlo todo",
+      "item": [
+        {
+          "name": "FL-STL-005 · A — Devolver una parte (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-001\",\n  \"amount\": 10.0,\n  \"reason\": \"Línea devuelta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-005 · B — Repetir la misma devolución (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-001\",\n  \"amount\": 10.0,\n  \"reason\": \"Línea devuelta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-005 · C — Misma clave, otro importe (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-001\",\n  \"amount\": 5.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-005 · D — Devolver el resto (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-002\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-005 · E — Devolver un cobro ya devuelto (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-003\",\n  \"amount\": 1.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-005 · F — Capturar un cobro devuelto (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-STL-006 — lo que no se puede devolver",
+      "item": [
+        {
+          "name": "FL-STL-006 · A — Supera lo que queda (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-010\",\n  \"amount\": 20.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-006 · B — Demasiados decimales (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-011\",\n  \"amount\": 1.005\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-006 · C — La pasarela rechaza la devolución (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{rejectedPaymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-013\",\n  \"amount\": 5.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-006 · D — Devolver un cobro autorizado (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{authorizedPaymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-014\",\n  \"amount\": 1.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-006 · E — Devolver un cobro inexistente (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{unknownId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-015\",\n  \"amount\": 1.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-006 · F — Devolver con la credencial de checkout (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-016\",\n  \"amount\": 1.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-STL-007 — dos acciones sobre el mismo cobro a la vez",
+      "item": [
+        {
+          "name": "FL-STL-007 · A — Capturar (en carrera con la anulación) (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-STL-008 — el aviso de la pasarela",
+      "item": [
+        {
+          "name": "FL-STL-008 · A — Leer el cobro cuya autorización caducó (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-STL-009 — el aviso adelanta a la respuesta de la captura",
+      "item": [
+        {
+          "name": "FL-STL-009 · A — Capturar (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-QRY-001 — los cobros de un titular, paginados",
+      "item": [
+        {
+          "name": "FL-QRY-001 · A — Primera página (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments?customerRef=cus-7&page=0&size=2"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-QRY-001 · B — Segunda página (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments?customerRef=cus-7&page=1&size=2"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-QRY-001 · C — Página fuera de rango (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments?customerRef=cus-7&page=5&size=2"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-QRY-001 · D — Tope maxSize (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments?customerRef=cus-7&page=0&size=500"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-QRY-002 — leer un cobro que no existe",
+      "item": [
+        {
+          "name": "FL-QRY-002 · A — Por id (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{unknownId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-QRY-002 · B — Por clave (404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/by-charge-request/ch-999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-QRY-002 · C — Id que no es uuid (400)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/no-es-un-uuid"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-REC-001 — un cobro sin respuesta se resuelve preguntando",
+      "item": [
+        {
+          "name": "FL-REC-001 · A — Cobro sin respuesta de la pasarela (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-300\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 12.0,\n  \"currency\": \"EUR\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REC-001 · B — Leer el cobro tras el barrido (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-REC-002 — acciones cuya respuesta se pierde, o que la pasarela nunca recibió",
+      "item": [
+        {
+          "name": "FL-REC-002 · A — Captura sin respuesta (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/capture"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REC-002 · B — Leer el cobro tras el barrido (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-REC-003 — el cobro que espera al cliente demasiado tiempo",
+      "item": [
+        {
+          "name": "FL-REC-003 · A — Leer el cobro anulado por el plazo (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-REC-004 — se rescata lo que otra réplica dejó en vuelo, y lo reciente no se toca",
+      "item": [
+        {
+          "name": "FL-REC-004 · A — Leer el cobro rescatado (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-REC-005 — la pasarela que no contesta nunca",
+      "item": [
+        {
+          "name": "FL-REC-005 · A — Leer el cobro que sigue en pending (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-CLU-001 — con dos réplicas, cada cobro en duda se pregunta una vez",
+      "item": [
+        {
+          "name": "FL-CLU-001 · A — Leer uno de los cinco cobros (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-OBX-001 — el desenlace sobrevive a un canal indisponible",
+      "item": [
+        {
+          "name": "FL-OBX-001 · A — Cobro con el canal indisponible (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-500\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 10.0,\n  \"currency\": \"EUR\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-OBX-001 · B — Leer el cobro (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-OBX-002 — el desenlace que el relay abandona no se pierde en silencio",
+      "item": [
+        {
+          "name": "FL-OBX-002 · A — Cobro con el canal indisponible (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-501\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 10.0,\n  \"currency\": \"EUR\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FL-SEC-001 — sin credencial, sin scope y con otra audiencia",
+      "item": [
+        {
+          "name": "FL-SEC-001 · A — Sin credencial (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · B — backoffice pide un cobro (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeRequestId\": \"ch-600\",\n  \"customerRef\": \"cus-1\",\n  \"amount\": 10.0,\n  \"currency\": \"EUR\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · C — backoffice lista medios (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods?customerRef=cus-1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-SEC-001 · D — Token de otra audiencia (403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_other-audience}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "keelVersion",
+      "value": "0.1.0"
+    },
+    {
+      "key": "paymentToken",
+      "value": ""
+    },
+    {
+      "key": "paymentId",
+      "value": ""
+    },
+    {
+      "key": "paymentMethodId",
+      "value": ""
+    },
+    {
+      "key": "otherPaymentMethodId",
+      "value": ""
+    },
+    {
+      "key": "unknownId",
+      "value": "00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "key": "expiredPaymentId",
+      "value": ""
+    },
+    {
+      "key": "rejectedPaymentId",
+      "value": ""
+    },
+    {
+      "key": "capturedPaymentId",
+      "value": ""
+    },
+    {
+      "key": "authorizedPaymentId",
+      "value": ""
+    }
+  ]
+}

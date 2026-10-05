@@ -1,0 +1,42 @@
+# Capa payments — cobros con tarjeta a través de una pasarela.
+# La pasarela no se nombra: se elige al generar, como el broker.
+
+description: >-
+  Cobra con tarjeta los importes que le piden los servidores de la aplicación: autoriza y captura
+  después (o anula), devuelve en una o varias veces, admite la autenticación del cliente (3DS) y cobra
+  medios guardados del titular sin que esté presente.
+flow: authorize-capture
+capabilities: [partial-refund, customer-action, off-session]
+
+record:
+  entity: Payment
+  gatewayRef: gatewayPaymentId
+  awaitingSince: awaitingSince
+  failureReason: failureReason
+  customerAction: customerAction
+
+charge:
+  operation: requestCharge
+  reference: chargeRequestId
+  amount: amount
+  currency: { input: currency }
+  source:
+    token: paymentToken
+    saved: paymentMethodId
+
+capture: { operation: capturePayment, inFlight: capturing }
+void: { operation: cancelPayment, inFlight: canceling }
+refund: { operation: refundPayment, amount: amount, inFlight: refunding }
+savePaymentMethod: { operation: savePaymentMethod, token: paymentToken, exposedAs: id }
+
+outcomes:
+  authorized: markAuthorized
+  captured: markCaptured
+  failed: markFailed
+  actionRequired: markActionRequired
+  refunded: markRefunded
+  canceled: markCanceled
+
+reconciliation:
+  sweep: sweepPendingPayments
+  unansweredAfterSeconds: 900

@@ -1,0 +1,30 @@
+# Capa api — integración con el cliente: exposición REST de las operaciones.
+# La seguridad de estos endpoints se declara en security.keel.yaml, no aquí.
+# Toda la superficie es servidor-a-servidor: el navegador del comprador solo produce el token de la
+# pasarela y se lo entrega a su propio backend, que es quien llama a este servicio.
+
+style: rest
+basePath: /api/v1
+defaultAudience: services
+
+endpoints:
+  # Cobros
+  requestCharge:             { method: POST,   path: /payments, successStatus: 201 }
+  getPayment:                { method: GET,    path: "/payments/{id}" }
+  getPaymentByChargeRequest: { method: GET,    path: "/payments/by-charge-request/{chargeRequestId}" }
+  listPaymentsByCustomer:    { method: GET,    path: /payments }
+  capturePayment:            { method: POST,   path: "/payments/{id}/capture", successStatus: 200 }
+  cancelPayment:             { method: POST,   path: "/payments/{id}/cancel", successStatus: 200 }
+  refundPayment:             { method: POST,   path: "/payments/{id}/refunds", successStatus: 200 }
+
+  # Medios guardados (el titular viaja en el cuerpo o en la query, nunca en la ruta:
+  # customerRef es opaco y puede contener caracteres que no sobreviven a un segmento de ruta)
+  savePaymentMethod:         { method: POST,   path: /payment-methods, successStatus: 201 }
+  listPaymentMethods:        { method: GET,    path: /payment-methods }
+  setDefaultPaymentMethod:   { method: POST,   path: "/payment-methods/{paymentMethodId}/default", successStatus: 200 }
+  removePaymentMethod:       { method: DELETE, path: "/payment-methods/{paymentMethodId}", successStatus: 204 }
+
+pagination:
+  style: offset
+  defaultSize: 20
+  maxSize: 100

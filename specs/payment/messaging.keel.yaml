@@ -1,0 +1,92 @@
+# Capa messaging — eventos que publica el servicio.
+# Canales lógicos y agnósticos del broker: se materializan en topic/cola al generar.
+#
+# Solo publica; no se suscribe a nada (los cobros se piden por HTTP). Cada evento es un desenlace del
+# cobro, publicado por la operación que lo aplica, venga de la respuesta de la pasarela, de su aviso o
+# del barrido. Llevan el estado del hecho para que el consumidor decida sin volver a llamar.
+
+channels:
+  paymentEvents:
+    description: "Desenlaces de los cobros y de sus acciones de seguimiento (captura, anulación, devolución)."
+
+publishing:
+  reliability: outbox
+  events:
+    PaymentAuthorized:
+      description: "La pasarela autorizó el cobro: el importe está retenido y se puede capturar o anular."
+      channel: paymentEvents
+      payload:
+        paymentId:        { type: uuid, required: true }
+        chargeRequestId:  { type: RequestReference, required: true }
+        customerRef:      { type: CustomerRef, required: true }
+        amount:           { type: Amount, required: true }
+        currency:         { type: CurrencyCode, required: true }
+        gatewayPaymentId: { type: string, required: true }
+
+    PaymentActionRequired:
+      description: "El cobro necesita que el cliente complete una acción (3DS). customerAction es opaca y la consume el componente de la pasarela en el navegador."
+      channel: paymentEvents
+      payload:
+        paymentId:       { type: uuid, required: true }
+        chargeRequestId: { type: RequestReference, required: true }
+        customerRef:     { type: CustomerRef, required: true }
+        amount:          { type: Amount, required: true }
+        currency:        { type: CurrencyCode, required: true }
+        customerAction:  { type: json, required: true }
+
+    PaymentCaptured:
+      description: "La pasarela capturó el cobro entero: está cobrado."
+      channel: paymentEvents
+      payload:
+        paymentId:       { type: uuid, required: true }
+        chargeRequestId: { type: RequestReference, required: true }
+        customerRef:     { type: CustomerRef, required: true }
+        amount:          { type: Amount, required: true }
+        currency:        { type: CurrencyCode, required: true }
+
+    PaymentFailed:
+      description: "El cobro falló; failureReason usa el vocabulario neutro (notReceived si la pasarela nunca lo conoció)."
+      channel: paymentEvents
+      payload:
+        paymentId:       { type: uuid, required: true }
+        chargeRequestId: { type: RequestReference, required: true }
+        customerRef:     { type: CustomerRef, required: true }
+        amount:          { type: Amount, required: true }
+        currency:        { type: CurrencyCode, required: true }
+        failureReason:   { type: FailureReason, required: true }
+
+    PaymentCanceled:
+      description: "La autorización quedó anulada, a petición del consumidor o porque la pasarela la expiró; no se cobrará."
+      channel: paymentEvents
+      payload:
+        paymentId:       { type: uuid, required: true }
+        chargeRequestId: { type: RequestReference, required: true }
+        customerRef:     { type: CustomerRef, required: true }
+        amount:          { type: Amount, required: true }
+        currency:        { type: CurrencyCode, required: true }
+        requested:       { type: boolean, required: true, description: "true si la anulación la pidió el consumidor o venció el plazo del 3DS; false si la pasarela la cerró por su cuenta (autorización expirada, 3DS caducado)." }
+
+    PaymentRefunded:
+      description: "La pasarela completó una devolución. status dice si el cobro quedó devuelto entero (refunded) o en parte (captured)."
+      channel: paymentEvents
+      payload:
+        paymentId:       { type: uuid, required: true }
+        chargeRequestId: { type: RequestReference, required: true }
+        customerRef:     { type: CustomerRef, required: true }
+        refundRequestId: { type: RequestReference, required: true }
+        refundAmount:    { type: Amount, required: true, description: "Importe de esta devolución." }
+        refundedAmount:  { type: decimal, required: true, description: "Total devuelto del cobro tras esta devolución." }
+        currency:        { type: CurrencyCode, required: true }
+        status:          { type: PaymentStatus, required: true }
+
+    PaymentActionRejected:
+      description: "La pasarela rechazó una captura, una anulación o una devolución; el cobro volvió al estado del que salió."
+      channel: paymentEvents
+      payload:
+        paymentId:       { type: uuid, required: true }
+        chargeRequestId: { type: RequestReference, required: true }
+        customerRef:     { type: CustomerRef, required: true }
+        action:          { type: enum, values: [capture, cancel, refund], required: true }
+        refundRequestId: { type: RequestReference, description: "Solo cuando action es refund." }
+        refundAmount:    { type: Amount, description: "Importe de la devolución rechazada; solo cuando action es refund." }
+        status:          { type: PaymentStatus, required: true, description: "Estado al que volvió el cobro." }

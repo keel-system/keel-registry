@@ -1,0 +1,91 @@
+reviewedAt: 0.1.0
+passes: 3
+scenariosSha256: 4f25ade717afee0fbccb75994188b734b4f84228be503c074bf62b4acf5869b2
+conventionsSha256: 116f612002c1113bed9ad9e5541429c3843e175df3e7c18763734d8bd325584b
+flows:
+- id: FL-MTH-001
+  sha256: 98a801a48e88d15deffe36c914547396973402aa9d57c17ab72e8f3558646104
+- id: FL-MTH-002
+  sha256: 9e0f3197e4522f6963cb40ce4a84c682783067842cbf277099881d5203384821
+- id: FL-MTH-003
+  sha256: 733c5407ae7f685453600648ec210decdb7dffb485ed68a274ed34147b57a74d
+- id: FL-MTH-004
+  sha256: c24d39ad078e339af55f30a06654eb9bd9b60ff4ea476e09f3e04b181eb91cf8
+- id: FL-CHG-001
+  sha256: 5ce709fab9a5d10a5548bb45f8b79307af7c34eaeabbd067e8b731f0e564b279
+- id: FL-CHG-002
+  sha256: e798fd8b3f67354fb481d2696f8326510e4cf14cbf9d303eaf05ec931d35acac
+- id: FL-CHG-003
+  sha256: 770d8493e3d05dcf32432d09f257e3ddc7b152c41b58ed4c095cb8d7fc405bf6
+- id: FL-CHG-004
+  sha256: 9af1e47488ab11725a1b767b3698d19e7fd42dffc1bc5b8c5c86b5603629084e
+- id: FL-CHG-005
+  sha256: f0bb16884133a51610c0a03b79962e26c65463b68027519c33e2431582f5fcd6
+- id: FL-CHG-006
+  sha256: e8402b67c382408d894d8be5b03ac2024adca870065146ed392f6503670db468
+- id: FL-CHG-007
+  sha256: 5e42ef00b8817e8103e0d59a9e87018456b5669d66ded555bf9fae0688c2ce54
+- id: FL-STL-001
+  sha256: 185933e6754bf8dbbdce23af1a69826901327a87ece179430af25d359cccf2ae
+- id: FL-STL-002
+  sha256: 4c3e9261a6c1084e73de0a733fb536b99bca57323e26b0c67ea997b48a1e9f75
+- id: FL-STL-003
+  sha256: c512cf07c399798b6a7001ffa345e076659f7b7fa2d4bd1d35d848185b0fcf37
+- id: FL-STL-004
+  sha256: a227e9a5a22253e0acbf4de1a3cee631c90c4ae7f835108d15b3f67623fe1f9f
+- id: FL-STL-005
+  sha256: f1dc5f1c5b00788e24e55b2e214f3d448a2367f4739a475419c27c530aa54911
+- id: FL-STL-006
+  sha256: 13962a77d1de316260856969563209d75b2cce5a8ee40158464ad3459370d3b4
+- id: FL-STL-007
+  sha256: ccf36405c0fd01026df8e2ef261405d61f5a457f9fc03051dab8f07ec788aef1
+- id: FL-STL-008
+  sha256: 92fb81417a6f4a9808de1ddc6589ae535a19c66f6261b12d4b0a0dd3f9df2707
+- id: FL-STL-009
+  sha256: d016cdc8d1e4b94f2ea2ae46a5759e8a390c5af2ec8987b49700dca96a4b859d
+- id: FL-QRY-001
+  sha256: dd61db0aa04c6a5d716c660ee79f187f9d83c65edafdea20d68d6a634a08c3d5
+- id: FL-QRY-002
+  sha256: c2a34b6b3b37321409e747be53b8f88233914fa5fcf49408744aa164168cc3ba
+- id: FL-REC-001
+  sha256: 261a7e03a4a5f64eff1c6e12f6a9ba1a0c263523e69e53c1386555c0ca461eec
+- id: FL-REC-002
+  sha256: 331815324bb45d5c22dc18ed11478572de86e1e1e9edf6fff6b6782ae7fc83b8
+- id: FL-REC-003
+  sha256: 30520ad098279eac3ce0725f6abc1e27e6658dff824bd6e5b3e09dd9b2aada7a
+- id: FL-REC-004
+  sha256: 3e285bcc09a51f33d2e39c42468d436ab910390f58d671ca2caf10c82ec19972
+- id: FL-REC-005
+  sha256: 647a66cb2bdfb8b59418636133f177958e1f3778e98d5ac2f101ad1df8591fdb
+- id: FL-CLU-001
+  sha256: 004089e7c5b483e93f3a6890e4fb94eb4f84067ed278dfcf56fef494fcf25b8a
+- id: FL-OBX-001
+  sha256: 6e147814164eceb5ac12dbd9013bbc20b960a29d4a70512542c1b329b2fb2efb
+- id: FL-OBX-002
+  sha256: 936a5d8dd9f89146a05fb46ca17f1beeb9d06ab6a0660d2e303d87d2df168a67
+- id: FL-SEC-001
+  sha256: aac68f2e76980ace5a8169d86286efc1ab1604a2120c7bdc4350afc825c9a12a
+findings:
+- flow: FL-REC-003
+  step: Then 3
+  kind: other
+  artifact: use-cases.cancelPayment.rules
+  evidence: 'El Then dice que ch-322, cuya anulación la pasarela contesta «el cliente falló la autenticación», termina
+    en failed con failureReason authenticationFailed y un PaymentFailed. El barrido pide esa anulación «como en
+    cancelPayment», y cancelPayment solo declara tres respuestas a una anulación: anula (markCanceled), no contesta
+    (se queda en canceling) o rechaza («el cobro vuelve al estado que dice cancelOrigin ..., se publica PaymentActionRejected
+    y responde CANCEL_REJECTED»). Una respuesta a la anulación que no anula se lee, según esas rules, como rechazo:
+    ch-322 volvería a actionRequired con awaitingSince renovado y un PaymentActionRejected (action cancel, status
+    actionRequired), no a failed. Que exista canceling -> failed en el lifecycle y en markFailed muestra la intención,
+    pero ninguna rule dice qué respuesta de la pasarela a una anulación se aplica con markFailed (la rule del barrido
+    «aplica el desenlace que diga la pasarela» habla de la consulta, no de la anulación).'
+  proposal: En el diseño, añadir a cancelPayment (y por tanto al barrido) que si la pasarela contesta a la anulación
+    que el cobro ya falló (p. ej. el cliente falló la autenticación), se aplica markFailed con ese motivo en vez
+    de tratarlo como rechazo; o, en el escenario, afirmar el camino del rechazo (vuelta a actionRequired y PaymentActionRejected)
+    si es lo que se quiere.
+  resolution: accepted
+  reason: 'El diseñador mantiene el escenario tal como está y corrige el diseño para sostenerlo: cancelPayment declara
+    ahora que, si la pasarela responde que el cobro ya terminó fallido (el cliente falló la autenticación), se aplica
+    markFailed con su motivo y responde 200 con el cobro en failed, usando la arista canceling → failed que ya existía.
+    Ese cambio del YAML no se ha careado porque el presupuesto de tres pasadas de la v0.1.0 estaba agotado; queda
+    registrado aquí para que la próxima versión lo carée.'

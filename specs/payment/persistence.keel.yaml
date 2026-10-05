@@ -1,0 +1,51 @@
+# Capa persistence — cómo se guarda el estado propio. Agnóstica del motor.
+#
+# Las claves naturales son las guardas permanentes contra la doble ejecución: chargeRequestId contra el
+# doble cargo y refundRequestId contra la doble devolución. No hay retención ni purga: un cobro es un
+# registro contable y vive indefinidamente.
+#
+# Las acciones que llaman a la pasarela escriben dos veces: confirman el estado en vuelo (pending,
+# capturing, canceling, refunding) en una transacción ANTES de llamar, y aplican el desenlace en otra
+# después. La frontera per-operation vale para cada una de las dos escrituras, con su fila de outbox.
+
+default:
+  model: relational
+
+entities:
+  Payment:
+    persisted: true
+    naturalKey: [chargeRequestId]
+    naturalKeyError: CHARGE_REQUEST_CONFLICT
+    indexes:
+      - [status, awaitingSince]      # el barrido: igualdad por estado y rango por la marca de espera
+      - [customerRef, createdAt]     # listPaymentsByCustomer, en su orden
+
+  Refund:
+    persisted: true
+    naturalKey: [refundRequestId]
+    naturalKeyError: REFUND_REQUEST_CONFLICT
+    indexes:
+      - [payment, createdAt]         # las devoluciones de un cobro, en su orden; refundedAmount y las guardas
+
+  Wallet:
+    persisted: true
+    naturalKey: [customerRef]
+    naturalKeyError: CONCURRENT_MODIFICATION
+
+  PaymentMethod:
+    persisted: true
+    indexes:
+      - [wallet, status]
+      - fields: [wallet]
+        unique: true
+        when: { field: isDefault, equals: true }
+        error: CONCURRENT_MODIFICATION
+        description: "Como mucho un medio por defecto por Wallet. Solo la viola una carrera que el bloqueo optimista no paró, y se responde como tal."
+
+audit:
+  timestamps: declared             # createdAt/updatedAt de Payment, visibles en el contrato
+  authorship: all                  # qué cliente máquina escribió cada fila, fuera del contrato
+
+consistency:
+  transactionalBoundary: per-operation   # la operación y su fila de outbox confirman juntas
+  optimisticLocking: all                 # Payment y Wallet: dos desenlaces o dos cambios no se pisan

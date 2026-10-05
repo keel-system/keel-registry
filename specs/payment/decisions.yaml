@@ -1,0 +1,203 @@
+# Decisiones del diseño: estructurales (tomadas por el diseñador, catálogo de /keel-design)
+# y obligaciones aceptadas por escrito (docs/design-obligations.md).
+# No forma parte del DSL: registra qué se decidió, qué se descartó y por qué.
+
+structural:
+  - section: '3.2'
+    scope: use-cases.requestCharge.idempotency
+    chosen: payload-field chargeRequestId
+    discarded: client-key con TTL; sin idempotencia
+    reason: >-
+      chargeRequestId es la clave natural única del cobro, así que la propia constraint es la guarda,
+      permanente y sin caducidad. Repetir con el mismo contenido devuelve el cobro en su estado actual
+      sin volver a llamar a la pasarela; con otro contenido, 409 CHARGE_REQUEST_CONFLICT. Una cabecera
+      con TTL añadiría una segunda guarda que caduca cuando ya hay una que no.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.capturePayment
+    chosen: idempotente por estado (capturing/captured se devuelven tal cual)
+    discarded: client-key con TTL; sin idempotencia (409 en el reintento)
+    reason: >-
+      El consumidor reintenta tras un timeout; sin esto recibiría 409 PAYMENT_NOT_CAPTURABLE aunque la
+      captura se hizo, y no sabría si cobró. La transición authorized → capturing es irrepetible, así que
+      la pasarela nunca recibe dos capturas, y la garantía no caduca.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.cancelPayment
+    chosen: idempotente por estado (canceling/canceled se devuelven tal cual)
+    discarded: client-key con TTL; sin idempotencia (409 en el reintento)
+    reason: Mismo criterio que la captura.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.refundPayment
+    chosen: clave natural refundRequestId de Refund (constraint permanente, sin bloque idempotency)
+    discarded: solo importe acumulado sin clave por devolución; almacén de claves con caducidad
+    reason: >-
+      Las devoluciones parciales pueden ser varias por cobro; sin una clave por devolución, el reintento
+      de una petición de devolución devolvería dos veces. Por eso cada devolución es una entidad Refund
+      con refundRequestId único, y esa constraint es la guarda: no caduca. Repetir con el mismo importe
+      devuelve el cobro en su estado actual; con otro, 409 REFUND_REQUEST_CONFLICT.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.savePaymentMethod.idempotency
+    chosen: client-key 86400
+    discarded: sin idempotencia
+    reason: >-
+      El token de la pasarela es de un solo uso: repetirlo fallaría con PAYMENT_METHOD_REJECTED o
+      guardaría la misma tarjeta dos veces en el Wallet. Con la clave, el reintento devuelve el medio ya
+      guardado.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases.getPayment.cache
+    chosen: sin caché
+    discarded: caché con TTL
+    reason: >-
+      El estado del cobro cambia por vías asíncronas (aviso de la pasarela, barrido) y el consumidor lo
+      consulta precisamente para saber si se resolvió; una respuesta rancia le haría servir un pedido no
+      cobrado o pedir el cobro otra vez.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases.getPaymentByChargeRequest.cache
+    chosen: sin caché
+    discarded: caché con TTL
+    reason: Mismo criterio que getPayment.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases.listPaymentsByCustomer.cache
+    chosen: sin caché
+    discarded: caché con TTL
+    reason: Mismo criterio que getPayment.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases.listPaymentMethods.cache
+    chosen: sin caché
+    discarded: caché 60s invalidada por eventos de medios
+    reason: Ahorra poco (volumen de lectura bajo) y obligaría a publicar eventos de medios solo para invalidarla.
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.defaultAudience
+    chosen: services (toda la superficie es M2M)
+    discarded: superficie para usuarios (SPA del titular gestionando sus tarjetas)
+    reason: >-
+      El servicio de pagos es infraestructura de la aplicación consumidora: el navegador del comprador
+      solo produce el token de la pasarela y se lo entrega a su propio backend, que es quien cobra. Sin
+      público humano no hay contratos de usuario que separar del de máquina.
+    since: 0.1.0
+  - section: '3.8'
+    scope: use-cases.listPaymentsByCustomer.output
+    chosen: paginated offset, defaultSize 20, maxSize 100, sort createdAt desc + id
+    discarded: 50/200
+    reason: >-
+      Un titular recurrente acumula cientos de cobros; 20/100 sirve igual a una pantalla de historial que
+      a un proceso que recorra el historial entero.
+    since: 0.1.0
+  - section: '3.7'
+    scope: persistence.consistency.transactionalBoundary
+    chosen: per-operation
+    discarded: per-aggregate
+    reason: >-
+      Hoy ninguna operación escribe dos agregados, así que coinciden; per-operation garantiza que una
+      operación futura que toque Payment y Wallet siga siendo atómica, con su fila de outbox, sin rediseñar.
+    since: 0.1.0
+  - section: '3.9'
+    scope: persistence.consistency.optimisticLocking
+    chosen: all
+    discarded: none (último gana)
+    reason: >-
+      Un aviso de la pasarela y el barrido pueden traer desenlaces distintos a la vez, y una captura y una
+      anulación pueden cruzarse: sin versión, el último pisaría al primero y el cobro quedaría en un estado
+      que la pasarela no tiene. En el Wallet, dos cambios de medio por defecto no pueden dejar dos. La
+      escritura obsoleta recibe 409 CONCURRENT_MODIFICATION.
+    since: 0.1.0
+  - section: '3.9b'
+    scope: persistence.audit.timestamps
+    chosen: declared
+    discarded: all
+    reason: >-
+      createdAt de Payment es contrato: ordena los cobros del titular y sale en la respuesta. Wallet,
+      PaymentMethod y Refund no necesitan fechas en el contrato.
+    since: 0.1.0
+  - section: '3.9b'
+    scope: persistence.audit.authorship
+    chosen: all
+    discarded: declared; none
+    reason: >-
+      Ante una disputa hay que poder responder qué cliente máquina (checkout o backoffice) hizo cada
+      escritura, sobre todo las devoluciones. No es contrato: no sale en las respuestas. Los desenlaces y
+      el barrido escriben el centinela del sistema.
+    since: 0.1.0
+  - section: '3.1'
+    scope: messaging.publishing.reliability
+    chosen: outbox
+    discarded: best-effort
+    reason: >-
+      Los eventos son desenlaces de dinero: el consumidor sirve pedidos o libera stock según ellos. Con
+      best-effort, un despliegue del broker en el instante equivocado deja un pedido esperando pago con el
+      cobro ya capturado, sin error ni traza.
+    since: 0.1.0
+
+  - section: '3.2'
+    scope: use-cases.setDefaultPaymentMethod
+    chosen: idempotente por naturaleza (fija un valor)
+    discarded: client-key
+    reason: Marcar como preferente un medio que ya lo es no cambia nada; el reintento produce el mismo estado y no publica nada.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.removePaymentMethod
+    chosen: idempotente por naturaleza (retirar uno ya retirado no hace nada)
+    discarded: client-key
+    reason: DELETE es idempotente por protocolo y la operación no sale del proceso; el reintento responde 204 sin efecto.
+    since: 0.1.0
+  - section: '3.8'
+    scope: use-cases.listPaymentMethods.output
+    chosen: sin paginar
+    discarded: paginated
+    reason: El Wallet tiene como mucho 10 medios active (invariante y PAYMENT_METHOD_LIMIT_REACHED); la colección tiene cota.
+    since: 0.1.0
+
+decisions:
+  - id: CHK-PERSIST-BOUNDARY-DEFAULT
+    scope: persistence.consistency.transactionalBoundary
+    reason: >-
+      per-operation es elección del diseñador, no la plantilla (ver structural § 3.7): hoy ninguna
+      operación escribe dos agregados, y si una futura lo hace, debe confirmar entera.
+    since: 0.1.0
+  - id: CHK-API-CREATED-NO-READ
+    scope: api.endpoints.savePaymentMethod
+    reason: >-
+      El alta de un medio responde 201 sin Location: el medio viaja completo en el cuerpo y el consumidor
+      lista los medios por titular. Una lectura por id existiría solo para servir la cabecera. Decidido
+      por el diseñador.
+    since: 0.1.0
+  - id: OBL-IDEM-RACE-CODE
+    scope: use-cases
+    reason: >-
+      En savePaymentMethod, dos peticiones simultáneas con la misma cabecera reciben el canónico 409
+      IDEMPOTENCY_KEY_IN_PROGRESS: es el mismo en todo servicio Keel. En requestCharge (y refundPayment) la
+      guarda es la clave natural, no un almacén de claves: la petición que choca relee el ganador y responde
+      como una repetición (mismo contenido) o con CHARGE_REQUEST_CONFLICT / REFUND_REQUEST_CONFLICT (otro
+      contenido); el consumidor nunca ve un 409 por su propio reintento. Decidido por el diseñador tras el
+      careo de flujos.
+    since: 0.1.0
+  - id: OBL-IDEM-REUSE-CODE
+    scope: use-cases
+    reason: >-
+      En savePaymentMethod, la misma cabecera con otro cuerpo recibe el canónico 409 IDEMPOTENCY_KEY_REUSED.
+      En requestCharge la reutilización ya tiene nombre de negocio declarado en errors: 409
+      CHARGE_REQUEST_CONFLICT (mismo chargeRequestId con otro contenido). Decidido por el diseñador.
+    since: 0.1.0
+  - id: OBL-CALLER-IDENTITY
+    scope: security
+    reason: >-
+      La identidad del llamante no entra en el trabajo. El servicio sirve a una sola aplicación: checkout y
+      backoffice son dos credenciales de la misma, ven los mismos cobros, y la credencial decide si se puede
+      llamar (scopes), no qué se ve. customerRef es dato de negocio que pone el consumidor, no identidad del
+      llamante. Quién escribió cada fila lo registra la auditoría (authorship: all). Decidido por el diseñador.
+    since: 0.1.0
+  - id: OBL-ENTITY-UNREACHABLE
+    scope: domain
+    reason: >-
+      Wallet no tiene operación propia: lo crea savePaymentMethod al guardar el primer medio de un titular
+      (rule de la operación) y lo leen las operaciones de medios por customerRef. No se expone porque para el
+      consumidor no es más que «los medios de un titular».
+    since: 0.1.0

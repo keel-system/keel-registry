@@ -1,0 +1,180 @@
+{
+  "info": {
+    "name": "payment — tokens",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Token — checkout (client_credentials)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_checkout}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_checkout}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scope_checkout}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_checkout', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — backoffice (client_credentials)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_backoffice}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_backoffice}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scope_backoffice}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_backoffice', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — other-audience (client_credentials)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_other-audience}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_other-audience}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_other-audience', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "tokenUrl",
+      "value": ""
+    },
+    {
+      "key": "clientId_checkout",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_checkout",
+      "value": ""
+    },
+    {
+      "key": "scope_checkout",
+      "value": "payment:charge payment:read payment-method:write payment-method:read"
+    },
+    {
+      "key": "clientId_backoffice",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_backoffice",
+      "value": ""
+    },
+    {
+      "key": "scope_backoffice",
+      "value": "payment:read payment:refund"
+    },
+    {
+      "key": "clientId_other-audience",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_other-audience",
+      "value": ""
+    }
+  ]
+}
