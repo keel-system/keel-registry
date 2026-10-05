@@ -214,9 +214,3 @@ decisions:
       y un reintento puede crear una segunda dirección (acotada por el límite de 20). Decidido por el
       diseñador para no romper a clientes que no la manden; el front propio la manda siempre.
     since: 0.1.0
-  - id: OBL-CONCURRENCY-CODE
-    scope: persistence
-    reason: >-
-      Se usa el canónico 409 CONCURRENT_MODIFICATION, y cada mutación del perfil lo declara en sus errors.
-      El índice único condicionado de la dirección predeterminada responde con el mismo code.
-    since: 0.1.0
