@@ -172,12 +172,6 @@ decisions:
       El diseñador acepta el código canónico 409 IDEMPOTENCY_KEY_REUSED para una clave reutilizada con
       un cuerpo distinto, por la misma homogeneidad entre servicios Keel.
     since: 0.1.0
-  - id: OBL-CONCURRENCY-CODE
-    scope: persistence
-    reason: >-
-      Una escritura sobre una versión obsoleta de Product, Brand o Category responde el canónico
-      409 CONCURRENT_MODIFICATION; el gestor reacciona igual en los tres casos (recargar y reintentar).
-    since: 0.1.0
   - id: OBL-CALLER-IDENTITY
     scope: security
     reason: >-
