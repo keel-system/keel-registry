@@ -1,0 +1,405 @@
+# Capa use-cases — correo transaccional monoinquilino.
+# El riesgo que gobierna todo el diseño: enviar el mismo correo dos veces a una persona real.
+# Por eso: idempotencia permanente por (requestedBy, idempotencyKey), un único emisor
+# (sendQueuedMessage) guardado por la transición queued → sending, y ningún reintento de envío.
+
+operations:
+  # ── Remitente ─────────────────────────────────────────────────────────────
+
+  configureSenderSettings:
+    description: Crea o reemplaza el remitente del servicio. Los mensajes ya aceptados conservan el remitente que congelaron.
+    kind: command
+    input:
+      fields:
+        senderAddress:  { type: EmailAddress, required: true }
+        senderName:     { type: string, constraints: { maxLength: 120 } }
+        replyToAddress: { type: EmailAddress }
+    output: { entity: SenderSettings }
+    rules:
+      - senderAddress y replyToAddress se normalizan a minúsculas.
+      - Si no existe SenderSettings se crea; si existe, se reemplazan sus tres campos (un campo omitido queda vacío).
+      - Si dos primeras configuraciones simultáneas chocan en la clave constante, la segunda recibe CONCURRENT_MODIFICATION.
+      - La dirección tiene que estar verificada ante el proveedor de correo; el servicio no puede comprobarlo y confía en el administrador.
+    errors:
+      - { code: CONCURRENT_MODIFICATION, when: Otra escritura modificó el remitente entre la lectura y la escritura., http: 409 }
+
+  getSenderSettings:
+    description: Devuelve el remitente configurado.
+    kind: query
+    input: "void"
+    output: { entity: SenderSettings }
+    errors:
+      - { code: SENDER_SETTINGS_NOT_CONFIGURED, when: Todavía no se ha configurado el remitente., http: 404 }
+
+  # ── Plantillas ────────────────────────────────────────────────────────────
+
+  createTemplate:
+    description: Da de alta una plantilla vacía, sin versiones; no se puede usar hasta publicar la primera.
+    kind: command
+    input:
+      fields:
+        code:        { type: TemplateCode, required: true }
+        name:        { type: string, required: true, constraints: { maxLength: 120 } }
+        description: { type: string, constraints: { maxLength: 1000 } }
+    output: { entity: EmailTemplate, exclude: [versions] }
+    rules:
+      - La plantilla nace con hasActiveVersion false.
+    errors:
+      - { code: TEMPLATE_ALREADY_EXISTS, when: Ya existe una plantilla con ese code., http: 409 }
+
+  publishTemplateVersion:
+    description: Publica contenido nuevo para una plantilla. La versión nueva queda active y la que lo estaba pasa a archived, en la misma transacción.
+    kind: command
+    input:
+      fields:
+        templateCode: { type: TemplateCode, required: true }
+        subject:      { type: string, required: true, constraints: { maxLength: 300 } }
+        htmlBody:     { type: text, required: true, constraints: { maxLength: 262144 } }
+        textBody:     { type: text, required: true, constraints: { maxLength: 65536 } }
+        variables:    { type: TemplateVariable, list: true, constraints: { maxItems: 50 } }
+    output: { entity: EmailTemplateVersion }
+    transitions:
+      - entity: EmailTemplateVersion
+        from: [active]
+        to: archived
+    rules:
+      - versionNumber es el mayor versionNumber de la plantilla más uno, o 1 si no tiene versiones.
+      - Si la plantilla tenía una versión active, pasa a archived.
+      - hasActiveVersion de la plantilla queda true.
+      - El motor de plantillas solo sustituye variables por nombre; no evalúa expresiones, condicionales ni llamadas.
+      - "Orden de evaluación: plantilla existente (TEMPLATE_NOT_FOUND), después nombres repetidos en variables (DUPLICATE_TEMPLATE_VARIABLES), después marcadores sin declarar (UNDECLARED_TEMPLATE_VARIABLES)."
+    errors:
+      - { code: TEMPLATE_NOT_FOUND, when: No existe una plantilla con ese templateCode., http: 404 }
+      - { code: DUPLICATE_TEMPLATE_VARIABLES, when: variables declara dos veces el mismo name., http: 422 }
+      - { code: UNDECLARED_TEMPLATE_VARIABLES, when: "subject, htmlBody o textBody usan una variable que no está en variables.", http: 422 }
+      - { code: CONCURRENT_MODIFICATION, when: Otra escritura modificó la plantilla a la vez., http: 409 }
+
+  activateTemplateVersion:
+    description: Vuelve a poner en active una versión archivada (revertir) y archiva la que estuviera active.
+    kind: command
+    input:
+      fields:
+        templateCode:  { type: TemplateCode, required: true }
+        versionNumber: { type: int, required: true, constraints: { min: 1 } }
+    output: { entity: EmailTemplateVersion }
+    transitions:
+      - entity: EmailTemplateVersion
+        from: [archived]
+        to: active
+      - entity: EmailTemplateVersion
+        from: [active]
+        to: archived
+    rules:
+      - Si la versión indicada ya está active, la operación no cambia nada y la devuelve.
+      - La versión que estaba active, si había una, pasa a archived.
+      - hasActiveVersion de la plantilla queda true.
+    errors:
+      - { code: TEMPLATE_NOT_FOUND, when: No existe una plantilla con ese templateCode., http: 404 }
+      - { code: TEMPLATE_VERSION_NOT_FOUND, when: La plantilla no tiene una versión con ese versionNumber., http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: Otra escritura modificó la plantilla a la vez., http: 409 }
+
+  retireTemplate:
+    description: Retira una plantilla archivando su versión active; conserva el historial y se puede volver a activar o publicar.
+    kind: command
+    input:
+      fields:
+        templateCode: { type: TemplateCode, required: true }
+    output: { entity: EmailTemplate, exclude: [versions] }
+    transitions:
+      - entity: EmailTemplateVersion
+        from: [active]
+        to: archived
+    rules:
+      - hasActiveVersion de la plantilla queda false.
+      - Los mensajes ya aceptados con esta plantilla se envían igualmente; congelaron su versión.
+    errors:
+      - { code: TEMPLATE_NOT_FOUND, when: No existe una plantilla con ese templateCode., http: 404 }
+      - { code: TEMPLATE_NOT_PUBLISHED, when: La plantilla no tiene ninguna versión active., http: 409 }
+      - { code: CONCURRENT_MODIFICATION, when: Otra escritura modificó la plantilla a la vez., http: 409 }
+
+  getTemplate:
+    description: Devuelve una plantilla sin su contenido.
+    kind: query
+    input:
+      fields:
+        templateCode: { type: TemplateCode, required: true }
+    output: { entity: EmailTemplate, exclude: [versions] }
+    errors:
+      - { code: TEMPLATE_NOT_FOUND, when: No existe una plantilla con ese templateCode., http: 404 }
+
+  listTemplates:
+    description: Lista las plantillas, opcionalmente filtradas por si tienen versión active.
+    kind: query
+    input:
+      fields:
+        hasActiveVersion: { type: boolean }
+    output: { entity: EmailTemplate, exclude: [versions], paginated: true, sort: [code:asc] }
+
+  getTemplateVersion:
+    description: Devuelve una versión concreta de una plantilla, con su contenido completo.
+    kind: query
+    input:
+      fields:
+        templateCode:  { type: TemplateCode, required: true }
+        versionNumber: { type: int, required: true, constraints: { min: 1 } }
+    output: { entity: EmailTemplateVersion }
+    errors:
+      - { code: TEMPLATE_NOT_FOUND, when: No existe una plantilla con ese templateCode., http: 404 }
+      - { code: TEMPLATE_VERSION_NOT_FOUND, when: La plantilla no tiene una versión con ese versionNumber., http: 404 }
+
+  listTemplateVersions:
+    description: Historial de versiones de una plantilla, de la más nueva a la más antigua, sin los cuerpos.
+    kind: query
+    input:
+      fields:
+        templateCode: { type: TemplateCode, required: true }
+    output: { entity: EmailTemplateVersion, exclude: [htmlBody, textBody], paginated: true, sort: [versionNumber:desc] }
+    errors:
+      - { code: TEMPLATE_NOT_FOUND, when: No existe una plantilla con ese templateCode., http: 404 }
+
+  # ── Envío ─────────────────────────────────────────────────────────────────
+
+  requestNotification:
+    description: >-
+      Acepta una petición de envío de un sistema llamante, la congela en un EmailMessage queued
+      y responde sin prometer la entrega. Entra igual por HTTP y por el canal de eventos.
+    kind: command
+    input:
+      fields:
+        requestedBy:    { type: string, required: true, constraints: { maxLength: 128 }, description: Identidad del llamante; la estampa el servidor y no viaja en el cuerpo. }
+        idempotencyKey: { type: IdempotencyKey, required: true }
+        templateCode:   { type: TemplateCode, required: true }
+        recipients:     { type: EmailAddress, list: true, required: true, constraints: { minItems: 1, maxItems: 20 } }
+        variables:      { type: VariableValue, list: true, constraints: { maxItems: 50 } }
+    output: { entity: EmailMessage, exclude: [variableValues] }
+    idempotency: { keySource: payload-field, keyField: idempotencyKey }
+    rules:
+      - "Orden de evaluación: (1) forma de la petición y variables repetidas; (2) comprobar la repetición; (3) remitente, plantilla, variables y supresiones."
+      - Los destinatarios se normalizan a minúsculas y se deduplican antes de cualquier comparación; recipients conserva el orden de llegada y, ante duplicados, la primera aparición.
+      - La comprobación de supresiones se hace para todos los destinatarios a la vez, no una consulta por destinatario.
+      - Mismo contenido significa mismo templateCode, mismo conjunto de destinatarios normalizados y mismo conjunto de pares (name, value) de las variables declaradas por la versión congelada, sin importar el orden.
+      - Si el mensaje existente ya está purgado (personalDataPurgedAt con valor), mismo contenido significa solo mismo templateCode, porque es lo único que queda para comparar; nunca se envía un segundo correo.
+      - Dos valores para el mismo name en variables son DUPLICATE_TEMPLATE_VARIABLES, y se comprueba antes de la repetición.
+      - Si ya existe un mensaje con el mismo (requestedBy, idempotencyKey) y el mismo contenido, se devuelve ese mensaje sin crear otro, aunque desde entonces la plantilla se haya retirado, el remitente haya cambiado o un destinatario se haya suprimido.
+      - Las variables que la versión active no declara se descartan en silencio y no se guardan.
+      - El asunto se renderiza al aceptar con la versión active, sustituyendo cada marcador {{name}} por su valor (cadena vacía si es una opcional sin valor) y reemplazando por un espacio los saltos de línea de los valores; los cuerpos se renderizan al enviar con esa misma versión, que es inmutable.
+      - "El mensaje congela: el remitente (address, name y replyToAddress de SenderSettings), templateCode, versionNumber e id de la versión active."
+      - El mensaje queda en queued con requestedAt; la entrega ocurre después, en sendQueuedMessage.
+    errors:
+      - { code: DUPLICATE_TEMPLATE_VARIABLES, when: variables trae dos valores con el mismo name., http: 422 }
+      - { code: IDEMPOTENCY_KEY_REUSED, when: "Ya existe un mensaje con el mismo (requestedBy, idempotencyKey) y distinto contenido.", http: 409 }
+      - { code: IDEMPOTENCY_KEY_IN_PROGRESS, when: "Otra petición con el mismo (requestedBy, idempotencyKey) se está aceptando a la vez.", http: 409 }
+      - { code: SENDER_SETTINGS_NOT_CONFIGURED, when: Todavía no se ha configurado el remitente., http: 404 }
+      - { code: TEMPLATE_NOT_FOUND, when: No existe una plantilla con ese templateCode., http: 404 }
+      - { code: TEMPLATE_NOT_PUBLISHED, when: La plantilla no tiene ninguna versión active., http: 409 }
+      - { code: MISSING_TEMPLATE_VARIABLES, when: Falta alguna variable que la versión active declara required., http: 422 }
+      - { code: RECIPIENT_SUPPRESSED, when: Algún destinatario tiene una supresión active., http: 422 }
+
+  dispatchQueuedMessages:
+    description: >-
+      Barrido de envío, cada minuto. Primero rescata los mensajes atascados en sending y los da
+      por fallidos sin reenviarlos; después envía los queued más antiguos.
+    kind: command
+    input: "void"
+    output: "void"
+    schedule: { cron: "* * * * *" }
+    transitions:
+      - entity: EmailMessage
+        from: [sending]
+        to: failed
+        stalledAfter: { parameter: sendingTimeoutMinutes, unit: minutes }
+    rules:
+      - "Rescate: todo mensaje en sending con sendingSince anterior a ahora menos sendingTimeoutMinutes pasa a failed con failureReason stuck-in-sending y failedAt, y publica EmailDeliveryFailed. Nunca se reenvía: no se sabe si el correo llegó a salir."
+      - Solo lo dispara el reloj; no tiene puerta HTTP ni de eventos.
+      - Después toma hasta 200 mensajes queued, por requestedAt ascendente y id ascendente, y ejecuta sendQueuedMessage con cada uno.
+      - Si una ejecución se solapa con la anterior, cada mensaje lo envía como mucho una de las dos; la guarda es la transición queued → sending de sendQueuedMessage.
+      - Lo que no cabe en un ciclo queda queued para el siguiente; tras una parada, el primer ciclo recupera los queued pendientes y rescata los sending atascados.
+    emits: [EmailDeliveryFailed]
+
+  sendQueuedMessage:
+    description: Envía un mensaje queued. Es la única operación que produce correo.
+    kind: command
+    internal: true
+    input:
+      fields:
+        messageId: { type: uuid, required: true }
+    output: "void"
+    transitions:
+      - entity: EmailMessage
+        from: [queued]
+        to: sending
+      - entity: EmailMessage
+        from: [sending]
+        to: sent
+      - entity: EmailMessage
+        from: [sending]
+        to: failed
+      - entity: EmailMessage
+        from: [queued]
+        to: failed
+    rules:
+      - Si algún destinatario tiene ahora una supresión active, el mensaje pasa de queued a failed con failureReason recipient-suppressed y failedAt, se publica EmailDeliveryFailed y no se envía nada.
+      - En otro caso pasa a sending con sendingSince, y esa transición se confirma antes de entregar el correo al relay. Quien pierde la transición no envía nada.
+      - Renderiza los cuerpos con la versión congelada y variableValues, y entrega un único correo html+text con todos los recipients en To, el remitente y el reply-to congelados, y un Message-ID cuya parte local (lo que va antes de la arroba) es el id del EmailMessage, para que el proveedor pueda asociar los rebotes; el dominio del Message-ID es despliegue.
+      - Cada marcador {{name}} se sustituye por su valor; una variable opcional sin valor se sustituye por cadena vacía. En htmlBody los valores se escapan como texto HTML escapando solo los caracteres & < > " ' (como &amp; &lt; &gt; &quot; &#39;); el resto, incluidos acentos y símbolos como €, va literal. El asunto ya viene renderizado desde la aceptación (renderedSubject); el To lleva los recipients en su orden.
+      - El intento contra el relay tiene un tope de 1 minuto, muy por debajo de sendingTimeoutMinutes.
+      - Si el relay acepta el correo para al menos un destinatario, pasa a sent con sentAt y publica EmailSent; los destinatarios que rechazó se tratan como rebotes y llegan por reportEmailBounce.
+      - Si el relay lo rechaza para todos los destinatarios, pasa a failed con delivery-rejected; si el intento falla o agota su tope sin respuesta concluyente, con delivery-error. En ambos casos fija failedAt, publica EmailDeliveryFailed y no se reintenta.
+      - Si el relay acepta después de que el rescate ya cerrara el mensaje como failed, el mensaje sigue failed y no se publica EmailSent; se acepta ese desajuste a cambio de no reenviar nunca.
+      - Si el proceso cae tras confirmar sending, el mensaje queda en sending hasta que el rescate lo da por fallido.
+    errors:
+      - { code: MESSAGE_NOT_QUEUED, when: "El mensaje no existe o ya no está en queued; el barrido lo salta sin hacer nada." }
+    emits: [EmailSent, EmailDeliveryFailed]
+
+  # ── Consulta de mensajes ──────────────────────────────────────────────────
+
+  getMessage:
+    description: Devuelve un mensaje por su id, sin los valores de las variables.
+    kind: query
+    input:
+      fields:
+        id: { type: uuid, required: true }
+    output: { entity: EmailMessage, exclude: [variableValues] }
+    errors:
+      - { code: MESSAGE_NOT_FOUND, when: No existe un mensaje con ese id., http: 404 }
+
+  listMessages:
+    description: Lista los mensajes con filtros, del más reciente al más antiguo.
+    kind: query
+    input:
+      fields:
+        requestedBy:   { type: string, constraints: { maxLength: 128 } }
+        status:        { type: MessageStatus }
+        templateCode:  { type: TemplateCode }
+        recipient:     { type: EmailAddress, compare: ignore-case }
+        requestedFrom: { type: timestamp, description: "Inicio de la ventana, inclusive." }
+        requestedTo:   { type: timestamp, description: "Fin de la ventana, exclusivo." }
+    output: { entity: EmailMessage, exclude: [variableValues], paginated: true, sort: [requestedAt:desc, id:asc] }
+    rules:
+      - recipient casa con los mensajes cuya lista recipients contiene esa dirección; un mensaje purgado no casa nunca.
+    errors:
+      - { code: INVALID_TIME_WINDOW, when: requestedFrom es posterior o igual a requestedTo., http: 422 }
+
+  findMessageByIdempotencyKey:
+    description: Permite a un sistema llamante reconciliar el estado de una petición suya a partir de su idempotencyKey.
+    kind: query
+    input:
+      fields:
+        requestedBy:    { type: string, required: true, constraints: { maxLength: 128 }, description: Identidad del llamante; la estampa el servidor. }
+        idempotencyKey: { type: IdempotencyKey, required: true }
+    output: { entity: EmailMessage, exclude: [variableValues] }
+    rules:
+      - Solo encuentra mensajes del propio llamante.
+    errors:
+      - { code: MESSAGE_NOT_FOUND, when: El llamante no tiene ningún mensaje con esa idempotencyKey., http: 404 }
+
+  # ── Supresión ─────────────────────────────────────────────────────────────
+
+  suppressAddress:
+    description: Suprime una dirección a mano. Reactiva el registro si estaba released; si ya está active, no cambia nada.
+    kind: command
+    input:
+      fields:
+        address: { type: EmailAddress, required: true }
+        reason:  { type: SuppressionReason, required: true }
+        notes:   { type: string, constraints: { maxLength: 1000 } }
+    output: { entity: SuppressedAddress }
+    transitions:
+      - entity: SuppressedAddress
+        from: [released]
+        to: active
+    rules:
+      - address se normaliza a minúsculas.
+      - Si no existe registro, se crea active con suppressedAt ahora.
+      - Si existe released, pasa a active con el reason nuevo, suppressedAt ahora y releasedAt vacío; notes se reemplaza por el nuevo (omitido deja notes vacío).
+      - Si existe active, se devuelve sin cambios.
+      - "reason complaint solo entra por aquí, a mano; no hay canal de quejas del proveedor."
+    errors:
+      - { code: SUPPRESSED_ADDRESS_ALREADY_EXISTS, when: Otra supresión de la misma dirección creó el registro a la vez., http: 409 }
+      - { code: CONCURRENT_MODIFICATION, when: Otra escritura modificó el registro a la vez., http: 409 }
+
+  releaseAddress:
+    description: Libera una dirección suprimida; el registro se conserva. Liberar una dirección ya released no cambia nada.
+    kind: command
+    input:
+      fields:
+        address: { type: EmailAddress, required: true }
+    output: { entity: SuppressedAddress }
+    transitions:
+      - entity: SuppressedAddress
+        from: [active]
+        to: released
+    rules:
+      - address se normaliza a minúsculas.
+      - releasedAt queda con la fecha de la liberación.
+      - Si el registro ya está released, se devuelve sin cambios.
+    errors:
+      - { code: SUPPRESSED_ADDRESS_NOT_FOUND, when: No existe ningún registro de supresión para esa dirección., http: 404 }
+      - { code: CONCURRENT_MODIFICATION, when: Otra escritura modificó el registro a la vez., http: 409 }
+
+  getSuppressedAddress:
+    description: Devuelve el registro de supresión de una dirección, esté active o released.
+    kind: query
+    input:
+      fields:
+        address: { type: EmailAddress, required: true }
+    output: { entity: SuppressedAddress }
+    rules:
+      - address se normaliza a minúsculas.
+    errors:
+      - { code: SUPPRESSED_ADDRESS_NOT_FOUND, when: No existe ningún registro de supresión para esa dirección., http: 404 }
+
+  listSuppressedAddresses:
+    description: Lista las direcciones con supresión active, de la más reciente a la más antigua.
+    kind: query
+    input: "void"
+    output: { entity: SuppressedAddress, paginated: true, sort: [suppressedAt:desc, id:asc] }
+
+  reportEmailBounce:
+    description: >-
+      El proveedor de correo notifica un rebote de un destinatario de un mensaje. Un rebote
+      permanent suprime la dirección; uno transient solo se registra en el log.
+    kind: command
+    input:
+      fields:
+        messageId:  { type: uuid, required: true }
+        recipient:  { type: EmailAddress, required: true }
+        bounceType: { type: enum, values: [permanent, transient], required: true }
+        diagnostic: { type: string, constraints: { maxLength: 1000 } }
+    output: "void"
+    transitions:
+      - entity: SuppressedAddress
+        from: [released]
+        to: active
+    rules:
+      - recipient se normaliza a minúsculas.
+      - Con bounceType transient no cambia ningún estado persistente; solo se registra en el log.
+      - Con bounceType permanent, si no existe registro se crea active con reason hard-bounce; si existe released se reactiva con reason hard-bounce aunque lo hubiera liberado una persona; si ya está active no cambia nada.
+      - Al crear o reactivar por rebote, suppressedAt es ahora, releasedAt queda vacío y notes se reemplaza por el id del mensaje y el diagnostic.
+      - El proveedor real llega a través de un adaptador de despliegue que traduce su webhook a este contrato; el messageId es la parte local del Message-ID del correo rebotado.
+      - El rebote no cambia el estado del mensaje.
+    errors:
+      - { code: MESSAGE_NOT_FOUND, when: No existe un mensaje con ese messageId., http: 404 }
+      - { code: RECIPIENT_NOT_IN_MESSAGE, when: "recipient no está entre los recipients del mensaje, incluido el caso de un mensaje ya purgado.", http: 422 }
+      - { code: SUPPRESSED_ADDRESS_ALREADY_EXISTS, when: Otra supresión de la misma dirección creó el registro a la vez., http: 409 }
+      - { code: CONCURRENT_MODIFICATION, when: Otra escritura modificó el registro a la vez., http: 409 }
+
+  # ── Retención ─────────────────────────────────────────────────────────────
+
+  purgeMessagePersonalData:
+    description: >-
+      Vacía los datos personales de los mensajes más antiguos que el plazo de retención
+      (personalDataRetentionMonths) y conserva la fila y su clave para siempre. Diario a las
+      03:00 UTC y a demanda del administrador.
+    kind: command
+    input: "void"
+    output:
+      fields:
+        purgedCount: { type: int, required: true, description: Mensajes purgados en esta ejecución. }
+    schedule: { cron: "0 3 * * *" }
+    rules:
+      - Selecciona hasta 5000 mensajes en sent o failed con requestedAt anterior a ahora menos personalDataRetentionMonths meses de calendario y personalDataPurgedAt vacío, por requestedAt ascendente e id ascendente.
+      - Si dos ejecuciones se solapan (la programada y la manual), ninguna falla por ello; cada una salta los mensajes que la otra ya purgó o tiene en curso, y purgedCount cuenta solo los suyos.
+      - A cada uno le vacía recipients, renderedSubject y variableValues y fija personalDataPurgedAt.
+      - Repetirla no tiene efectos sobre mensajes ya purgados; lo que no cabe en un ciclo lo recoge el siguiente.
+      - La clave (requestedBy, idempotencyKey) se conserva, así que una petición repetida tras la purga sigue sin enviar un segundo correo.

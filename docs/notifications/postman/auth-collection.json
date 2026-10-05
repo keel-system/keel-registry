@@ -1,0 +1,549 @@
+{
+  "info": {
+    "name": "notifications — auth",
+    "description": "Tokens por rol y por cliente máquina. Las variables las rellena el environment que emite el generador para su proveedor de identidad.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Token — notifications-admin",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_notifications-admin}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_notifications-admin}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_notifications-admin', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — template-editor",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_template-editor}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_template-editor}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_template-editor', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — notifications-operator",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_notifications-operator}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_notifications-operator}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_notifications-operator', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — notifications-auditor",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret}}"
+            },
+            {
+              "key": "username",
+              "value": "{{username_notifications-auditor}}"
+            },
+            {
+              "key": "password",
+              "value": "{{password_notifications-auditor}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_notifications-auditor', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — billing (client_credentials)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_billing}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_billing}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scope_billing}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_billing', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — shipping (client_credentials)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_shipping}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_shipping}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scope_shipping}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_shipping', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — dispatch-only (client_credentials)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_dispatch-only}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_dispatch-only}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scope_dispatch-only}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_dispatch-only', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — mail-provider (client_credentials)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_mail-provider}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_mail-provider}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scope_mail-provider}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_mail-provider', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Token — other-audience (client_credentials)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "url": "{{tokenUrl}}",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "key": "client_id",
+              "value": "{{clientId_other-audience}}"
+            },
+            {
+              "key": "client_secret",
+              "value": "{{clientSecret_other-audience}}"
+            },
+            {
+              "key": "scope",
+              "value": "{{scope_other-audience}}"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token 200', () => pm.response.to.have.status(200));",
+              "pm.globals.set('token_other-audience', pm.response.json().access_token);"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "tokenUrl",
+      "value": ""
+    },
+    {
+      "key": "clientId",
+      "value": ""
+    },
+    {
+      "key": "clientSecret",
+      "value": ""
+    },
+    {
+      "key": "webOrigin",
+      "value": ""
+    },
+    {
+      "key": "username_notifications-admin",
+      "value": ""
+    },
+    {
+      "key": "password_notifications-admin",
+      "value": ""
+    },
+    {
+      "key": "username_template-editor",
+      "value": ""
+    },
+    {
+      "key": "password_template-editor",
+      "value": ""
+    },
+    {
+      "key": "username_notifications-operator",
+      "value": ""
+    },
+    {
+      "key": "password_notifications-operator",
+      "value": ""
+    },
+    {
+      "key": "username_notifications-auditor",
+      "value": ""
+    },
+    {
+      "key": "password_notifications-auditor",
+      "value": ""
+    },
+    {
+      "key": "clientId_billing",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_billing",
+      "value": ""
+    },
+    {
+      "key": "scope_billing",
+      "value": "notification:send notification:read"
+    },
+    {
+      "key": "clientId_shipping",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_shipping",
+      "value": ""
+    },
+    {
+      "key": "scope_shipping",
+      "value": "notification:send notification:read"
+    },
+    {
+      "key": "clientId_dispatch-only",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_dispatch-only",
+      "value": ""
+    },
+    {
+      "key": "scope_dispatch-only",
+      "value": "notification:send"
+    },
+    {
+      "key": "clientId_mail-provider",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_mail-provider",
+      "value": ""
+    },
+    {
+      "key": "scope_mail-provider",
+      "value": "bounce:report"
+    },
+    {
+      "key": "clientId_other-audience",
+      "value": ""
+    },
+    {
+      "key": "clientSecret_other-audience",
+      "value": ""
+    },
+    {
+      "key": "scope_other-audience",
+      "value": "notification:send"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+# Metadatos de publicación en el registry. No forma parte del DSL: describe cómo se distribuye y
+# se descubre el diseño, no lo que el servicio hace.
+
+family: notifications
+summary: >
+  Correo transaccional monoinquilino: los sistemas de la organización piden envíos por HTTP
+  servidor-a-servidor o por eventos, con el mismo contrato, a partir de plantillas versionadas que
+  negocio publica sin desplegar. Idempotencia permanente por (llamante, clave) que sobrevive a la
+  purga de datos personales, cola con un único emisor y rescate que nunca reenvía, remitente
+  verificado editable y congelado en cada mensaje, supresiones alimentadas por los rebotes del
+  proveedor, desenlaces publicados por outbox y purga de datos personales a los 18 meses.
+maturity: draft
+tags:
+  - notifications
+  - email
+  - smtp
+  - templates
+  - versioning
+  - m2m
+  - events
+  - outbox
+  - idempotency
+  - suppression
+  - bounces
+  - scheduled
+  - personal-data
+  - optimistic-locking
+  - audit
+  - pagination
+  - cors
+author: keel
+license: Apache-2.0

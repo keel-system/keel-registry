@@ -1,0 +1,298 @@
+asyncapi: 3.0.0
+info:
+  title: notifications
+  version: 0.1.0
+  description: 'Envía correo transaccional a partir de plantillas que gestiona negocio, a petición de los sistemas
+    de la organización por HTTP o por eventos, sin enviar nunca dos veces el mismo correo.
+
+
+    Contrato asíncrono derivado del diseño Keel (capa messaging). El broker concreto y los nombres físicos de topic/cola
+    se deciden al generar, no aquí.
+
+    '
+defaultContentType: application/json
+channels:
+  notificationRequests:
+    address: notificationRequests
+    title: notificationRequests
+    description: 'Peticiones de envío que los sistemas llamantes dirigen a este servicio. Nombre lógico: el topic/cola
+      físico que lo respalda es parámetro de despliegue.'
+    messages:
+      NotificationRequested:
+        $ref: '#/components/messages/NotificationRequested'
+  notificationEvents:
+    address: notificationEvents
+    title: notificationEvents
+    description: 'Desenlace de cada mensaje (enviado o fallido) que publica este servicio. Nombre lógico: el topic/cola
+      físico que lo respalda es parámetro de despliegue.'
+    messages:
+      EmailSent:
+        $ref: '#/components/messages/EmailSent'
+      EmailDeliveryFailed:
+        $ref: '#/components/messages/EmailDeliveryFailed'
+operations:
+  publishEmailSent:
+    action: send
+    channel:
+      $ref: '#/channels/notificationEvents'
+    summary: El relay aceptó el correo de un mensaje. No implica que llegara al buzón.
+    messages:
+    - $ref: '#/channels/notificationEvents/messages/EmailSent'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - sendQueuedMessage
+  publishEmailDeliveryFailed:
+    action: send
+    channel:
+      $ref: '#/channels/notificationEvents'
+    summary: Un mensaje acabó en failed y no se reintentará. failureReason distingue el rechazo del relay, el error
+      sin respuesta, el rescate de un mensaje atascado en sending y la supresión de un destinatario descubierta
+      al enviar.
+    messages:
+    - $ref: '#/channels/notificationEvents/messages/EmailDeliveryFailed'
+    x-keel-reliability: outbox
+    x-keel-emitted-by:
+    - dispatchQueuedMessages
+    - sendQueuedMessage
+  consumeNotificationRequested:
+    action: receive
+    channel:
+      $ref: '#/channels/notificationRequests'
+    summary: Pide un correo por el canal de eventos (puerta hermana de POST /notifications).
+    messages:
+    - $ref: '#/channels/notificationRequests/messages/NotificationRequested'
+    x-keel-source: any-registered-system
+    x-keel-nature: request
+    x-keel-triggers: requestNotification
+    x-keel-identity:
+      field: requestedBy
+      from:
+        location: field
+        name: metadata.source
+      onUnresolved: deadLetter
+    x-keel-on-failure:
+      retry:
+        maxAttempts: 3
+        backoff: exponential
+        initialDelayMs: 1000
+        maxDelayMs: 30000
+      deadLetter: true
+components:
+  messages:
+    EmailSent:
+      name: EmailSent
+      title: EmailSent
+      contentType: application/json
+      summary: El relay aceptó el correo de un mensaje. No implica que llegara al buzón.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/EmailSentPayload'
+    EmailDeliveryFailed:
+      name: EmailDeliveryFailed
+      title: EmailDeliveryFailed
+      contentType: application/json
+      summary: Un mensaje acabó en failed y no se reintentará. failureReason distingue el rechazo del relay, el
+        error sin respuesta, el rescate de un mensaje atascado en sending y la supresión de un destinatario descubierta
+        al enviar.
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/EmailDeliveryFailedPayload'
+    NotificationRequested:
+      name: NotificationRequested
+      title: NotificationRequested
+      contentType: application/json
+      summary: 'Petición de envío por evento, con el mismo contrato que POST /notifications. La identidad del llamante
+        sale de metadata.source y no viaja en el payload. Un rechazo de negocio (los errores declarados de requestNotification)
+        es permanente: va a la deadLetter sin gastar reintentos; solo los fallos transitorios se reintentan. No
+        hay respuesta por esta puerta: el emisor reconcilia con findMessageByIdempotencyKey, y un 404 significa
+        que la petición no se aceptó.'
+      correlationId:
+        $ref: '#/components/correlationIds/keelCorrelationId'
+      payload:
+        type: object
+        required:
+        - metadata
+        - data
+        properties:
+          metadata:
+            $ref: '#/components/schemas/KeelEventMetadata'
+          data:
+            $ref: '#/components/schemas/NotificationRequestedPayload'
+  schemas:
+    EmailAddress:
+      type: string
+      maxLength: 254
+      pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+      description: Dirección de correo. El servicio la normaliza a minúsculas antes de guardarla o compararla.
+    FailureReason:
+      type: string
+      enum:
+      - delivery-rejected
+      - delivery-error
+      - stuck-in-sending
+      - recipient-suppressed
+      description: 'Por qué un mensaje acabó en failed. delivery-rejected: el relay rechazó el mensaje; delivery-error:
+        el intento falló sin respuesta concluyente; stuck-in-sending: el rescate lo cerró tras 15 minutos en sending,
+        sin reenviarlo; recipient-suppressed: al ir a enviarlo, algún destinatario tenía una supresión active, y
+        no se intentó.'
+    IdempotencyKey:
+      type: string
+      minLength: 8
+      maxLength: 128
+      pattern: ^[A-Za-z0-9._:-]{8,128}$
+      description: Clave que el llamante asigna a cada petición de envío para que repetirla no envíe dos correos.
+    TemplateCode:
+      type: string
+      pattern: ^[a-z][a-z0-9-]{2,47}$
+      description: Código estable de una plantilla; es su clave pública y no cambia nunca.
+    VariableName:
+      type: string
+      pattern: ^[a-zA-Z][a-zA-Z0-9_]{0,63}$
+      description: 'Nombre de una variable de plantilla. En subject, htmlBody y textBody se usa con el marcador
+        {{name}} (se admiten espacios dentro de las llaves: {{ name }}). No hay expresiones, condicionales, filtros
+        ni bucles, y no existe forma de escribir {{ como literal.'
+    VariableValue:
+      type: object
+      required:
+      - name
+      - value
+      properties:
+        name:
+          $ref: '#/components/schemas/VariableName'
+        value:
+          type: string
+          maxLength: 10000
+      description: Valor que el llamante da a una variable declarada al pedir un envío.
+    EmailSentPayload:
+      type: object
+      required:
+      - messageId
+      - requestedBy
+      - idempotencyKey
+      - templateCode
+      - templateVersionNumber
+      - sentAt
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        requestedBy:
+          type: string
+        idempotencyKey:
+          $ref: '#/components/schemas/IdempotencyKey'
+        templateCode:
+          $ref: '#/components/schemas/TemplateCode'
+        templateVersionNumber:
+          type: integer
+        sentAt:
+          type: string
+          format: date-time
+    EmailDeliveryFailedPayload:
+      type: object
+      required:
+      - messageId
+      - requestedBy
+      - idempotencyKey
+      - templateCode
+      - templateVersionNumber
+      - failureReason
+      - failedAt
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        requestedBy:
+          type: string
+        idempotencyKey:
+          $ref: '#/components/schemas/IdempotencyKey'
+        templateCode:
+          $ref: '#/components/schemas/TemplateCode'
+        templateVersionNumber:
+          type: integer
+        failureReason:
+          $ref: '#/components/schemas/FailureReason'
+        failedAt:
+          type: string
+          format: date-time
+    NotificationRequestedPayload:
+      type: object
+      required:
+      - idempotencyKey
+      - templateCode
+      - recipients
+      properties:
+        idempotencyKey:
+          $ref: '#/components/schemas/IdempotencyKey'
+        templateCode:
+          $ref: '#/components/schemas/TemplateCode'
+        recipients:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailAddress'
+          minItems: 1
+          maxItems: 20
+        variables:
+          type: array
+          items:
+            $ref: '#/components/schemas/VariableValue'
+          maxItems: 50
+    KeelEventMetadata:
+      type: object
+      description: Metadata transversal de la envoltura Keel; la estampa el servicio al emitir.
+      required:
+      - eventId
+      - eventType
+      - eventVersion
+      - occurredAt
+      - source
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: Id único de esta ocurrencia; clave de deduplicación del consumidor.
+        eventType:
+          type: string
+          description: Nombre del evento en el diseño; discriminador cuando el canal lleva varios tipos.
+        eventVersion:
+          type: integer
+          minimum: 1
+          description: Versión del contrato del payload.
+        occurredAt:
+          type: string
+          format: date-time
+          description: Instante UTC en que ocurrió el hecho en el dominio, no el del envío.
+        source:
+          type: string
+          description: Nombre del servicio emisor.
+        correlationId:
+          type:
+          - string
+          - 'null'
+          description: Correlación de la petición que originó el hecho; null si no hubo contexto.
+        traceparent:
+          type:
+          - string
+          - 'null'
+          description: Contexto de traza W3C (traceparent) del hecho; null si el emisor no tiene telemetría.
+  correlationIds:
+    keelCorrelationId:
+      description: Correlación end-to-end estampada en la envoltura Keel.
+      location: $message.payload#/metadata/correlationId

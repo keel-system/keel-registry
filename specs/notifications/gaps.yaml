@@ -1,0 +1,386 @@
+reviewedBy: keel-gap-sweep
+reviewedAt: 0.1.0
+
+coverage:
+  - class: 1
+    units: [SenderSettings, EmailTemplateVersion, EmailMessage, SuppressedAddress]
+    result: findings
+  - class: 2
+    units: [configureSenderSettings, createTemplate, publishTemplateVersion, activateTemplateVersion, retireTemplate, requestNotification, dispatchQueuedMessages, sendQueuedMessage, suppressAddress, releaseAddress, reportEmailBounce, purgeMessagePersonalData]
+    result: findings
+  - class: 3
+    units: [SenderSettings, EmailTemplate, EmailTemplateVersion, EmailMessage, SuppressedAddress]
+    result: findings
+  - class: 4
+    units: [configureSenderSettings, createTemplate, publishTemplateVersion, activateTemplateVersion, retireTemplate, requestNotification, dispatchQueuedMessages, sendQueuedMessage, suppressAddress, releaseAddress, reportEmailBounce, purgeMessagePersonalData]
+    result: findings
+  - class: 5
+    units: [getSenderSettings, getTemplate, listTemplates, getTemplateVersion, listTemplateVersions, getMessage, listMessages, findMessageByIdempotencyKey, listSuppressedAddresses, getSuppressedAddress]
+    result: findings
+  - class: 6
+    units: [SenderSettings, EmailTemplate, EmailTemplateVersion, EmailMessage, SuppressedAddress]
+    result: clean
+  - class: 7
+    units: [publishing.EmailSent, publishing.EmailDeliveryFailed, subscriptions.NotificationRequested]
+    result: findings
+  - class: 8
+    units: [subscriptions.NotificationRequested]
+    result: findings
+  - class: 9
+    units: [configureSenderSettings, getSenderSettings, createTemplate, publishTemplateVersion, activateTemplateVersion, retireTemplate, getTemplate, listTemplates, getTemplateVersion, listTemplateVersions, requestNotification, dispatchQueuedMessages, sendQueuedMessage, getMessage, listMessages, findMessageByIdempotencyKey, suppressAddress, releaseAddress, listSuppressedAddresses, getSuppressedAddress, reportEmailBounce, purgeMessagePersonalData]
+    result: findings
+  - class: 11
+    units: [requestNotification, findMessageByIdempotencyKey, reportEmailBounce, serviceClients.billing, serviceClients.shipping, serviceClients.dispatch-only, serviceClients.mail-provider]
+    result: findings
+  - class: 12
+    units: [service]
+    result: findings
+  - class: 13
+    units: [dispatchQueuedMessages, purgeMessagePersonalData]
+    result: findings
+  - class: 14
+    units: [SenderSettings, EmailTemplate, EmailTemplateVersion, EmailMessage, SuppressedAddress]
+    result: findings
+  - class: 15
+    units: [configureSenderSettings, getSenderSettings, createTemplate, publishTemplateVersion, activateTemplateVersion, retireTemplate, getTemplate, listTemplates, getTemplateVersion, listTemplateVersions, requestNotification, dispatchQueuedMessages, getMessage, listMessages, findMessageByIdempotencyKey, suppressAddress, releaseAddress, listSuppressedAddresses, getSuppressedAddress, reportEmailBounce, purgeMessagePersonalData]
+    result: findings
+  - class: 16
+    units: ['3.1', '3.2', '3.3', '3.4', '3.5', '3.7', '3.8', '3.9', '3.9b']
+    result: findings
+  - class: 17
+    units: [sendQueuedMessage]
+    result: findings
+
+findings:
+  # ── Hueco (gap) ─────────────────────────────────────────────────────────────
+
+  - class: 2
+    unit: requestNotification
+    what: >-
+      Tras la purga, el mensaje existente tiene recipients y variableValues vacíos, así que la
+      comparación de «mismo contenido» no se puede evaluar; el diseño promete que no se envía un
+      segundo correo pero no dice si la repetición devuelve el mensaje purgado (202) o
+      IDEMPOTENCY_KEY_REUSED (409).
+    severity: gap
+    state: decided
+    reason: >-
+      Sobre un mensaje purgado, mismo contenido = mismo templateCode: se devuelve el mensaje original (202) sin enviar otro correo; si el templateCode difiere, IDEMPOTENCY_KEY_REUSED. Rule en requestNotification.
+
+  - class: 2
+    unit: requestNotification
+    what: >-
+      Ninguna guarda ni error cubre dos valores para el mismo name en variables (VariableValue
+      repetido); no se dice si es error, si gana el primero o el último, ni cómo cuenta en la
+      comparación de «mismo contenido».
+    severity: gap
+    state: decided
+    reason: >-
+      Dos valores con el mismo name son 422 DUPLICATE_TEMPLATE_VARIABLES, comprobado antes de la repetición. Error y rule en requestNotification.
+
+  - class: 4
+    unit: configureSenderSettings
+    what: >-
+      La invariante «existe como mucho un SenderSettings» no la sostiene nada: dos primeras
+      configuraciones simultáneas no tienen fila que versionar, el bloqueo optimista no las
+      separa y no hay clave única ni error de colisión, así que pueden quedar dos remitentes.
+    severity: gap
+    state: decided
+    reason: >-
+      SenderSettings gana el campo key (enum constante default, unique): la segunda alta simultánea choca y recibe CONCURRENT_MODIFICATION.
+
+  - class: 4
+    unit: sendQueuedMessage
+    what: >-
+      No se dice cuánto puede durar como máximo la entrega al relay frente a sendingTimeoutMinutes,
+      ni qué pasa si el intento original termina (el relay acepta) después de que el rescate ya
+      pasó el mensaje a failed: si gana failed, el correo salió y se publicó EmailDeliveryFailed;
+      si gana sent, el mensaje sale de un estado terminal.
+    severity: gap
+    state: decided
+    reason: >-
+      El intento contra el relay tiene un tope de 1 minuto, muy por debajo de sendingTimeoutMinutes. Si el relay acepta tras el rescate, el mensaje sigue failed y no se publica EmailSent; desajuste aceptado a cambio de no reenviar nunca.
+
+  - class: 5
+    unit: listMessages
+    what: >-
+      sort es solo requestedAt:desc, que puede empatar; decisions.yaml (3.8) dice «requestedAt desc
+      + id», pero el desempate por id no está en el artefacto, así que el orden no es total.
+    severity: gap
+    state: decided
+    reason: >-
+      Orden total explícito: sort [requestedAt:desc, id:asc].
+
+  - class: 5
+    unit: listSuppressedAddresses
+    what: >-
+      sort es solo suppressedAt:desc, que puede empatar; decisions.yaml (3.8) dice «suppressedAt
+      desc + id», pero el desempate no está en el artefacto, así que el orden no es total.
+    severity: gap
+    state: decided
+    reason: >-
+      Orden total explícito: sort [suppressedAt:desc, id:asc].
+
+  - class: 7
+    unit: subscriptions.NotificationRequested
+    what: >-
+      Por la puerta de eventos, un rechazo de negocio (TEMPLATE_NOT_FOUND, TEMPLATE_NOT_PUBLISHED,
+      MISSING_TEMPLATE_VARIABLES, RECIPIENT_SUPPRESSED, IDEMPOTENCY_KEY_REUSED,
+      SENDER_SETTINGS_NOT_CONFIGURED) no crea mensaje ni publica nada: no se dice qué errores se
+      reintentan y cuáles van directos a deadLetter, ni cómo se entera el sistema emisor de que su
+      petición se rechazó.
+    severity: gap
+    state: decided
+    reason: >-
+      Un rechazo de negocio es permanente y va a la deadLetter sin reintentos; solo los fallos transitorios gastan los 3. El emisor reconcilia con findMessageByIdempotencyKey (404 = no aceptada). En la description de la suscripción.
+
+  - class: 11
+    unit: reportEmailBounce
+    what: >-
+      El proveedor notifica el rebote con nuestro messageId, pero el diseño no dice cómo viaja ese
+      id en el correo saliente (cabecera, Message-ID, metadato del relay), así que no está claro
+      que el proveedor pueda correlacionar el rebote y la operación sea alcanzable.
+    severity: gap
+    state: decided
+    reason: >-
+      El Message-ID del correo se deriva del id del EmailMessage, y el webhook del proveedor llega por un adaptador de despliegue que lo traduce a este contrato. Rules en sendQueuedMessage y reportEmailBounce.
+
+  - class: 12
+    unit: service
+    what: >-
+      No se fija la sintaxis de las variables en subject, htmlBody y textBody (delimitadores,
+      escape del literal), de la que dependen UNDECLARED_TEMPLATE_VARIABLES, el render y la
+      equivalencia entre stacks.
+    severity: gap
+    state: decided
+    reason: >-
+      Marcador {{name}} (espacios admitidos dentro), sin expresiones ni literal escapable; fijado en VariableName.
+
+  - class: 13
+    unit: purgeMessagePersonalData
+    what: >-
+      El umbral de «18 meses» está fijo en prosa (no es parámetro, y no se dice si son meses de
+      calendario o días) y requestedAt es generated, así que ningún escenario puede preparar un
+      mensaje purgable: la operación no es verificable aunque tenga disparador manual.
+    severity: gap
+    state: decided
+    reason: >-
+      Parámetro personalDataRetentionMonths (meses de calendario, default 18, min 0, testValue 0): en pruebas todo mensaje terminal es purgable y el escenario es ejecutable.
+
+  - class: 16
+    unit: '3.2'
+    what: >-
+      El registro de idempotencia solo recoge requestNotification; no consta que se preguntara por
+      los demás commands expuestos (reportEmailBounce, que el proveedor reintenta, suppressAddress,
+      releaseAddress, publishTemplateVersion, purgeMessagePersonalData…), ni por qué no la llevan.
+    severity: gap
+    state: decided
+    reason: >-
+      Registradas en decisions.yaml 3.2 publishTemplateVersion (sin clave, duplicado inocuo y visible) y el resto de commands expuestos (sin clave, cada uno con su porqué).
+
+  - class: 17
+    unit: sendQueuedMessage
+    what: >-
+      Se entrega un único correo a hasta 20 recipients, pero no se dice si van en To, Cc o Bcc: en
+      To o Cc cada destinatario ve las direcciones de los demás.
+    severity: gap
+    state: decided
+    reason: >-
+      Todos los recipients van en To: una petición es una transacción y sus destinatarios se ven entre sí; quien necesite privacidad hace una petición por destinatario.
+
+  - class: 17
+    unit: sendQueuedMessage
+    what: >-
+      No se dice si los valores de las variables se escapan al interpolarlos en htmlBody (inyección
+      de HTML) ni qué se hace con saltos de línea en el asunto (inyección de cabeceras): un valor de
+      hasta 10000 caracteres llega del llamante sin otra restricción.
+    severity: gap
+    state: decided
+    reason: >-
+      Los valores se escapan como texto HTML en htmlBody; en el asunto los saltos de línea de un valor pasan a espacio. Rule en sendQueuedMessage.
+
+  - class: 17
+    unit: sendQueuedMessage
+    what: >-
+      SuppressionReason incluye complaint, pero no hay canal por el que llegue una queja del
+      proveedor (reportEmailBounce solo admite permanent/transient): complaint solo es alcanzable a
+      mano y una queja real no suprime nada.
+    severity: gap
+    state: accepted
+    reason: >-
+      complaint solo entra a mano por suppressAddress (rule): no hay canal de quejas del proveedor, y abrirlo es una evolución futura.
+
+  # ── Riesgo (risk) ───────────────────────────────────────────────────────────
+
+  - class: 1
+    unit: EmailMessage
+    what: >-
+      failed es terminal y no hay operación de reenvío; repetir con la misma idempotencyKey devuelve
+      el mensaje fallido, así que la única vía de recuperación es una clave nueva, y el diseño no lo
+      dice al llamante (tampoco tras liberar una supresión que causó recipient-suppressed).
+    severity: risk
+    state: accepted
+    reason: >-
+      failed es terminal a propósito: el riesgo del servicio es el doble envío. El llamante recupera un envío fallido pidiéndolo con una idempotencyKey nueva; se documentará en INTEGRATION.md.
+
+  - class: 2
+    unit: releaseAddress
+    what: >-
+      SUPPRESSED_ADDRESS_NOT_FOUND cubre dos guardas distintas (dirección nunca suprimida y
+      dirección ya released), y liberar dos veces da 404 mientras suprimir dos veces es una no-op:
+      la asimetría no consta como deliberada.
+    severity: risk
+    state: decided
+    reason: >-
+      releaseAddress sobre un registro released es no-op y lo devuelve; SUPPRESSED_ADDRESS_NOT_FOUND queda solo para una dirección nunca suprimida.
+
+  - class: 3
+    unit: EmailMessage
+    what: >-
+      EmailDeliveryFailed lleva failedAt, pero EmailMessage no tiene campo con el instante del fallo:
+      el evento no tiene de dónde sacarlo de forma estable y getMessage no puede decir cuándo falló.
+    severity: risk
+    state: decided
+    reason: >-
+      EmailMessage gana failedAt; invariante failed ⇒ failureReason y failedAt.
+
+  - class: 3
+    unit: EmailTemplate
+    what: >-
+      name y description solo se escriben en createTemplate y ninguna operación los cambia; no
+      consta si es deliberado o falta una operación de edición.
+    severity: risk
+    state: accepted
+    reason: >-
+      name y description no se editan tras crear la plantilla: decidido por el diseñador en use-cases (sin updateTemplate).
+
+  - class: 3
+    unit: SuppressedAddress
+    what: >-
+      Al reactivar con suppressAddress, «notes nuevos» no aclara si un notes omitido vacía el
+      anterior o lo conserva.
+    severity: risk
+    state: decided
+    reason: >-
+      Al reactivar, notes se reemplaza por el nuevo (omitido deja notes vacío). Rules en suppressAddress y reportEmailBounce.
+
+  - class: 5
+    unit: listSuppressedAddresses
+    what: >-
+      No hay forma de consultar una dirección concreta (ni filtro por address ni lectura por
+      dirección), y los registros released no se ven en ninguna consulta: soporte solo puede
+      averiguar si una dirección está suprimida paginando el listado completo.
+    severity: risk
+    state: decided
+    reason: >-
+      Nueva getSuppressedAddress (GET /suppressions/{address}, suppression:read) que devuelve el registro active o released; el listado sigue siendo solo de active.
+
+  - class: 8
+    unit: subscriptions.NotificationRequested
+    what: >-
+      Con 3 intentos y maxDelayMs 30000, una caída de la base de datos de un par de minutos manda
+      las peticiones a deadLetter; no hay operación ni procedimiento declarado para reinyectarlas.
+    severity: risk
+    state: accepted
+    reason: >-
+      Reinyectar desde la deadLetter es operación del broker; es segura porque la idempotencia por (requestedBy, idempotencyKey) impide el segundo correo.
+
+  - class: 9
+    unit: requestNotification
+    what: >-
+      Por la puerta de eventos un emisor registrado puede poner el nombre de otro en metadata.source,
+      actuar en su espacio de claves y bloquearle envíos con IDEMPOTENCY_KEY_REUSED.
+    severity: risk
+    state: decided
+    reason: >-
+      Materializado en messaging.subscriptions.NotificationRequested.identity.trustedPublishers: el
+      broker autentica a los emisores y el source tiene que coincidir con un serviceClient con
+      notification:send; el resto es política de desarrollo asumida por escrito.
+
+  - class: 12
+    unit: service
+    what: >-
+      No se fija la convención de ausencia en las respuestas (campo omitido o null: senderName,
+      replyToAddress, sentAt, failureReason, los campos purgados) ni si el texto de los errores es
+      contrato.
+    severity: risk
+    state: decided
+    reason: >-
+      conventions.nulls: include en el manifiesto; el texto de los mensajes de error no es contrato, el code sí.
+
+  - class: 13
+    unit: purgeMessagePersonalData
+    what: >-
+      No se dice qué pasa si el disparo manual coincide con el del reloj o con otra instancia:
+      ambos seleccionan los mismos mensajes, el bloqueo optimista hará fallar a uno y la operación
+      no declara ningún error para el llamante HTTP.
+    severity: risk
+    state: decided
+    reason: >-
+      Las purgas solapadas no fallan: cada ejecución salta los mensajes que la otra ya purgó o tiene en curso y purgedCount cuenta solo los suyos. Rule en purgeMessagePersonalData.
+
+  - class: 14
+    unit: EmailMessage
+    what: >-
+      authorship: all, pero buena parte de las escrituras no tienen usuario (subscription,
+      dispatchQueuedMessages, sendQueuedMessage, la purga programada): no se dice qué se registra
+      como autor en esos casos.
+    severity: risk
+    state: accepted
+    reason: >-
+      En las escrituras sin principal (barrido, purga programada, consumidor de eventos) el autor es el valor centinela de sistema que pone el generador.
+
+  - class: 15
+    unit: suppressAddress
+    what: >-
+      suppressAddress y releaseAddress llevan la dirección de correo en la ruta, con lo que el dato
+      personal acaba en logs de acceso y proxies, y no se fija la codificación de @ y +.
+    severity: risk
+    state: accepted
+    reason: >-
+      La dirección va en la ruta con codificación porcentual (+ como %2B). El registro de supresión se conserva indefinidamente por diseño, así que el log de acceso no añade una exposición nueva. Decidido por el diseñador.
+
+  - class: 15
+    unit: dispatchQueuedMessages
+    what: >-
+      No tiene endpoint (a diferencia de purgeMessagePersonalData) y cae en el access.default de
+      admin; no consta que se decidiera que solo lo dispare el reloj.
+    severity: risk
+    state: decided
+    reason: >-
+      dispatchQueuedMessages solo lo dispara el reloj, sin puerta HTTP ni de eventos (rule).
+
+  - class: 17
+    unit: sendQueuedMessage
+    what: >-
+      Una variable declarada como no required que el llamante omite: no se dice si se interpola
+      vacía, si se deja el marcador o si se elimina el bloque.
+    severity: risk
+    state: decided
+    reason: >-
+      Una variable opcional sin valor se sustituye por cadena vacía al renderizar (rule en sendQueuedMessage).
+
+  - class: 15
+    unit: getSuppressedAddress
+    what: >-
+      GET /suppressions/{address} también lleva la dirección de correo en la ruta, así que cada
+      consulta de soporte deja el dato personal en logs de acceso y proxies; la aceptación
+      registrada para suppressAddress y releaseAddress no nombra este endpoint.
+    severity: risk
+    state: accepted
+    reason: >-
+      Mismo criterio que suppressAddress y releaseAddress: el diseñador aceptó la dirección en la ruta
+      al añadir getSuppressedAddress («añadir get + aceptar ruta»), con codificación porcentual; el
+      registro de supresión se conserva indefinidamente por diseño.
+
+  - class: 17
+    unit: sendQueuedMessage
+    what: >-
+      Con varios destinatarios en un solo correo, no se decía cómo termina el mensaje si el relay
+      acepta a unos y rechaza a otros en el mismo envío.
+    severity: gap
+    state: decided
+    reason: >-
+      Si el relay acepta al menos un destinatario, el mensaje pasa a sent y publica EmailSent; los
+      rechazados se tratan como rebotes por reportEmailBounce. failed solo si los rechaza a todos.
+      Decidido por el diseñador al preparar los escenarios: marcarlo failed invitaría a reintentar y
+      duplicaría el correo a quien ya lo recibió.

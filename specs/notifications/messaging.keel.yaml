@@ -1,0 +1,75 @@
+# Capa messaging — la puerta de eventos para pedir correos (hermana de POST /notifications)
+# y los desenlaces de cada envío.
+
+channels:
+  notificationRequests:
+    description: Peticiones de envío que los sistemas llamantes dirigen a este servicio.
+  notificationEvents:
+    description: Desenlace de cada mensaje (enviado o fallido) que publica este servicio.
+
+publishing:
+  reliability: outbox
+  events:
+    EmailSent:
+      description: El relay aceptó el correo de un mensaje. No implica que llegara al buzón.
+      channel: notificationEvents
+      payload:
+        messageId:             { type: uuid, required: true }
+        requestedBy:           { type: string, required: true }
+        idempotencyKey:        { type: IdempotencyKey, required: true }
+        templateCode:          { type: TemplateCode, required: true }
+        templateVersionNumber: { type: int, required: true }
+        sentAt:                { type: timestamp, required: true }
+    EmailDeliveryFailed:
+      description: >-
+        Un mensaje acabó en failed y no se reintentará. failureReason distingue el rechazo del
+        relay, el error sin respuesta, el rescate de un mensaje atascado en sending y la supresión
+        de un destinatario descubierta al enviar.
+      channel: notificationEvents
+      payload:
+        messageId:             { type: uuid, required: true }
+        requestedBy:           { type: string, required: true }
+        idempotencyKey:        { type: IdempotencyKey, required: true }
+        templateCode:          { type: TemplateCode, required: true }
+        templateVersionNumber: { type: int, required: true }
+        failureReason:         { type: FailureReason, required: true }
+        failedAt:              { type: timestamp, required: true }
+
+subscriptions:
+  NotificationRequested:
+    description: >-
+      Petición de envío por evento, con el mismo contrato que POST /notifications. La identidad
+      del llamante sale de metadata.source y no viaja en el payload. Un rechazo de negocio (los
+      errores declarados de requestNotification) es permanente: va a la deadLetter sin gastar
+      reintentos; solo los fallos transitorios se reintentan. No hay respuesta por esta puerta: el
+      emisor reconcilia con findMessageByIdempotencyKey, y un 404 significa que la petición no se
+      aceptó.
+    source: any-registered-system
+    nature: request
+    channel: notificationRequests
+    contract: { envelope: keel }
+    identity:
+      field: requestedBy
+      from: { location: field, name: metadata.source }
+      trustedPublishers: >-
+        Nadie publica anónimamente en notificationRequests: el broker autentica a los emisores, lo
+        que acota el riesgo a sistemas propios. Sobre eso se acepta que cada emisor ponga su propio
+        nombre en metadata.source, que es política de desarrollo y no control técnico. Un source
+        solo resuelve si coincide con un serviceClient que tenga el scope notification:send, de
+        modo que un sistema tiene la misma identidad por las dos puertas. El permiso real de esta
+        puerta no es el scope sino la ACL del canal en el broker: cualquier sistema al que el broker
+        deje publicar aquí puede escribir el nombre de un llamante registrado. Se aceptan a
+        sabiendas los dos efectos de un emisor que escriba el nombre de otro:
+        puede pedir correos en su nombre y puede ocupar sus idempotencyKey, de modo que la petición
+        legítima con esa clave nunca envíe. La señal para revisarlo es que publique un sistema de
+        fuera de la organización: entonces se pasa a un destino por emisor con ACL.
+      onUnresolved: deadLetter
+    payload:
+      idempotencyKey: { type: IdempotencyKey, required: true }
+      templateCode:   { type: TemplateCode, required: true }
+      recipients:     { type: EmailAddress, list: true, required: true, constraints: { minItems: 1, maxItems: 20 } }
+      variables:      { type: VariableValue, list: true, constraints: { maxItems: 50 } }
+    triggers: requestNotification
+    onFailure:
+      retry: { maxAttempts: 3, backoff: exponential, initialDelayMs: 1000, maxDelayMs: 30000 }
+      deadLetter: true

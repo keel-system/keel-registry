@@ -1,0 +1,55 @@
+# Capa persistence — almacenamiento relacional, transacción por agregado y bloqueo optimista.
+# Las claves naturales son las guardas que impiden el doble envío y la doble supresión.
+
+default:
+  model: relational
+
+entities:
+  SenderSettings:
+    persisted: true
+    naturalKey: [key]
+    naturalKeyError: CONCURRENT_MODIFICATION
+
+  EmailTemplate:
+    persisted: true
+    naturalKey: [code]
+    naturalKeyError: TEMPLATE_ALREADY_EXISTS
+
+  EmailTemplateVersion:
+    persisted: true
+    naturalKey: [emailTemplate, versionNumber]
+    naturalKeyError: CONCURRENT_MODIFICATION
+    indexes:
+      - fields: [emailTemplate]
+        unique: true
+        when: { field: status, equals: active }
+        error: CONCURRENT_MODIFICATION
+        description: Como mucho una versión active por plantilla, también ante dos publicaciones simultáneas.
+
+  EmailMessage:
+    persisted: true
+    naturalKey: [requestedBy, idempotencyKey]
+    naturalKeyError: IDEMPOTENCY_KEY_IN_PROGRESS
+    indexes:
+      - [status, sendingSince]              # rescate de sending atascados
+      - [status, requestedAt]               # despacho de queued por antigüedad
+      - [requestedAt]                       # listMessages por defecto
+      - [recipients]                        # filtro por destinatario (índice multivalor)
+      - [templateCode, requestedAt]
+      - [requestedBy, requestedAt]
+      - [personalDataPurgedAt, requestedAt] # barrido de purga
+
+  SuppressedAddress:
+    persisted: true
+    naturalKey: [address]
+    naturalKeyError: SUPPRESSED_ADDRESS_ALREADY_EXISTS
+    indexes:
+      - [status, suppressedAt]
+
+audit:
+  timestamps: all
+  authorship: all
+
+consistency:
+  transactionalBoundary: per-aggregate
+  optimisticLocking: all

@@ -117,6 +117,114 @@
       ]
     },
     {
+      "slug": "notifications",
+      "family": "notifications",
+      "variant": null,
+      "service": {
+        "name": "notifications",
+        "version": "0.1.0",
+        "dsl": "2.19",
+        "domain": null,
+        "basedOn": null,
+        "description": "Envía correo transaccional a partir de plantillas que gestiona negocio, a petición de los sistemas de la organización por HTTP o por eventos, sin enviar nunca dos veces el mismo correo."
+      },
+      "metadata": {
+        "family": "notifications",
+        "summary": "Correo transaccional monoinquilino: los sistemas de la organización piden envíos por HTTP servidor-a-servidor o por eventos, con el mismo contrato, a partir de plantillas versionadas que negocio publica sin desplegar. Idempotencia permanente por (llamante, clave) que sobrevive a la purga de datos personales, cola con un único emisor y rescate que nunca reenvía, remitente verificado editable y congelado en cada mensaje, supresiones alimentadas por los rebotes del proveedor, desenlaces publicados por outbox y purga de datos personales a los 18 meses.\n",
+        "maturity": "draft",
+        "tags": [
+          "notifications",
+          "email",
+          "smtp",
+          "templates",
+          "versioning",
+          "m2m",
+          "events",
+          "outbox",
+          "idempotency",
+          "suppression",
+          "bounces",
+          "scheduled",
+          "personal-data",
+          "optimistic-locking",
+          "audit",
+          "pagination",
+          "cors"
+        ],
+        "author": "keel",
+        "license": "Apache-2.0"
+      },
+      "layers": [
+        "domain",
+        "use-cases",
+        "api",
+        "security",
+        "messaging",
+        "persistence",
+        "mail"
+      ],
+      "counts": {
+        "entities": 5,
+        "types": 12,
+        "aggregates": 4,
+        "operations": 22,
+        "commands": 12,
+        "queries": 10,
+        "endpoints": 20,
+        "roles": 4,
+        "serviceClients": 4,
+        "publishedEvents": 2,
+        "subscriptions": 1,
+        "persistedEntities": 5,
+        "mailSenders": 1
+      },
+      "status": {
+        "ok": true,
+        "pending": 0,
+        "errors": 0
+      },
+      "derivatives": {
+        "fresh": 9,
+        "stale": 0,
+        "unstamped": 0,
+        "missing": 0,
+        "orphan": 0,
+        "notApplicable": 0
+      },
+      "docs": {
+        "design": "docs/notifications/DESIGN.md",
+        "overview": "docs/notifications/overview.html",
+        "openapiViewer": "docs/notifications/openapi.html",
+        "asyncapiViewer": "docs/notifications/asyncapi.html",
+        "integration": "docs/notifications/INTEGRATION.md"
+      },
+      "files": [
+        "specs/notifications/service.keel.yaml",
+        "specs/notifications/domain.keel.yaml",
+        "specs/notifications/use-cases.keel.yaml",
+        "specs/notifications/api.keel.yaml",
+        "specs/notifications/security.keel.yaml",
+        "specs/notifications/messaging.keel.yaml",
+        "specs/notifications/persistence.keel.yaml",
+        "specs/notifications/mail.keel.yaml",
+        "specs/notifications/design.yaml",
+        "specs/notifications/decisions.yaml",
+        "specs/notifications/review.yaml",
+        "specs/notifications/flow-review.yaml",
+        "specs/notifications/gaps.yaml",
+        "specs/notifications/validation-scenarios.md",
+        "docs/notifications/DESIGN.md",
+        "docs/notifications/openapi.yaml",
+        "docs/notifications/openapi.html",
+        "docs/notifications/asyncapi.yaml",
+        "docs/notifications/asyncapi.html",
+        "docs/notifications/postman/notifications-collection.json",
+        "docs/notifications/overview.html",
+        "docs/notifications/INTEGRATION.md",
+        "docs/notifications/postman/auth-collection.json"
+      ]
+    },
+    {
       "slug": "payment",
       "family": "payment",
       "variant": null,
@@ -337,6 +445,12 @@
       "name": "catalog",
       "designs": [
         "catalog"
+      ]
+    },
+    {
+      "name": "notifications",
+      "designs": [
+        "notifications"
       ]
     },
     {

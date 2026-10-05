@@ -1,0 +1,76 @@
+# Capa security — OIDC para el back-office y client_credentials para los sistemas llamantes.
+# Servicio monoinquilino: no hay alcance por recurso (scoping). La identidad del llamante solo
+# separa el espacio de claves de idempotencia de cada sistema.
+
+authentication:
+  protocol: oidc
+  tokenLocation: header
+  callerIdentity:
+    field: requestedBy
+    from: { source: serviceClient }
+  serviceAuth:
+    protocol: client-credentials
+    validateAudience: true
+    audience: notifications
+
+roles:
+  notifications-admin:    { description: "Administra el servicio completo, incluido el remitente y la purga manual." }
+  template-editor:        { description: Gestiona plantillas y sus versiones. No lee correos enviados. }
+  notifications-operator: { description: Soporte diario; consulta correos y gestiona supresiones. }
+  notifications-auditor:  { description: Solo lectura de todo el servicio. }
+
+permissions:
+  sender:read:        { description: Leer el remitente configurado. }
+  sender:write:       { description: Configurar el remitente. }
+  template:read:      { description: Leer plantillas y versiones. }
+  template:write:     { description: "Crear, publicar, activar y retirar plantillas." }
+  message:read:       { description: Consultar mensajes desde el back-office. }
+  suppression:read:   { description: Consultar direcciones suprimidas. }
+  suppression:write:  { description: Suprimir y liberar direcciones. }
+  retention:run:      { description: Lanzar a mano la purga de datos personales. }
+  notification:send:  { description: Pedir el envío de un correo (cliente máquina). }
+  notification:read:  { description: Reconciliar una petición propia por su idempotencyKey (cliente máquina). }
+  bounce:report:      { description: Notificar rebotes (proveedor de correo). }
+
+roleGrants:
+  notifications-admin:    [sender:read, sender:write, template:read, template:write, message:read, suppression:read, suppression:write, retention:run]
+  template-editor:        [template:read, template:write]
+  notifications-operator: [template:read, message:read, suppression:read, suppression:write]
+  notifications-auditor:  [sender:read, template:read, message:read, suppression:read]
+
+serviceClients:
+  billing:       { description: Facturación; pide correos y reconcilia sus peticiones., scopes: [notification:send, notification:read] }
+  shipping:      { description: Envíos; pide correos y reconcilia sus peticiones., scopes: [notification:send, notification:read] }
+  dispatch-only: { description: "Sistema que solo pide correos, con el mínimo privilegio.", scopes: [notification:send] }
+  mail-provider: { description: Proveedor de correo; notifica rebotes., scopes: [bounce:report] }
+
+access:
+  default: { level: admin, roles: [notifications-admin] }
+  rules:
+    configureSenderSettings:     { level: required, permissions: [sender:write] }
+    getSenderSettings:           { level: required, permissions: [sender:read] }
+    createTemplate:              { level: required, permissions: [template:write] }
+    publishTemplateVersion:      { level: required, permissions: [template:write] }
+    activateTemplateVersion:     { level: required, permissions: [template:write] }
+    retireTemplate:              { level: required, permissions: [template:write] }
+    getTemplate:                 { level: required, permissions: [template:read] }
+    listTemplates:               { level: required, permissions: [template:read] }
+    getTemplateVersion:          { level: required, permissions: [template:read] }
+    listTemplateVersions:        { level: required, permissions: [template:read] }
+    getMessage:                  { level: required, permissions: [message:read] }
+    listMessages:                { level: required, permissions: [message:read] }
+    suppressAddress:             { level: required, permissions: [suppression:write] }
+    releaseAddress:              { level: required, permissions: [suppression:write] }
+    listSuppressedAddresses:     { level: required, permissions: [suppression:read] }
+    getSuppressedAddress:        { level: required, permissions: [suppression:read] }
+    purgeMessagePersonalData:    { level: required, permissions: [retention:run] }
+    requestNotification:         { level: service, scopes: [notification:send] }
+    findMessageByIdempotencyKey: { level: service, scopes: [notification:read] }
+    reportEmailBounce:           { level: service, scopes: [bounce:report] }
+
+cors:
+  description: Consumido desde el navegador por la SPA de back-office.
+  allowCredentials: false
+  allowedHeaders: [Authorization, Content-Type]
+  exposedHeaders: [X-Correlation-Id]
+  maxAgeSeconds: 3600

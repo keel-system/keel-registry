@@ -1,0 +1,49 @@
+# Capa api — REST para el back-office (users) y para los sistemas llamantes (services).
+# Los recursos se direccionan por clave natural (code, versionNumber, address), así que ninguna
+# creación devuelve 201: no hay un id nuevo al que apuntar con Location.
+# La seguridad de estos endpoints se declara en security.keel.yaml.
+
+style: rest
+basePath: /api/v1
+auto: false
+defaultAudience: users
+
+endpoints:
+  # Remitente
+  configureSenderSettings: { method: PUT,  path: "/sender-settings", successStatus: 200 }
+  getSenderSettings:       { method: GET,  path: "/sender-settings" }
+
+  # Plantillas
+  createTemplate:          { method: POST, path: "/templates", successStatus: 200 }
+  getTemplate:             { method: GET,  path: "/templates/{templateCode}" }
+  listTemplates:           { method: GET,  path: "/templates" }
+  retireTemplate:          { method: POST, path: "/templates/{templateCode}/retire", successStatus: 200 }
+  publishTemplateVersion:  { method: POST, path: "/templates/{templateCode}/versions", successStatus: 200 }
+  listTemplateVersions:    { method: GET,  path: "/templates/{templateCode}/versions" }
+  getTemplateVersion:      { method: GET,  path: "/templates/{templateCode}/versions/{versionNumber}" }
+  activateTemplateVersion: { method: POST, path: "/templates/{templateCode}/versions/{versionNumber}/activate", successStatus: 200 }
+
+  # Envío y reconciliación (sistemas llamantes)
+  requestNotification:         { method: POST, path: "/notifications", successStatus: 202, audience: services }
+  findMessageByIdempotencyKey: { method: GET,  path: "/notifications/{idempotencyKey}", audience: services }
+
+  # Consulta de mensajes (back-office)
+  getMessage:   { method: GET, path: "/messages/{id}" }
+  listMessages: { method: GET, path: "/messages" }
+
+  # Rebotes (proveedor de correo)
+  reportEmailBounce: { method: POST, path: "/messages/{messageId}/bounces", successStatus: 204, audience: services }
+
+  # Supresión
+  listSuppressedAddresses: { method: GET,  path: "/suppressions" }
+  getSuppressedAddress:    { method: GET,  path: "/suppressions/{address}" }
+  suppressAddress:         { method: PUT,  path: "/suppressions/{address}", successStatus: 200 }
+  releaseAddress:          { method: POST, path: "/suppressions/{address}/release", successStatus: 200 }
+
+  # Retención (disparo manual del administrador)
+  purgeMessagePersonalData: { method: POST, path: "/maintenance/purge-personal-data", successStatus: 200 }
+
+pagination:
+  style: offset
+  defaultSize: 20
+  maxSize: 100

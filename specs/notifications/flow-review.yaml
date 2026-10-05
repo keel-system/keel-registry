@@ -1,0 +1,106 @@
+# Careo de flujos de notifications (agente keel-flow-review, contexto limpio).
+# Pasada 3, incremental: solo FL-EVT-003 (corregido en el escenario).
+reviewedAt: 0.1.0
+passes: 3
+scenariosSha256: 4fea7c5487869ee0a368f05196e3c008806ad8e71413c4cfa7c1b453d2127613
+conventionsSha256: e70485504b1eca9eab3d33f63615fbc4068d57f92dd1c95c602aae3450256cd3
+flows:
+  - { id: FL-SND-001, sha256: 4381a74f2c0e880f35bfc7a93b382fe587e322006805682b8a84364a6ecb3472 }
+  - { id: FL-SND-002, sha256: 57fd4ba58e38fbf7c76c235d68ed33ed7c5a38634e2956381a6eb559bd853f1d }
+  - { id: FL-SND-003, sha256: 9263d054ce7f188075fa74088664034b370166463cc6edc3005c816dc1bbe696 }
+  - { id: FL-TPL-001, sha256: 3323aee525507dd6c87a8b1172785debdd849d58d368f9c784456ebc04707958 }
+  - { id: FL-TPL-010, sha256: 17cea00dce2f67b1139bd75f5d1b3e98f9438f250c3a8741882e432d0f99a205 }
+  - { id: FL-TPL-011, sha256: 8f5a1469f8052fa6f1869a1679cbca0096a788ce9e6dcd8153590c6025403a9a }
+  - { id: FL-TPL-020, sha256: 8ce8eec4206cd2e3e52499690dfe47fd559a769fea8e6118ef2edb5b304f08a3 }
+  - { id: FL-TPL-030, sha256: b79546de1e36981a8f23a87c8158d4f60ce850416c761fbc8e5831ec00af79c2 }
+  - { id: FL-NTF-001, sha256: 6e2e4c7bdce837d9beb7afb4478b11032656d456c3356ba2f8635bebed282cd8 }
+  - { id: FL-NTF-002, sha256: 307c09b53dd7f355b80bef81c387cfc9ea8407dbd85b7353ca32602b1caf9d55 }
+  - { id: FL-NTF-003, sha256: 2a796dec7d06ac01b186e25814ff474f3f6f1c13e43bcd7b6c00636afb28092e }
+  - { id: FL-NTF-010, sha256: 34f637b98624d297f42ba2844c6d1cf9221c675f39079f93f319ecbf3abcdccc }
+  - { id: FL-NTF-020, sha256: 7fe523ff4fd4dd4facf4c5a4823a806410e794452c0ebf1f535b76164a26a27e }
+  - { id: FL-NTF-030, sha256: 41b74af47ec550737d699c7acbfeb243158c496d81e78c554d0949f6f27b743b }
+  - { id: FL-NTF-040, sha256: d483808c5da5c62e43b8ab7b1f0d439309433191ea80391024153122e2f67926 }
+  - { id: FL-EVT-001, sha256: 3d0e448532bf0bc48614a6c5057c75e2dd8495d76533408098aaddd20a04fa7d }
+  - { id: FL-EVT-002, sha256: 533a988bed09f33d73ba989f3fec3dd7e5357e817a531bfa3166df1a5e16289f }
+  - { id: FL-EVT-003, sha256: d360571ed5fec8569817b8cc92327a13cee71fd6ee41431b62cf96cc77f454b4 }
+  - { id: FL-DSP-001, sha256: 442cf2096f8da16690cc7ef2c038688b3afabc4396b9c7d0770f94816d75e4c1 }
+  - { id: FL-DSP-010, sha256: c94fbd22b3103105b5ba5e6e3dd7cea83e9eac1657a33843e48f49e8faea7dc1 }
+  - { id: FL-DSP-020, sha256: b51234498cee5d5c03dc0496c65f19f9f27baad5f02e1f86fa8f195aebf9dca3 }
+  - { id: FL-DSP-021, sha256: d791edc945eee3014d0306e9ff30520e8b0e461edf81f491e4d45dd1cba77d13 }
+  - { id: FL-DSP-022, sha256: c441863f51cd04b47c804d593b1f4c57cf6a6c6a12561b41379c867975dd7a0a }
+  - { id: FL-DSP-030, sha256: 50d5a5c705b5778f6b94a0b275c2a3b820ca369ef1c9e9221f33788d1ca0e546 }
+  - { id: FL-DSP-040, sha256: a90caf99dd82aac177fdd5fb41c11f1061595001e8f5a41e4ef6454fd1ba42e8 }
+  - { id: FL-RSC-001, sha256: 94468e18fb0d1e3d4fb141787fc2b7b8b30dda38b07cc7486cba33becba4eb63 }
+  - { id: FL-RSC-002, sha256: 491abc9d1f8a632d70c46c7d85d70d86a3488f75f6feea1f7530b07c21ddb6bb }
+  - { id: FL-OBX-001, sha256: ae4135caa2ef83800339a1fa60fc5cccd2289ec0e81bd40a0823b243bda2dd4d }
+  - { id: FL-OBX-002, sha256: f4eeb4f28394956083cf01604ba3248c9c118341a165085596ebac856e9df837 }
+  - { id: FL-BNC-001, sha256: d3e8c405a967d4f9aaa7bc0ab7f7b89a5a781c79d2c7f803be2aec356cefaaa9 }
+  - { id: FL-BNC-002, sha256: 7799281a7ad89575d45c4f2c0fc2fd27d82b06f104c5c105e03622c121c69980 }
+  - { id: FL-SUP-001, sha256: 6710dc8bfac35c82490ebf012acbfb964e9bfc12ce2379715de2e64bfbec3b87 }
+  - { id: FL-SUP-002, sha256: 7241c4360ea0ad644c26ae3939f0aa45edbd413f983831c62a598af938a63f10 }
+  - { id: FL-SUP-003, sha256: 7a244fb9f0faf189e7d62e20ff0487a5d684b0a3078f1366be6ca2763cd32e23 }
+  - { id: FL-MSG-001, sha256: c7ee461eae6aba3b7bebafcdb6c3009651db7bf2d939918c07affaa255a5af40 }
+  - { id: FL-MSG-002, sha256: f85c2621e2720381da57ebe26e99f1f7162d3145ebd07abb28d4ccf771e3f51d }
+  - { id: FL-PRG-001, sha256: 295982d2dbd2db10effed58e3d483afcb4ef21ee8dfbd0764b50f18a81bfcd5c }
+  - { id: FL-SEC-001, sha256: 5d81f368604cf158e438a6f0d8b6238f92fdb68360f30d5d46d4279f1532ccf9 }
+  - { id: FL-SEC-002, sha256: cfe9b45a767e6a2361d479836de17ac19edbd353fbba040cd925529e93366015 }
+  - { id: FL-SEC-003, sha256: 1bc93b8fee9c58def046f778ad41df666d8e153391affbab26f9bbea2dd45fe1 }
+findings:
+  - flow: FL-NTF-040
+    step: "Then 2"
+    kind: unobservable
+    artifact: use-cases.requestNotification.rules
+    evidence: >-
+      El diseño ya declara la comprobación en lote (requestNotification.rules: «La comprobación de
+      supresiones se hace para todos los destinatarios a la vez, no una consulta por
+      destinatario»), así que la mitad de deducibilidad del hallazgo anterior está cerrada. Pero el
+      Then 2 no ha cambiado: sigue afirmando que «el trabajo con 20 destinatarios no crece respecto
+      al de 1» y que «cómo se mide es del generador». Una prueba de caja negra no ve cuántas
+      consultas lanza el servidor, así que esa aserción sigue sin poder ejecutarse.
+    proposal: >-
+      Dejar en el flujo solo el Then 1 (las dos peticiones responden 202) y llevar la comprobación
+      en lote a «Lo que no tiene escenario», como verificación estática de la rule. Otra opción es
+      quitar el flujo y cubrir requestNotification con los demás.
+    resolution: accepted
+    reason: >-
+      La afirmación de coste la exige docs/validation-scenarios.md para todo command con entrada por
+      lotes (recipients, maxItems 20), escrita por forma y nunca por número; la medición es del
+      generador, igual que en el resto del registry. La rule de requestNotification declara la
+      comprobación en lote. Decidido por el diseñador.
+  - flow: FL-EVT-003
+    step: "Then 1"
+    kind: unobservable
+    artifact: messaging.subscriptions.NotificationRequested.onFailure.retry
+    evidence: >-
+      El Then afirma que el mensaje llega a la deadLetter «tras agotar los 3 intentos con espera
+      creciente». Que acabe en la deadLetter se ve, y es lo que fija onFailure (deadLetter: true).
+      Que hubo 3 intentos y que la espera entre ellos creció (backoff exponential, initialDelayMs
+      1000) no se ve desde fuera: el almacén está caído y ningún efecto de los intentos llega a
+      una superficie pública. Es la misma clase que el «sin reintentos» de FL-EVT-002, que se
+      resolvió en el escenario en la pasada 1.
+    proposal: >-
+      Afirmar solo que, con el almacén caído, el mensaje acaba en la deadLetter. Si se quiere
+      cubrir el número de intentos y el backoff, nombrar una señal observable del arnés o dejarlo
+      como verificación estática de onFailure.retry.
+    resolution: scenario
+
+  - flow: FL-EVT-003
+    step: "Then 1"
+    kind: carried-state
+    artifact: messaging.subscriptions.NotificationRequested.onFailure
+    evidence: >-
+      El Then 1 comprueba con findMessageByIdempotencyKey (404 MESSAGE_NOT_FOUND) que no existe
+      ningún mensaje «agotados los reintentos». Según el When, el almacén sigue indisponible hasta
+      después de agotarlos («se agotan los 3 intentos; se restablece el almacén y el mensaje se
+      reinyecta»). findMessageByIdempotencyKey lee ese mismo almacén, así que en el instante que
+      el Then nombra no puede responder 404: responde un error de infraestructura. El 404 solo se
+      deduce entre el restablecimiento y la primera reinyección, y el escenario no sitúa ahí la
+      consulta. El resto del flujo sí se deduce. Los intentos con el almacén caído no confirman nada
+      ni marcan el eventId como procesado. La primera reinyección crea el mensaje, y la segunda se
+      corta por metadata.eventId o, si no, por la clave natural (requestedBy, idempotencyKey):
+      queda un solo mensaje y sale un solo correo.
+    proposal: >-
+      Decir que el 404 se comprueba «una vez restablecido el almacén y antes de reinyectar», o
+      partir el When en dos y poner el Then 1 entre el restablecimiento y la reinyección.
+    resolution: scenario
+    sealAfter: ad83eb9eae9652ce6d763945a33d2ea25ffbeceeeeffec79c52e220ddd6f2ef8

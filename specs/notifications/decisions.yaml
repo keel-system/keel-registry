@@ -1,0 +1,171 @@
+# Decisiones del diseño: estructurales (tomadas por el diseñador, catálogo de /keel-design)
+# y obligaciones aceptadas por escrito (docs/design-obligations.md).
+# No forma parte del DSL: registra qué se decidió, qué se descartó y por qué.
+
+structural:
+  - section: '3.2'
+    scope: use-cases.requestNotification.idempotency
+    chosen: payload-field idempotencyKey, permanente; guarda = clave natural (requestedBy, idempotencyKey)
+    discarded: clave global por idempotencyKey; sin idempotencia
+    reason: >-
+      El mayor riesgo del servicio es mandar el mismo correo dos veces a una persona real, y la
+      petición entra por HTTP y por eventos (at-least-once), así que la clave tiene que viajar en el
+      cuerpo y no caducar nunca. El servicio es monoinquilino pero tiene varios sistemas llamantes:
+      con la clave global, billing y shipping chocarían al usar ambos el id de un pedido, y el correo
+      del segundo no saldría nunca. Con requestedBy en la clave, cada llamante tiene su espacio.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases.publishTemplateVersion.idempotency
+    chosen: sin clave
+    discarded: client-key 86400
+    reason: >-
+      Un reintento tras un timeout crea una versión idéntica a la anterior; no envía correo ni publica
+      eventos, y el editor la ve en el historial. Coste bajo y visible frente a un contrato más para
+      la SPA. Decidido por el diseñador.
+    since: 0.1.0
+  - section: '3.2'
+    scope: use-cases (resto de commands expuestos)
+    chosen: sin clave
+    discarded: Idempotency-Key en todos los commands
+    reason: >-
+      Ninguno duplica efecto al repetirse: configureSenderSettings reemplaza, createTemplate choca
+      con TEMPLATE_ALREADY_EXISTS, activateTemplateVersion, suppressAddress y releaseAddress son no-op
+      sobre el estado destino, reportEmailBounce no cambia una supresión active y la purga es
+      idempotente por personalDataPurgedAt. retireTemplate repetido responde TEMPLATE_NOT_PUBLISHED:
+      error tras éxito aceptado, el editor recarga y ve la plantilla retirada.
+    since: 0.1.0
+  - section: '3.3'
+    scope: use-cases (todas las queries)
+    chosen: sin caché
+    discarded: cachear plantillas
+    reason: >-
+      Son lecturas de back-office y de reconciliación M2M de poco volumen. Una supresión o un estado
+      de mensaje rancio llevaría a una decisión equivocada, y una plantilla recién publicada tiene que
+      verse al momento.
+    since: 0.1.0
+  - section: '3.9'
+    scope: use-cases (concurrencia)
+    chosen: bloqueo optimista en todas las raíces, 409 CONCURRENT_MODIFICATION
+    discarded: último gana
+    reason: >-
+      Dos publicaciones simultáneas no pueden compartir versionNumber ni dejar dos versiones active,
+      dos administradores no pueden pisarse el remitente sin saberlo, y dos réplicas del despachador
+      no pueden pasar el mismo mensaje a sending: es la guarda que impide el doble envío. Dos
+      supresiones que crean el registro a la vez responden SUPPRESSED_ADDRESS_ALREADY_EXISTS (409).
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.endpoints.requestNotification.audience
+    chosen: services (operación propia)
+    discarded: both; no exponer por HTTP (solo eventos)
+    reason: >-
+      Solo los sistemas llamantes piden envíos; el back-office no envía correos. Es la puerta HTTP
+      hermana del canal notificationRequests, con el mismo contrato. Fijado en el encargo.
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.endpoints.findMessageByIdempotencyKey.audience
+    chosen: services (operación propia)
+    discarded: reutilizar getMessage con audience both
+    reason: >-
+      El llamante reconcilia por su propia clave, no por el id interno, y solo ve sus mensajes. El
+      back-office consulta por id y con filtros; los dos contratos evolucionan aparte.
+    since: 0.1.0
+  - section: '3.4'
+    scope: api.endpoints.reportEmailBounce.audience
+    chosen: services (operación propia)
+    discarded: exponerlo al back-office
+    reason: El rebote lo notifica el proveedor de correo; la supresión manual tiene su propia operación.
+    since: 0.1.0
+  - section: '3.8'
+    scope: api.pagination
+    chosen: offset, defaultSize 20, maxSize 100; orden total en cada listado
+    discarded: listados sin paginar
+    reason: >-
+      Mensajes y supresiones crecen sin cota. Órdenes: plantillas por code asc, versiones por
+      versionNumber desc, mensajes por requestedAt desc + id, supresiones por suppressedAt desc + id.
+      Fijado en el encargo.
+    since: 0.1.0
+  - section: '3.1'
+    scope: messaging.publishing.reliability
+    chosen: outbox
+    discarded: best-effort (lo que pedía el encargo)
+    reason: >-
+      El encargo promete que el fallo es terminal y se publica; con best-effort, un
+      EmailDeliveryFailed se pierde sin rastro si el broker no está en el instante de confirmar. El
+      payload es contrato estable aunque hoy no haya consumidores, y el primero que llegue esperará no
+      perder eventos. El coste es pequeño: la persistencia ya es relacional y por agregado. Decidido
+      por el diseñador frente a su propio encargo.
+    since: 0.1.0
+  - section: '3.5'
+    scope: messaging.subscriptions.NotificationRequested
+    chosen: retry 3 exponencial + deadLetter; identidad no resuelta → deadLetter directo
+    discarded: solo retry; descartar en silencio al emisor no registrado
+    reason: >-
+      Una petición perdida es un correo que nadie manda y nadie sabe que faltó: tiene que poder
+      reinyectarse. La guarda contra el doble envío en las reentregas es la idempotencia por
+      (requestedBy, idempotencyKey), que viaja en el payload. Un emisor registrado es un serviceClient
+      con notification:send, para que el mismo sistema tenga la misma identidad por las dos puertas.
+    since: 0.1.0
+  - section: '3.7'
+    scope: persistence.consistency.transactionalBoundary
+    chosen: per-aggregate
+    discarded: per-operation
+    reason: >-
+      Ninguna operación escribe dos agregados, así que no hay confirmación a medias que compensar. Se
+      acepta que una petición use el remitente, la plantilla y las supresiones tal como los leyó; la
+      recomprobación de la supresión al enviar cubre la carrera que importa.
+    since: 0.1.0
+  - section: '3.9'
+    scope: persistence.consistency.optimisticLocking
+    chosen: all
+    discarded: none
+    reason: Materializa la política de concurrencia decidida en use-cases (409 CONCURRENT_MODIFICATION; guarda queued → sending).
+    since: 0.1.0
+  - section: '3.9b'
+    scope: persistence.audit.timestamps
+    chosen: all
+    discarded: declared
+    reason: >-
+      El rastro es para operar e investigar, no para el cliente: el dominio ya expone las fechas de
+      negocio (requestedAt, sentAt, suppressedAt, publishedAt).
+    since: 0.1.0
+  - section: '3.9b'
+    scope: persistence.audit.authorship
+    chosen: all
+    discarded: declared; none
+    reason: >-
+      El encargo pide auditoría completa: quién hizo la última escritura de cada fila (quién publicó
+      una versión, quién liberó una dirección mientras siga liberada). Se acepta que un rebote que
+      reactiva una dirección tape quién la había liberado: la autoría registra la última escritura,
+      no el historial. Se queda en el almacén; el contrato solo expone requestedBy.
+    since: 0.1.0
+
+decisions:
+  - id: CHK-MAIL-SENDER-NO-FALLBACK
+    scope: mail.sender
+    reason: >-
+      Falla cerrado a propósito: antes que enviar desde una dirección que nadie verificó, no se envía.
+      En la práctica nunca llega a enviar sin remitente, porque requestNotification rechaza con
+      SENDER_SETTINGS_NOT_CONFIGURED y el mensaje congela el remitente al aceptarlo.
+    since: 0.1.0
+
+  - id: OBL-GUARD-UNOBSERVABLE
+    scope: mail.sendQueuedMessage
+    reason: >-
+      sendQueuedMessage sigue siendo interna: abrirle una puerta sería una segunda vía de producir
+      correo y de adelantar la cola. Su guarda (la transición queued → sending con bloqueo optimista)
+      se verifica con la comprobación de idempotencia de infraestructura del generador
+      (infra/check-idempotency.sh: dos ejecuciones concurrentes sobre el mismo mensaje producen un
+      solo correo), y validation-scenarios.md lo declara en § Lo que no tiene escenario. Decidido
+      por el diseñador.
+    since: 0.1.0
+
+falsePositives:
+  - id: CHK-DOMAIN-INNER-LIFECYCLE
+    match: EmailTemplateVersion
+    reason: >-
+      El status de EmailTemplateVersion nunca cambia por su cuenta: solo lo mueven
+      publishTemplateVersion, activateTemplateVersion y retireTemplate, que operan sobre la raíz
+      EmailTemplate y recalculan hasActiveVersion en la misma transacción. La máquina de estados
+      está en la versión porque es la versión la que se archiva o reactiva, pero su dueño es la raíz.
+      Decidido por el diseñador al aprobar domain.
+    since: 0.1.0

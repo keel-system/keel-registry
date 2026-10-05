@@ -1,0 +1,183 @@
+# Capa domain — correo transaccional monoinquilino: plantillas versionadas que gestiona negocio,
+# mensajes aceptados de los sistemas llamantes, supresión de direcciones y el remitente del servicio.
+
+types:
+  EmailAddress:
+    base: string
+    description: Dirección de correo. El servicio la normaliza a minúsculas antes de guardarla o compararla.
+    constraints: { maxLength: 254, pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" }
+  TemplateCode:
+    base: string
+    description: Código estable de una plantilla; es su clave pública y no cambia nunca.
+    constraints: { pattern: "^[a-z][a-z0-9-]{2,47}$" }
+  IdempotencyKey:
+    base: string
+    description: Clave que el llamante asigna a cada petición de envío para que repetirla no envíe dos correos.
+    constraints: { minLength: 8, maxLength: 128, pattern: "^[A-Za-z0-9._:-]{8,128}$" }
+  VariableName:
+    base: string
+    description: >-
+      Nombre de una variable de plantilla. En subject, htmlBody y textBody se usa con el marcador
+      {{name}} (se admiten espacios dentro de las llaves: {{ name }}). No hay expresiones,
+      condicionales, filtros ni bucles, y no existe forma de escribir {{ como literal.
+    constraints: { pattern: "^[a-zA-Z][a-zA-Z0-9_]{0,63}$" }
+  TemplateVariable:
+    description: Variable declarada por una versión de plantilla.
+    fields:
+      name:        { type: VariableName, required: true }
+      description: { type: string, required: true, constraints: { maxLength: 500 } }
+      required:    { type: boolean, required: true }
+  VariableValue:
+    description: Valor que el llamante da a una variable declarada al pedir un envío.
+    fields:
+      name:  { type: VariableName, required: true }
+      value: { type: string, required: true, constraints: { maxLength: 10000 } }
+  SenderSnapshot:
+    description: Remitente congelado en el mensaje al aceptarlo; el envío nunca vuelve a leer la configuración viva.
+    fields:
+      address:        { type: EmailAddress, required: true }
+      name:           { type: string, constraints: { maxLength: 120 } }
+      replyToAddress: { type: EmailAddress }
+  TemplateVersionStatus:
+    values: [active, archived]
+  MessageStatus:
+    values: [queued, sending, sent, failed]
+  FailureReason:
+    description: >-
+      Por qué un mensaje acabó en failed. delivery-rejected: el relay rechazó el mensaje;
+      delivery-error: el intento falló sin respuesta concluyente; stuck-in-sending: el rescate lo
+      cerró tras 15 minutos en sending, sin reenviarlo; recipient-suppressed: al ir a enviarlo,
+      algún destinatario tenía una supresión active, y no se intentó.
+    values: [delivery-rejected, delivery-error, stuck-in-sending, recipient-suppressed]
+  SuppressionReason:
+    values: [hard-bounce, complaint, manual]
+  SuppressionStatus:
+    values: [active, released]
+
+entities:
+  SenderSettings:
+    description: >-
+      Remitente verificado del servicio. Existe como mucho una; mientras no exista no se acepta
+      ninguna petición de envío.
+    fields:
+      id:             { type: uuid, id: true, generated: true }
+      key:            { type: enum, values: [default], default: default, unique: true, description: "Clave constante que hace imposible un segundo SenderSettings, también ante dos altas simultáneas." }
+      senderAddress:  { type: EmailAddress, required: true, description: Dirección verificada ante el proveedor de correo. }
+      senderName:     { type: string, constraints: { maxLength: 120 } }
+      replyToAddress: { type: EmailAddress }
+    invariants:
+      - Existe como mucho un SenderSettings en el servicio.
+
+  EmailTemplate:
+    description: Plantilla de correo que gestiona negocio; posee su historial de versiones.
+    fields:
+      id:               { type: uuid, id: true, generated: true }
+      code:             { type: TemplateCode, required: true, unique: true }
+      name:             { type: string, required: true, constraints: { maxLength: 120 } }
+      description:      { type: string, constraints: { maxLength: 1000 } }
+      hasActiveVersion:
+        type: boolean
+        computed: >-
+          Es true si y solo si alguna versión de la plantilla está en active. Se persiste y se
+          recalcula en la misma transacción que publishTemplateVersion, activateTemplateVersion y
+          retireTemplate.
+    relations:
+      versions: { entity: EmailTemplateVersion, cardinality: one-to-many, description: Historial completo de versiones. }
+    invariants:
+      - Como mucho una versión de la plantilla está en active.
+      - Los versionNumber de una plantilla son correlativos desde 1 y nunca se reutilizan.
+
+  EmailTemplateVersion:
+    description: Contenido inmutable de una plantilla en un momento dado. Solo cambia su status.
+    fields:
+      id:            { type: uuid, id: true, generated: true }
+      versionNumber: { type: int, required: true, generated: true, constraints: { min: 1 } }
+      subject:       { type: string, required: true, constraints: { maxLength: 300 } }
+      htmlBody:      { type: text, required: true, constraints: { maxLength: 262144 } }
+      textBody:      { type: text, required: true, constraints: { maxLength: 65536 } }
+      variables:     { type: TemplateVariable, list: true, constraints: { maxItems: 50 } }
+      status:        { type: TemplateVersionStatus, default: active }
+      publishedAt:   { type: timestamp, generated: true }
+    relations:
+      emailTemplate: { entity: EmailTemplate, cardinality: many-to-one, required: true }
+    lifecycle:
+      field: status
+      transitions:
+        active:   [archived]
+        archived: [active]
+    invariants:
+      - subject, htmlBody, textBody y variables no cambian tras crear la versión.
+      - Todo marcador {{name}} de subject, htmlBody o textBody nombra una variable declarada en variables.
+      - Los nombres de variables son únicos dentro de la versión.
+
+  EmailMessage:
+    description: >-
+      Petición de envío aceptada. Congela al aceptarla todo lo que el envío necesita, de modo
+      que enviarla no depende de cambios posteriores en plantillas ni remitente.
+    fields:
+      id:                    { type: uuid, id: true, generated: true }
+      requestedBy:           { type: string, required: true, constraints: { maxLength: 128 }, description: "Identidad del sistema llamante (serviceClient por HTTP, metadata.source por evento)." }
+      idempotencyKey:        { type: IdempotencyKey, required: true }
+      recipients:            { type: EmailAddress, list: true, constraints: { maxItems: 20 }, description: Destinatarios deduplicados y en minúsculas. Se vacía al purgar. }
+      renderedSubject:       { type: string, constraints: { maxLength: 300 }, description: Asunto renderizado al aceptar. Se vacía al purgar. }
+      variableValues:        { type: VariableValue, list: true, sensitive: true, constraints: { maxItems: 50 }, description: Solo las variables declaradas. Se vacía al purgar. }
+      sender:                { type: SenderSnapshot, required: true }
+      templateCode:          { type: TemplateCode, required: true }
+      templateVersionNumber: { type: int, required: true }
+      templateVersionId:     { type: uuid, required: true }
+      status:                { type: MessageStatus, default: queued }
+      requestedAt:           { type: timestamp, generated: true }
+      sendingSince:          { type: timestamp }
+      sentAt:                { type: timestamp }
+      failedAt:              { type: timestamp }
+      failureReason:         { type: FailureReason }
+      personalDataPurgedAt:  { type: timestamp }
+    lifecycle:
+      field: status
+      transitions:
+        queued:  [sending, failed]
+        sending: [sent, failed]
+        sent:    []
+        failed:  []
+    invariants:
+      - Mientras personalDataPurgedAt está vacío, recipients tiene entre 1 y 20 direcciones distintas, en minúsculas, y renderedSubject tiene valor.
+      - status sent implica sentAt con valor.
+      - status failed implica failureReason y failedAt con valor.
+      - status sending o sent implica sendingSince con valor.
+      - status failed con sendingSince vacío implica failureReason recipient-suppressed.
+      - status queued implica sendingSince, sentAt, failedAt y failureReason vacíos.
+      - sender, templateCode, templateVersionNumber, templateVersionId, requestedBy e idempotencyKey no cambian tras aceptar el mensaje.
+      - Con personalDataPurgedAt con valor, recipients, renderedSubject y variableValues están vacíos.
+
+  SuppressedAddress:
+    description: >-
+      Dirección a la que el servicio no envía. Una dirección tiene un único registro para
+      siempre: liberarla lo conserva y una nueva supresión lo reactiva.
+    fields:
+      id:           { type: uuid, id: true, generated: true }
+      address:      { type: EmailAddress, required: true, unique: true, compare: ignore-case }
+      reason:       { type: SuppressionReason, required: true }
+      notes:        { type: string, constraints: { maxLength: 1000 } }
+      status:       { type: SuppressionStatus, default: active }
+      suppressedAt: { type: timestamp, required: true }
+      releasedAt:   { type: timestamp }
+    lifecycle:
+      field: status
+      transitions:
+        active:   [released]
+        released: [active]
+    invariants:
+      - status released implica releasedAt con valor.
+      - status active implica releasedAt vacío.
+
+aggregates:
+  SenderSettings:
+    root: SenderSettings
+  EmailTemplate:
+    description: La plantilla y sus versiones cambian juntas; publicar, activar y retirar tocan ambas en una transacción.
+    root: EmailTemplate
+    entities: [EmailTemplateVersion]
+  EmailMessage:
+    root: EmailMessage
+  SuppressedAddress:
+    root: SuppressedAddress
