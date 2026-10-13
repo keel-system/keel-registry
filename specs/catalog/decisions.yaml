@@ -191,3 +191,12 @@ falsePositives:
       por id. El exclude es intencional: la auditoría y el lockVersion de la marca y la categoría no salen
       en la tienda pública ni en el contrato M2M.
     since: 0.1.0
+  - id: CHK-SCEN-ROUTE-UNSERVED
+    match: "FL-M2M-001 llama a GET /api/v1/internal/products/"
+    reason: >-
+      La ruta que llama FL-M2M-001 es la servida: getProductForServices declara GET
+      /internal/products/{id} bajo basePath /api/v1 (api.keel.yaml). El detector (keel-core
+      crossrefs.js, bloque 1b) se queda con el PRIMER endpoint cuyo final casa —/products/{id}, de
+      getPublishedProduct— en vez de con la plantilla más larga, como sí hace whenOperation, y toma
+      /api/v1/internal por prefijo servido.
+    since: 0.1.1
