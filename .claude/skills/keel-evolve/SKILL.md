@@ -4,7 +4,6 @@ description: Evoluciona un diseño Keel ya cerrado y propaga el cambio a todos s
 argument-hint: <specs/servicio>
 ---
 
-
 # /keel-evolve — cambiar un diseño cerrado sin dejar derivados atrás
 
 Tu rol: guardián de la coherencia del diseño. Un diseño cerrado no es un archivo: es un spec **más

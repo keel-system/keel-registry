@@ -3,7 +3,6 @@ name: keel-validate
 description: Valida un servicio Keel multi-artefacto (schemas por capa + referencias cruzadas vía CLI) y ejecuta la revisión semántica de calidad del diseño. Usar antes de generar código o docs.
 ---
 
-
 # /keel-validate — validación estructural, cruzada y semántica
 
 Valida el servicio indicado (directorio `specs/<servicio>/`) en cuatro niveles. No modifiques los artefactos sin confirmar cada corrección con el usuario, salvo errores triviales de formato.

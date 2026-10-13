@@ -4,7 +4,6 @@ description: Valida un servicio Keel multi-artefacto (schemas por capa + referen
 argument-hint: <specs/servicio>
 ---
 
-
 # /keel-validate — validación estructural, cruzada y semántica
 
 Valida el servicio indicado (directorio `specs/<servicio>/`) en cuatro niveles. No modifiques los artefactos sin confirmar cada corrección con el usuario, salvo errores triviales de formato.
