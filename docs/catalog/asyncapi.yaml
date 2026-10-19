@@ -161,9 +161,7 @@ components:
         category:
           $ref: '#/components/schemas/NamedRef'
         images:
-          type:
-          - array
-          - 'null'
+          type: array
           items:
             $ref: '#/components/schemas/ProductImageRef'
           maxItems: 10
@@ -204,9 +202,7 @@ components:
         category:
           $ref: '#/components/schemas/NamedRef'
         images:
-          type:
-          - array
-          - 'null'
+          type: array
           items:
             $ref: '#/components/schemas/ProductImageRef'
           maxItems: 10
@@ -276,7 +272,9 @@ components:
           description: Key del objeto en el bucket lógico `productImages` (viaja la referencia, no el binario ni
             una URL).
         altText:
-          type: string
+          type:
+          - string
+          - 'null'
           maxLength: 160
           description: Texto alternativo.
         position:

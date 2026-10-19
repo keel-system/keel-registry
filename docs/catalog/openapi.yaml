@@ -92,17 +92,25 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_REQUIRED:
                   summary: 'La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
                     que un reintento no repita el '
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: IDEMPOTENCY_KEY_REQUIRED
                     message: La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
                       que un reintento no repita el efecto.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -113,9 +121,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -126,9 +138,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`BRAND_NAME_ALREADY_EXISTS` — Ya existe una marca con ese nombre, sin distinguir mayúsculas
             ni acentos.
@@ -148,29 +164,45 @@ paths:
                 BRAND_NAME_ALREADY_EXISTS:
                   summary: Ya existe una marca con ese nombre, sin distinguir mayúsculas ni acentos.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: BRAND_NAME_ALREADY_EXISTS
                     message: Ya existe una marca con ese nombre, sin distinguir mayúsculas ni acentos.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_IN_PROGRESS:
                   summary: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: IDEMPOTENCY_KEY_IN_PROGRESS
                     message: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_REUSED:
                   summary: La Idempotency-Key ya se usó con un cuerpo distinto.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: IDEMPOTENCY_KEY_REUSED
                     message: La Idempotency-Key ya se usó con un cuerpo distinto.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CONCURRENT_MODIFICATION:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -205,17 +237,15 @@ paths:
         required: false
         schema:
           type: integer
-          minimum: 0
           default: 0
-        description: Página, base 0.
+        description: Página, base 0; un valor negativo se sustituye por 0.
       - name: size
         in: query
         required: false
         schema:
           type: integer
-          minimum: 1
           default: 20
-        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100 y uno menor que 1 se sustituye por 20.
       responses:
         '200':
           description: Operación completada.
@@ -233,9 +263,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -246,9 +280,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -259,9 +297,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -311,9 +353,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -324,9 +370,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -337,9 +387,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
           content:
@@ -350,9 +404,13 @@ paths:
                 BRAND_NOT_FOUND:
                   summary: No existe una marca con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: BRAND_NOT_FOUND
                     message: No existe una marca con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`CONCURRENT_MODIFICATION` — La version enviada no es la lockVersion actual: otro cambio
             se confirmó después de que el gestor leyera el recurso.
@@ -367,16 +425,24 @@ paths:
                   summary: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de que
                     el gestor leyera el recurso.'
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de
                       que el gestor leyera el recurso.'
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 BRAND_NAME_ALREADY_EXISTS:
                   summary: Otra marca ya tiene ese nombre, sin distinguir mayúsculas ni acentos.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: BRAND_NAME_ALREADY_EXISTS
                     message: Otra marca ya tiene ese nombre, sin distinguir mayúsculas ni acentos.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -412,9 +478,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -425,9 +495,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
           content:
@@ -438,9 +512,13 @@ paths:
                 BRAND_NOT_FOUND:
                   summary: No existe una marca con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: BRAND_NOT_FOUND
                     message: No existe una marca con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -481,9 +559,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -494,9 +576,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -507,9 +593,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
           content:
@@ -520,9 +610,13 @@ paths:
                 BRAND_NOT_FOUND:
                   summary: No existe una marca con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: BRAND_NOT_FOUND
                     message: No existe una marca con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente
             relee y reintenta con la versión nueva.'
@@ -535,10 +629,14 @@ paths:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -577,9 +675,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -590,9 +692,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -603,9 +709,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`BRAND_NOT_FOUND` — No existe una marca con ese id.'
           content:
@@ -616,9 +726,13 @@ paths:
                 BRAND_NOT_FOUND:
                   summary: No existe una marca con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: BRAND_NOT_FOUND
                     message: No existe una marca con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente
             relee y reintenta con la versión nueva.'
@@ -631,10 +745,14 @@ paths:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -691,17 +809,25 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_REQUIRED:
                   summary: 'La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
                     que un reintento no repita el '
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: IDEMPOTENCY_KEY_REQUIRED
                     message: La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
                       que un reintento no repita el efecto.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -712,9 +838,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -725,9 +855,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`CATEGORY_NAME_ALREADY_EXISTS` — Ya existe una categoría con ese nombre, sin distinguir
             mayúsculas ni acentos.
@@ -747,29 +881,45 @@ paths:
                 CATEGORY_NAME_ALREADY_EXISTS:
                   summary: Ya existe una categoría con ese nombre, sin distinguir mayúsculas ni acentos.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CATEGORY_NAME_ALREADY_EXISTS
                     message: Ya existe una categoría con ese nombre, sin distinguir mayúsculas ni acentos.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_IN_PROGRESS:
                   summary: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: IDEMPOTENCY_KEY_IN_PROGRESS
                     message: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_REUSED:
                   summary: La Idempotency-Key ya se usó con un cuerpo distinto.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: IDEMPOTENCY_KEY_REUSED
                     message: La Idempotency-Key ya se usó con un cuerpo distinto.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CONCURRENT_MODIFICATION:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -804,17 +954,15 @@ paths:
         required: false
         schema:
           type: integer
-          minimum: 0
           default: 0
-        description: Página, base 0.
+        description: Página, base 0; un valor negativo se sustituye por 0.
       - name: size
         in: query
         required: false
         schema:
           type: integer
-          minimum: 1
           default: 20
-        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100 y uno menor que 1 se sustituye por 20.
       responses:
         '200':
           description: Operación completada.
@@ -832,9 +980,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -845,9 +997,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -858,9 +1014,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -910,9 +1070,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -923,9 +1087,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -936,9 +1104,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
           content:
@@ -949,9 +1121,13 @@ paths:
                 CATEGORY_NOT_FOUND:
                   summary: No existe una categoría con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: CATEGORY_NOT_FOUND
                     message: No existe una categoría con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`CONCURRENT_MODIFICATION` — La version enviada no es la lockVersion actual: otro cambio
             se confirmó después de que el gestor leyera el recurso.
@@ -966,16 +1142,24 @@ paths:
                   summary: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de que
                     el gestor leyera el recurso.'
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de
                       que el gestor leyera el recurso.'
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CATEGORY_NAME_ALREADY_EXISTS:
                   summary: Otra categoría ya tiene ese nombre, sin distinguir mayúsculas ni acentos.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CATEGORY_NAME_ALREADY_EXISTS
                     message: Otra categoría ya tiene ese nombre, sin distinguir mayúsculas ni acentos.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1011,9 +1195,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -1024,9 +1212,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
           content:
@@ -1037,9 +1229,13 @@ paths:
                 CATEGORY_NOT_FOUND:
                   summary: No existe una categoría con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: CATEGORY_NOT_FOUND
                     message: No existe una categoría con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1080,9 +1276,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -1093,9 +1293,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -1106,9 +1310,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
           content:
@@ -1119,9 +1327,13 @@ paths:
                 CATEGORY_NOT_FOUND:
                   summary: No existe una categoría con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: CATEGORY_NOT_FOUND
                     message: No existe una categoría con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente
             relee y reintenta con la versión nueva.'
@@ -1134,10 +1346,14 @@ paths:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1176,9 +1392,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -1189,9 +1409,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -1202,9 +1426,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`CATEGORY_NOT_FOUND` — No existe una categoría con ese id.'
           content:
@@ -1215,9 +1443,13 @@ paths:
                 CATEGORY_NOT_FOUND:
                   summary: No existe una categoría con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: CATEGORY_NOT_FOUND
                     message: No existe una categoría con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`CONCURRENT_MODIFICATION` — Otra escritura sobre la misma raíz se confirmó antes; el cliente
             relee y reintenta con la versión nueva.'
@@ -1230,10 +1462,14 @@ paths:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1294,17 +1530,25 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_REQUIRED:
                   summary: 'La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
                     que un reintento no repita el '
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: IDEMPOTENCY_KEY_REQUIRED
                     message: La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
                       que un reintento no repita el efecto.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -1315,9 +1559,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -1328,9 +1576,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`PRODUCT_SKU_ALREADY_EXISTS` — Ya existe un producto con ese sku.
 
@@ -1349,29 +1601,45 @@ paths:
                 PRODUCT_SKU_ALREADY_EXISTS:
                   summary: Ya existe un producto con ese sku.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: PRODUCT_SKU_ALREADY_EXISTS
                     message: Ya existe un producto con ese sku.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_IN_PROGRESS:
                   summary: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: IDEMPOTENCY_KEY_IN_PROGRESS
                     message: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_REUSED:
                   summary: La Idempotency-Key ya se usó con un cuerpo distinto.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: IDEMPOTENCY_KEY_REUSED
                     message: La Idempotency-Key ya se usó con un cuerpo distinto.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CONCURRENT_MODIFICATION:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '422':
           description: '`CURRENCY_NOT_SUPPORTED` — La currency del price no es la moneda del catálogo; el servicio
             opera en una sola moneda y no convierte.
@@ -1394,38 +1662,58 @@ paths:
                   summary: La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda
                     y no convierte.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 422
+                    error: Unprocessable Content
                     code: CURRENCY_NOT_SUPPORTED
                     message: La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda
                       y no convierte.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 BRAND_REFERENCE_NOT_FOUND:
                   summary: 'El brandId indicado no existe. Es distinto de BRAND_NOT_FOUND: aquí la marca es un dato
                     de la petición, no el recurso pe'
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 422
+                    error: Unprocessable Content
                     code: BRAND_REFERENCE_NOT_FOUND
                     message: 'El brandId indicado no existe. Es distinto de BRAND_NOT_FOUND: aquí la marca es un
                       dato de la petición, no el recurso pedido.'
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 BRAND_INACTIVE:
                   summary: La marca indicada está inactiva y no admite productos nuevos.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 422
+                    error: Unprocessable Content
                     code: BRAND_INACTIVE
                     message: La marca indicada está inactiva y no admite productos nuevos.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CATEGORY_REFERENCE_NOT_FOUND:
                   summary: 'El categoryId indicado no existe. Es distinto de CATEGORY_NOT_FOUND: aquí la categoría
                     es un dato de la petición, no el '
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 422
+                    error: Unprocessable Content
                     code: CATEGORY_REFERENCE_NOT_FOUND
                     message: 'El categoryId indicado no existe. Es distinto de CATEGORY_NOT_FOUND: aquí la categoría
                       es un dato de la petición, no el recurso pedido.'
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CATEGORY_INACTIVE:
                   summary: La categoría indicada está inactiva y no admite productos nuevos.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 422
+                    error: Unprocessable Content
                     code: CATEGORY_INACTIVE
                     message: La categoría indicada está inactiva y no admite productos nuevos.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1497,17 +1785,15 @@ paths:
         required: false
         schema:
           type: integer
-          minimum: 0
           default: 0
-        description: Página, base 0.
+        description: Página, base 0; un valor negativo se sustituye por 0.
       - name: size
         in: query
         required: false
         schema:
           type: integer
-          minimum: 1
           default: 20
-        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100 y uno menor que 1 se sustituye por 20.
       responses:
         '200':
           description: Operación completada.
@@ -1527,15 +1813,23 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 INVALID_PRICE_RANGE:
                   summary: minPrice es mayor que maxPrice.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: INVALID_PRICE_RANGE
                     message: minPrice es mayor que maxPrice.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -1546,9 +1840,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -1559,9 +1857,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1616,9 +1918,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -1629,9 +1935,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -1642,9 +1952,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
           content:
@@ -1655,9 +1969,13 @@ paths:
                 PRODUCT_NOT_FOUND:
                   summary: No existe un producto con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
 
@@ -1678,37 +1996,57 @@ paths:
                 PRODUCT_RETIRED:
                   summary: El producto está retirado y ya no admite cambios.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: PRODUCT_RETIRED
                     message: El producto está retirado y ya no admite cambios.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CONCURRENT_MODIFICATION:
                   summary: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de que
                     el gestor leyera el recurso.'
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de
                       que el gestor leyera el recurso.'
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 PRODUCT_SKU_IMMUTABLE:
                   summary: Se pide un sku distinto del actual y el producto ya se publicó alguna vez; desde entonces
                     es la referencia estable con l
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: PRODUCT_SKU_IMMUTABLE
                     message: Se pide un sku distinto del actual y el producto ya se publicó alguna vez; desde entonces
                       es la referencia estable con la que otros servidores lo conocen.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 PRODUCT_SKU_ALREADY_EXISTS:
                   summary: Otro producto ya tiene el sku pedido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: PRODUCT_SKU_ALREADY_EXISTS
                     message: Otro producto ya tiene el sku pedido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 PRODUCT_PRICE_NOT_POSITIVE:
                   summary: El producto está publicado y el nuevo price.amount no es mayor que cero.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: PRODUCT_PRICE_NOT_POSITIVE
                     message: El producto está publicado y el nuevo price.amount no es mayor que cero.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '422':
           description: '`CURRENCY_NOT_SUPPORTED` — La currency del price no es la moneda del catálogo; el servicio
             opera en una sola moneda y no convierte.
@@ -1729,34 +2067,54 @@ paths:
                   summary: La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda
                     y no convierte.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 422
+                    error: Unprocessable Content
                     code: CURRENCY_NOT_SUPPORTED
                     message: La currency del price no es la moneda del catálogo; el servicio opera en una sola moneda
                       y no convierte.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 BRAND_REFERENCE_NOT_FOUND:
                   summary: El brandId indicado no existe.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 422
+                    error: Unprocessable Content
                     code: BRAND_REFERENCE_NOT_FOUND
                     message: El brandId indicado no existe.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 BRAND_INACTIVE:
                   summary: Se asigna una marca distinta de la actual y está inactiva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 422
+                    error: Unprocessable Content
                     code: BRAND_INACTIVE
                     message: Se asigna una marca distinta de la actual y está inactiva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CATEGORY_REFERENCE_NOT_FOUND:
                   summary: El categoryId indicado no existe.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 422
+                    error: Unprocessable Content
                     code: CATEGORY_REFERENCE_NOT_FOUND
                     message: El categoryId indicado no existe.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CATEGORY_INACTIVE:
                   summary: Se asigna una categoría distinta de la actual y está inactiva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 422
+                    error: Unprocessable Content
                     code: CATEGORY_INACTIVE
                     message: Se asigna una categoría distinta de la actual y está inactiva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1793,9 +2151,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -1806,9 +2168,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
           content:
@@ -1819,9 +2185,13 @@ paths:
                 PRODUCT_NOT_FOUND:
                   summary: No existe un producto con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1870,9 +2240,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -1883,9 +2257,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -1896,9 +2274,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
           content:
@@ -1909,9 +2291,13 @@ paths:
                 PRODUCT_NOT_FOUND:
                   summary: No existe un producto con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`INVALID_STATE_TRANSITION` — El producto no está en draft (ya está active, o está retired).
 
@@ -1930,29 +2316,45 @@ paths:
                 INVALID_STATE_TRANSITION:
                   summary: El producto no está en draft (ya está active, o está retired).
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: INVALID_STATE_TRANSITION
                     message: El producto no está en draft (ya está active, o está retired).
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 PRODUCT_HAS_NO_IMAGES:
                   summary: El producto no tiene ninguna imagen y no puede publicarse.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: PRODUCT_HAS_NO_IMAGES
                     message: El producto no tiene ninguna imagen y no puede publicarse.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 PRODUCT_PRICE_NOT_POSITIVE:
                   summary: El precio que ya tiene el producto no es mayor que cero, así que no puede publicarse.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: PRODUCT_PRICE_NOT_POSITIVE
                     message: El precio que ya tiene el producto no es mayor que cero, así que no puede publicarse.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CONCURRENT_MODIFICATION:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1996,9 +2398,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -2009,9 +2415,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -2022,9 +2432,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
           content:
@@ -2035,9 +2449,13 @@ paths:
                 PRODUCT_NOT_FOUND:
                   summary: No existe un producto con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`INVALID_STATE_TRANSITION` — El producto no está active (está en draft o retired).
 
@@ -2051,17 +2469,25 @@ paths:
                 INVALID_STATE_TRANSITION:
                   summary: El producto no está active (está en draft o retired).
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: INVALID_STATE_TRANSITION
                     message: El producto no está active (está en draft o retired).
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CONCURRENT_MODIFICATION:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -2106,9 +2532,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -2119,9 +2549,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -2132,9 +2566,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
           content:
@@ -2145,9 +2583,13 @@ paths:
                 PRODUCT_NOT_FOUND:
                   summary: No existe un producto con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`INVALID_STATE_TRANSITION` — El producto ya está retired.
 
@@ -2161,17 +2603,25 @@ paths:
                 INVALID_STATE_TRANSITION:
                   summary: El producto ya está retired.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: INVALID_STATE_TRANSITION
                     message: El producto ya está retired.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CONCURRENT_MODIFICATION:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -2241,17 +2691,25 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_REQUIRED:
                   summary: 'La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
                     que un reintento no repita el '
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: IDEMPOTENCY_KEY_REQUIRED
                     message: La petición no trae la cabecera Idempotency-Key; sin ella el servicio no puede garantizar
                       que un reintento no repita el efecto.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -2262,9 +2720,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -2275,9 +2737,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
           content:
@@ -2288,9 +2754,13 @@ paths:
                 PRODUCT_NOT_FOUND:
                   summary: No existe un producto con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
 
@@ -2311,35 +2781,55 @@ paths:
                 PRODUCT_RETIRED:
                   summary: El producto está retirado y ya no admite cambios.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: PRODUCT_RETIRED
                     message: El producto está retirado y ya no admite cambios.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IMAGE_LIMIT_REACHED:
                   summary: El producto ya tiene 10 imágenes.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: IMAGE_LIMIT_REACHED
                     message: El producto ya tiene 10 imágenes.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CONCURRENT_MODIFICATION:
                   summary: Otra escritura sobre el mismo producto se confirmó durante el alta (p. ej. otra imagen
                     subida a la vez).
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre el mismo producto se confirmó durante el alta (p. ej. otra imagen
                       subida a la vez).
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_IN_PROGRESS:
                   summary: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: IDEMPOTENCY_KEY_IN_PROGRESS
                     message: Otra petición con la misma Idempotency-Key está en curso; reintentar más tarde.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IDEMPOTENCY_KEY_REUSED:
                   summary: La Idempotency-Key ya se usó con un cuerpo distinto.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: IDEMPOTENCY_KEY_REUSED
                     message: La Idempotency-Key ya se usó con un cuerpo distinto.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '413':
           description: '`FILE_TOO_LARGE` — La imagen supera el tamaño máximo admitido por el bucket.'
           content:
@@ -2350,9 +2840,13 @@ paths:
                 FILE_TOO_LARGE:
                   summary: La imagen supera el tamaño máximo admitido por el bucket.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 413
+                    error: Content Too Large
                     code: FILE_TOO_LARGE
                     message: La imagen supera el tamaño máximo admitido por el bucket.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '415':
           description: '`UNSUPPORTED_CONTENT_TYPE` — El formato de la imagen no está entre los admitidos, o el contenido
             del archivo no coincide con el tipo declarado.'
@@ -2365,10 +2859,14 @@ paths:
                   summary: El formato de la imagen no está entre los admitidos, o el contenido del archivo no coincide
                     con el tipo declarado.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 415
+                    error: Unsupported Media Type
                     code: UNSUPPORTED_CONTENT_TYPE
                     message: El formato de la imagen no está entre los admitidos, o el contenido del archivo no
                       coincide con el tipo declarado.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -2429,9 +2927,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -2442,9 +2944,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -2455,9 +2961,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.
 
@@ -2470,15 +2980,23 @@ paths:
                 PRODUCT_NOT_FOUND:
                   summary: No existe un producto con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IMAGE_NOT_FOUND:
                   summary: El producto no tiene ninguna imagen con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: IMAGE_NOT_FOUND
                     message: El producto no tiene ninguna imagen con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
 
@@ -2495,25 +3013,37 @@ paths:
                 PRODUCT_RETIRED:
                   summary: El producto está retirado y ya no admite cambios.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: PRODUCT_RETIRED
                     message: El producto está retirado y ya no admite cambios.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CONCURRENT_MODIFICATION:
                   summary: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de que
                     el gestor leyera el recurso.'
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: 'La version enviada no es la lockVersion actual: otro cambio se confirmó después de
                       que el gestor leyera el recurso.'
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 MAIN_IMAGE_REQUIRED:
                   summary: Se pide main a false sobre la imagen principal; siempre tiene que haber una, así que
                     se cambia marcando otra como princi
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: MAIN_IMAGE_REQUIRED
                     message: Se pide main a false sobre la imagen principal; siempre tiene que haber una, así que
                       se cambia marcando otra como principal.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -2562,9 +3092,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -2575,9 +3109,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido.'
           content:
@@ -2588,9 +3126,13 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.
 
@@ -2603,15 +3145,23 @@ paths:
                 PRODUCT_NOT_FOUND:
                   summary: No existe un producto con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 IMAGE_NOT_FOUND:
                   summary: El producto no tiene ninguna imagen con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: IMAGE_NOT_FOUND
                     message: El producto no tiene ninguna imagen con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '409':
           description: '`PRODUCT_RETIRED` — El producto está retirado y ya no admite cambios.
 
@@ -2628,25 +3178,37 @@ paths:
                 PRODUCT_RETIRED:
                   summary: El producto está retirado y ya no admite cambios.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: PRODUCT_RETIRED
                     message: El producto está retirado y ya no admite cambios.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 LAST_IMAGE_OF_PUBLISHED_PRODUCT:
                   summary: El producto está publicado y es su única imagen; un producto publicado tiene al menos
                     una.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: LAST_IMAGE_OF_PUBLISHED_PRODUCT
                     message: El producto está publicado y es su única imagen; un producto publicado tiene al menos
                       una.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 CONCURRENT_MODIFICATION:
                   summary: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta con
                     la versión nueva.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 409
+                    error: Conflict
                     code: CONCURRENT_MODIFICATION
                     message: Otra escritura sobre la misma raíz se confirmó antes; el cliente relee y reintenta
                       con la versión nueva.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - userAuth: []
       x-keel-permissions:
@@ -2704,17 +3266,15 @@ paths:
         required: false
         schema:
           type: integer
-          minimum: 0
           default: 0
-        description: Página, base 0.
+        description: Página, base 0; un valor negativo se sustituye por 0.
       - name: size
         in: query
         required: false
         schema:
           type: integer
-          minimum: 1
           default: 20
-        description: Tamaño de página; un valor mayor que 100 se recorta a 100.
+        description: Tamaño de página; un valor mayor que 100 se recorta a 100 y uno menor que 1 se sustituye por 20.
       responses:
         '200':
           description: Operación completada.
@@ -2734,15 +3294,23 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
                 INVALID_PRICE_RANGE:
                   summary: minPrice es mayor que maxPrice.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: INVALID_PRICE_RANGE
                     message: minPrice es mayor que maxPrice.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security: []
   /api/v1/products/{id}:
     get:
@@ -2776,9 +3344,13 @@ paths:
                 PRODUCT_NOT_FOUND:
                   summary: No existe un producto publicado con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto publicado con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security: []
   /api/v1/brands:
     get:
@@ -2844,9 +3416,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido (o es un token emitido
             para otra audiencia).'
@@ -2858,10 +3434,14 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido (o es un token emitido para otra audiencia).
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido (o es un token emitido para otra
                       audiencia).
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '404':
           description: '`PRODUCT_NOT_FOUND` — No existe un producto con ese id.'
           content:
@@ -2872,9 +3452,13 @@ paths:
                 PRODUCT_NOT_FOUND:
                   summary: No existe un producto con ese id.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 404
+                    error: Not Found
                     code: PRODUCT_NOT_FOUND
                     message: No existe un producto con ese id.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - serviceAuth: &id001
         - product:read-internal
@@ -2913,9 +3497,13 @@ paths:
                 VALIDATION_ERROR:
                   summary: La petición no cumple las cotas declaradas del input.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 400
+                    error: Bad Request
                     code: VALIDATION_ERROR
                     message: La petición no cumple las cotas declaradas del input.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '401':
           description: '`UNAUTHENTICATED` — Sin credencial válida.'
           content:
@@ -2926,9 +3514,13 @@ paths:
                 UNAUTHENTICATED:
                   summary: Sin credencial válida.
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 401
+                    error: Unauthorized
                     code: UNAUTHENTICATED
                     message: Sin credencial válida.
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
         '403':
           description: '`ACCESS_DENIED` — La credencial no tiene el permiso o scope exigido (o es un token emitido
             para otra audiencia).'
@@ -2940,10 +3532,14 @@ paths:
                 ACCESS_DENIED:
                   summary: La credencial no tiene el permiso o scope exigido (o es un token emitido para otra audiencia).
                   value:
+                    timestamp: '2026-03-14T09:21:07.482Z'
                     status: 403
+                    error: Forbidden
                     code: ACCESS_DENIED
                     message: La credencial no tiene el permiso o scope exigido (o es un token emitido para otra
                       audiencia).
+                    details: null
+                    correlationId: 1f7b0a52-33c9-4a1e-9a44-6c0f2b8d55e1
       security:
       - serviceAuth: &id002
         - product:read-internal
@@ -3355,11 +3951,15 @@ components:
       description: 'Producto, proyección servidor-a-servidor: cualquier estado, con lockVersion y sin auditoría.'
     Error:
       type: object
-      description: Forma única del cuerpo de error del servicio.
+      description: Forma única del cuerpo de error del servicio; viaja siempre con todas sus claves.
       required:
+      - timestamp
       - status
+      - error
       - code
       - message
+      - details
+      - correlationId
       properties:
         timestamp:
           type: string
@@ -3376,10 +3976,14 @@ components:
           type: string
           description: Texto humano; no es contrato.
         details:
-          type: object
+          type:
+          - object
+          - 'null'
           additionalProperties: true
         correlationId:
-          type: string
+          type:
+          - string
+          - 'null'
     CreateBrandRequest:
       type: object
       properties:

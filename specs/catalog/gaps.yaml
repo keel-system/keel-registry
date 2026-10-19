@@ -235,6 +235,40 @@ findings:
     reason: >-
       conventions.nulls: include en el manifiesto (un campo sin valor viaja como null, en respuestas y eventos; las colecciones vacías como []). Los timestamps viajan en ISO-8601 UTC (convención de los escenarios).
   - class: 12
+    unit: messaging.ProductImageRef.altText
+    what: >-
+      La generación keel-spring (FL-PRD-020) reportó una contradicción: asyncapi.yaml declaraba altText como
+      string no nulo y el escenario espera altText null en el ProductUpdated.
+    severity: gap
+    state: decided
+    reason: >-
+      El diseño ya lo decía: altText es opcional en ProductImageRef y el manifiesto fija conventions.nulls:
+      include, así que viaja como null. El defecto era del contrato derivado, no del spec: asyncapi.yaml se
+      regeneró con altText [string, null] e images como array no nulo (una lista nunca viaja como null,
+      docs/wire-contract.md § Listas). El escenario es correcto y no cambia.
+  - class: 12
+    unit: api.pagination
+    what: >-
+      La generación keel-nest (FL-BRD-030-G) preguntó qué responde un listado con size < 1 o page < 0, que ni el
+      DSL de este servicio ni sus escenarios fijaban.
+    severity: gap
+    state: decided
+    reason: >-
+      Lo fija el DSL para todo servicio (docs/dsl/api.md § pagination): un size menor que 1 se sustituye por
+      defaultSize (20) y un page negativo por 0, sin error. Este diseño no quiere un 400, así que no hace falta
+      escenario propio. openapi.yaml se regeneró sin los minimum de page y size que contradecían esa regla.
+  - class: 12
+    unit: api.createProduct
+    what: >-
+      La generación keel-nest (FL-BRD-001-A) señaló que los Then escriben Location = /api/v1/.../{id} y el
+      servidor emite una URL absoluta.
+    severity: risk
+    state: decided
+    reason: >-
+      Lo fija el DSL (docs/dsl/api.md, regla del 201 con Location): la cabecera es una URL absoluta y un Then
+      que escribe la ruta afirma su final, no la igualdad. Los escenarios ya están escritos con esa convención
+      y no cambian.
+  - class: 12
     unit: service
     what: >-
       Product.name no se recorta de espacios (Brand.name y Category.name sí), así que "   " o " Camiseta"
