@@ -323,8 +323,8 @@ operations:
         categoryId: { type: uuid }
         brandId:    { type: uuid }
         name:       { type: string, match: contains, compare: ignore-case-accents, constraints: { maxLength: 160 } }
-        minPrice:   { type: decimal, constraints: { min: 0, scale: 2, scalePolicy: reject } }
-        maxPrice:   { type: decimal, constraints: { min: 0, scale: 2, scalePolicy: reject } }
+        minPrice:   { type: decimal, filter: { field: price.amount, op: gte }, constraints: { min: 0, scale: 2, scalePolicy: reject } }
+        maxPrice:   { type: decimal, filter: { field: price.amount, op: lte }, constraints: { min: 0, scale: 2, scalePolicy: reject } }
     output: { entity: Product, paginated: true, sort: [name:asc, id:asc], embed: [brand, category] }
     rules:
       - Los filtros son acumulativos; los ausentes no restringen.
@@ -414,13 +414,14 @@ operations:
   searchPublishedProducts:
     description: "Busca productos publicados en la tienda, filtrando por categoría, marca, nombre y rango de precio."
     kind: query
+    where: { status: active }
     input:
       fields:
         categoryId: { type: uuid }
         brandId:    { type: uuid }
         name:       { type: string, match: contains, compare: ignore-case-accents, constraints: { maxLength: 160 } }
-        minPrice:   { type: decimal, constraints: { min: 0, scale: 2, scalePolicy: reject } }
-        maxPrice:   { type: decimal, constraints: { min: 0, scale: 2, scalePolicy: reject } }
+        minPrice:   { type: decimal, filter: { field: price.amount, op: gte }, constraints: { min: 0, scale: 2, scalePolicy: reject } }
+        maxPrice:   { type: decimal, filter: { field: price.amount, op: lte }, constraints: { min: 0, scale: 2, scalePolicy: reject } }
     output: { entity: Product, paginated: true, sort: [name:asc, id:asc], embed: [brand, category], exclude: [lockVersion, createdAt, updatedAt, createdBy, updatedBy, brand.createdAt, brand.updatedAt, brand.createdBy, brand.updatedBy, brand.lockVersion, category.createdAt, category.updatedAt, category.createdBy, category.updatedBy, category.lockVersion] }
     rules:
       - Solo devuelve productos en estado active.
@@ -445,6 +446,7 @@ operations:
   listPublicBrands:
     description: "Lista las marcas activas, para ofrecerlas como filtro en la tienda."
     kind: query
+    where: { active: true }
     input: "void"
     output: { entity: Brand, list: true, sort: [name:asc, id:asc], exclude: [lockVersion, createdAt, updatedAt, createdBy, updatedBy] }
     rules:
@@ -453,6 +455,7 @@ operations:
   listPublicCategories:
     description: "Lista las categorías activas, para ofrecerlas como filtro en la tienda."
     kind: query
+    where: { active: true }
     input: "void"
     output: { entity: Category, list: true, sort: [name:asc, id:asc], exclude: [lockVersion, createdAt, updatedAt, createdBy, updatedBy] }
     rules:

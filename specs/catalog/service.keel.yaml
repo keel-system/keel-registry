@@ -1,11 +1,11 @@
 # Manifiesto del servicio — punto de entrada del diseño.
 # Declara la identidad del servicio y qué capas de diseño existen.
 # Regla: una capa opcional existe si y solo si está declarada aquí (y su archivo existe).
-keel: "2.21"
+keel: "2.22"
 
 service:
   name: catalog
-  version: 0.1.1
+  version: 0.1.2
   # keel validate trata cualquier description que empiece por "TODO" como placeholder pendiente.
   description: "Gestiona el catálogo comercial —productos con sus imágenes, marcas y categorías—, lo expone filtrable al público de la tienda, lo sirve a otros servidores por contrato y publica las altas y cambios de producto como eventos."
   domain: commerce
