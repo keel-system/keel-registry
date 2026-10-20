@@ -1,5 +1,5 @@
 reviewedBy: keel-gap-sweep
-reviewedAt: 0.1.0
+reviewedAt: 0.2.0
 
 coverage:
   - class: 1
@@ -384,3 +384,124 @@ findings:
       rechazados se tratan como rebotes por reportEmailBounce. failed solo si los rechaza a todos.
       Decidido por el diseñador al preparar los escenarios: marcarlo failed invitaría a reintentar y
       duplicaría el correo a quien ya lo recibió.
+
+  # ── Barrido de la v0.2.0 (marcadores mal formados y carrera de queued) ──────
+
+  - class: 12
+    unit: service
+    what: >-
+      «Espacios opcionales» dentro del marcador no fija qué cuenta como espacio (solo U+0020, o
+      también tabulador, salto de línea o espacio duro): {{\n name \n}} es marcador para un stack
+      que use \s y MALFORMED_TEMPLATE_MARKER para otro, y lo mismo al renderizar.
+      Propuesta: fijar el conjunto exacto (p. ej. solo U+0020) en VariableName y en la regla de
+      publishTemplateVersion.
+    severity: gap
+    state: decided
+    reason: >-
+      Solo U+0020 cuenta como espacio dentro de un marcador; tabulador, salto de línea o espacio duro lo vuelven MALFORMED_TEMPLATE_MARKER. Fijado en la rule de publishTemplateVersion y en VariableName; caso borde en FL-TPL-010. Decidido por el diseñador.
+
+  - class: 2
+    unit: publishTemplateVersion
+    what: >-
+      La regla solo constriñe las apariciones de {{: no dice si }} o } sueltos son literales, si
+      {{name}}} (marcador válido seguido de }) se acepta, ni si las apariciones de {{ se cuentan
+      solapadas. Una implementación por expresión regular acepta {{name}}} y pinta valor+«}»; otra
+      que rechace }}} por simetría con {{{ responde MALFORMED_TEMPLATE_MARKER.
+      Propuesta: declarar que } y }} fuera de un marcador son literales y {{name}}} es válido (o
+      rechazarlo explícitamente), y llevar el caso al escenario de precedencia.
+    severity: risk
+    state: decided
+    reason: >-
+      Lectura de izquierda a derecha y solo {{ abre marcador: } y }} fuera de un marcador son literales, y {{name}}} es un marcador seguido de '}'. Rule de publishTemplateVersion; caso borde en FL-TPL-010. Decidido por el diseñador.
+
+  - class: 14
+    unit: EmailTemplateVersion
+    what: >-
+      El invariante nuevo es retroactivo, pero las versiones publicadas con la v0.1.0 son inmutables y
+      pueden contener {{{name}}} u otras formas que ahora son mal formadas (active o archived): no se
+      dice si se migran, se archivan o se toleran, ni cómo las renderizan requestNotification (asunto)
+      y sendQueuedMessage (cuerpos).
+      Propuesta: decidir la política para lo ya persistido (p. ej. tolerarlas y que el render solo
+      sustituya marcadores bien formados y deje el resto literal, o archivarlas en la migración).
+    severity: gap
+    state: decided
+    reason: >-
+      Las versiones anteriores a la v0.2.0 no se migran: no se pueden reactivar (MALFORMED_TEMPLATE_MARKER en activateTemplateVersion), y si alguna sigue active, el render solo sustituye marcadores bien formados y deja literal (escapado en htmlBody) cualquier otro {{. Invariante de EmailTemplateVersion y rules de activateTemplateVersion y sendQueuedMessage. Decidido por el diseñador.
+
+  - class: 2
+    unit: activateTemplateVersion
+    what: >-
+      No acepta contenido, pero puede reactivar una versión archivada anterior a la v0.2.0 que incumple
+      el invariante nuevo, y no tiene guarda ni error para ello (createTemplate no acepta contenido y
+      no le aplica la regla).
+      Propuesta: añadir MALFORMED_TEMPLATE_MARKER (422) a activateTemplateVersion, o declarar que las
+      versiones heredadas se toleran (enlaza con el hallazgo de clase 14 sobre EmailTemplateVersion).
+    severity: risk
+    state: decided
+    reason: >-
+      activateTemplateVersion gana MALFORMED_TEMPLATE_MARKER (422) para una versión archived que no cumple la regla, evaluado después del no-op de versión ya active. No se puede preparar en caja negra: declarado en validation-scenarios.md § Lo que no tiene escenario. Decidido por el diseñador.
+
+  - class: 17
+    unit: sendQueuedMessage
+    what: >-
+      No se dice si la sustitución es de una sola pasada: los valores de las variables no pasan la
+      regla de marcadores, así que un valor que contenga {{otra}} se vuelve a sustituir en un motor
+      que reemplace variable a variable sobre la salida y no en otro. Diverge el correo entre stacks
+      y permite que un valor inyecte el de otra variable. Afecta igual al renderedSubject de
+      requestNotification.
+      Propuesta: una sola pasada sobre la plantilla; el valor sustituido es literal y nunca se vuelve
+      a examinar.
+    severity: gap
+    state: decided
+    reason: >-
+      La sustitución es de una sola pasada en el asunto y en los cuerpos: el valor insertado no se reinterpreta aunque contenga {{otra}}. Rule de sendQueuedMessage; caso borde en FL-DSP-030. Decidido por el diseñador.
+
+  - class: 2
+    unit: requestNotification
+    what: >-
+      renderedSubject tiene maxLength 300, igual que subject, pero cada valor admite hasta 10000
+      caracteres: el asunto renderizado puede superar 300 y no hay guarda, error ni regla de recorte.
+      Propuesta: un error 422 propio (p. ej. RENDERED_SUBJECT_TOO_LONG) con su sitio en el orden de
+      evaluación, o recortar a 300 con regla explícita, o subir la cota de renderedSubject.
+    severity: gap
+    state: decided
+    reason: >-
+      Error nuevo RENDERED_SUBJECT_TOO_LONG (422) en requestNotification, en el paso (3) del orden después de las variables y antes de las supresiones; no se recorta. Cubierto en FL-NTF-010. Decidido por el diseñador.
+
+  - class: 12
+    unit: service
+    what: >-
+      Al renderizar el asunto, «los saltos de línea de los valores pasan a un espacio» no dice si
+      \r\n es un salto (un espacio) o dos, ni si \r suelto cuenta.
+      Propuesta: \r\n, \r y \n son cada uno un salto y pasan a un único espacio.
+    severity: risk
+    state: decided
+    reason: >-
+      \r\n, \n y un \r suelto cuentan cada uno como un solo salto, y cada salto pasa a un espacio. Rule de requestNotification; caso borde en FL-DSP-030. Decidido por el diseñador.
+
+  - class: 4
+    unit: sendQueuedMessage
+    what: >-
+      La regla nueva promete que la ejecución que pierde la carrera por queued tampoco publica
+      EmailDeliveryFailed, pero la aceptación de OBL-GUARD-UNOBSERVABLE en decisions.yaml solo cita
+      infra/check-idempotency.sh «un solo correo»: que la rama de supresión publique un único
+      EmailDeliveryFailed bajo concurrencia no lo comprueba nada.
+      Propuesta: ampliar esa comprobación (y la aceptación) a la rama queued → failed, contando los
+      EmailDeliveryFailed.
+    severity: risk
+    state: decided
+    reason: >-
+      No se amplía la comprobación de infraestructura: EmailDeliveryFailed se escribe en el outbox en la misma transacción que la transición desde queued, así que quien la pierde no publica nada. Se amplía la aceptación de OBL-GUARD-UNOBSERVABLE en decisions.yaml con ese razonamiento. Decidido por el diseñador.
+
+  - class: 15
+    unit: publishTemplateVersion
+    what: >-
+      Un 422 nuevo sobre un endpoint existente se versiona como minor: un cliente del back-office que
+      publicaba {{{name}}} con la v0.1.0 ahora recibe MALFORMED_TEMPLATE_MARKER, y no consta que se
+      decidiera que ese endurecimiento no es un cambio incompatible.
+      Propuesta: dejar escrito el porqué de minor (en decisions.yaml o en el DESIGN.md), o subir a
+      major.
+    severity: risk
+    state: decided
+    reason: >-
+      Se queda en minor: MALFORMED_TEMPLATE_MARKER solo rechaza contenido cuyo comportamiento en la v0.1.0 no estaba definido (el generador ya lo rechazaba, como UNDECLARED_TEMPLATE_VARIABLES); ningún cliente dependía de un resultado contractual. Queda escrito en DESIGN.md. Decidido por el diseñador.

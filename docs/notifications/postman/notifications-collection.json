@@ -1117,6 +1117,39 @@
               }
             }
           ]
+        },
+        {
+          "name": "FL-TPL-010 · L — Triple llave (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_template-editor}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/templates/invoice-issued/versions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Factura {{invoiceNumber}}\",\n  \"htmlBody\": \"<p>Hola {{{customerName}}}</p>\",\n  \"textBody\": \"Hola {{customerName}}, total {{amount}}. {{note}}\",\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"description\": \"Número de factura\",\n      \"required\": true\n    },\n    {\n      \"name\": \"customerName\",\n      \"description\": \"Nombre del cliente\",\n      \"required\": true\n    },\n    {\n      \"name\": \"amount\",\n      \"description\": \"Importe con moneda\",\n      \"required\": true\n    },\n    {\n      \"name\": \"note\",\n      \"description\": \"Nota opcional\",\n      \"required\": false\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code MALFORMED_TEMPLATE_MARKER', () => pm.expect(pm.response.json().code).to.eql('MALFORMED_TEMPLATE_MARKER'));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -2997,6 +3030,39 @@
               }
             }
           ]
+        },
+        {
+          "name": "FL-NTF-010 · N — Asunto renderizado demasiado largo (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"rej-0006\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('code RENDERED_SUBJECT_TOO_LONG', () => pm.expect(pm.response.json().code).to.eql('RENDERED_SUBJECT_TOO_LONG'));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -4285,7 +4351,7 @@
           ]
         },
         {
-          "name": "FL-DSP-001 · D — requestNotification k-001 (202)",
+          "name": "FL-DSP-001 · D — requestNotification key-0001 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -4301,7 +4367,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"k-001\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"key-0001\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -4318,7 +4384,7 @@
           ]
         },
         {
-          "name": "FL-DSP-001 · E — requestNotification k-002 (202)",
+          "name": "FL-DSP-001 · E — requestNotification key-0002 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -4334,7 +4400,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"k-002\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"key-0002\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -4351,7 +4417,7 @@
           ]
         },
         {
-          "name": "FL-DSP-001 · F — requestNotification k-003 (202)",
+          "name": "FL-DSP-001 · F — requestNotification key-0003 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -4367,7 +4433,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"k-003\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"key-0003\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -5228,6 +5294,72 @@
               }
             }
           ]
+        },
+        {
+          "name": "FL-DSP-030 · F — Valor con marcador, una sola pasada (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"dsp-030-a\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"ana@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"customerName\",\n      \"value\": \"{{note}}\"\n    },\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-2\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"5 €\"\n    },\n    {\n      \"name\": \"note\",\n      \"value\": \"Gracias\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));",
+                  "if (pm.response.code < 300) pm.collectionVariables.set('msg_dsp-030-a', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-DSP-030 · G — Salto \\r\\n en el asunto (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_billing}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/notifications",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"dsp-030-b\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"ana@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-1\\r\\nX\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"5 €\"\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 202', () => pm.response.to.have.status(202));",
+                  "if (pm.response.code < 300) pm.collectionVariables.set('msg_dsp-030-b', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -5331,7 +5463,7 @@
           ]
         },
         {
-          "name": "FL-DSP-040 · D — requestNotification c-000 (202)",
+          "name": "FL-DSP-040 · D — requestNotification cyc-0000 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -5347,7 +5479,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"c-000\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"cyc-0000\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -5364,7 +5496,7 @@
           ]
         },
         {
-          "name": "FL-DSP-040 · E — requestNotification c-001 (202)",
+          "name": "FL-DSP-040 · E — requestNotification cyc-0001 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -5380,7 +5512,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"c-001\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"cyc-0001\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -5397,7 +5529,7 @@
           ]
         },
         {
-          "name": "FL-DSP-040 · F — requestNotification c-002 (202)",
+          "name": "FL-DSP-040 · F — requestNotification cyc-0002 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -5413,7 +5545,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"c-002\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"cyc-0002\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -5430,7 +5562,7 @@
           ]
         },
         {
-          "name": "FL-DSP-040 · G — requestNotification c-003 (202)",
+          "name": "FL-DSP-040 · G — requestNotification cyc-0003 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -5446,7 +5578,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"c-003\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"cyc-0003\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -5463,7 +5595,7 @@
           ]
         },
         {
-          "name": "FL-DSP-040 · H — requestNotification c-004 (202)",
+          "name": "FL-DSP-040 · H — requestNotification cyc-0004 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -5479,7 +5611,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"c-004\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"cyc-0004\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -5496,7 +5628,7 @@
           ]
         },
         {
-          "name": "FL-DSP-040 · I — requestNotification c-005 (202)",
+          "name": "FL-DSP-040 · I — requestNotification cyc-0005 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -5512,7 +5644,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"c-005\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"cyc-0005\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -7753,7 +7885,7 @@
           ]
         },
         {
-          "name": "FL-MSG-001 · D — requestNotification k-001 (202)",
+          "name": "FL-MSG-001 · D — requestNotification key-0001 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -7769,7 +7901,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"k-001\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"ana@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"key-0001\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"ana@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -7786,7 +7918,7 @@
           ]
         },
         {
-          "name": "FL-MSG-001 · E — requestNotification k-002 (202)",
+          "name": "FL-MSG-001 · E — requestNotification key-0002 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -7802,7 +7934,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"k-002\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"key-0002\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -7819,7 +7951,7 @@
           ]
         },
         {
-          "name": "FL-MSG-001 · F — requestNotification k-003 (shipping) (202)",
+          "name": "FL-MSG-001 · F — requestNotification key-0003 (shipping) (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -7835,7 +7967,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"k-003\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"zed@rejected.invalid\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"key-0003\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"zed@rejected.invalid\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -7851,7 +7983,7 @@
           ]
         },
         {
-          "name": "FL-MSG-001 · G — getMessage k-001 (200)",
+          "name": "FL-MSG-001 · G — getMessage key-0001 (200)",
           "request": {
             "method": "GET",
             "header": [
@@ -8144,7 +8276,7 @@
           ]
         },
         {
-          "name": "FL-MSG-002 · D — requestNotification k-001 (202)",
+          "name": "FL-MSG-002 · D — requestNotification key-0001 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -8160,7 +8292,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"k-001\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"key-0001\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -8177,7 +8309,7 @@
           ]
         },
         {
-          "name": "FL-MSG-002 · E — requestNotification k-002 (202)",
+          "name": "FL-MSG-002 · E — requestNotification key-0002 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -8193,7 +8325,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"k-002\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"key-0002\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -8210,7 +8342,7 @@
           ]
         },
         {
-          "name": "FL-MSG-002 · F — requestNotification k-003 (202)",
+          "name": "FL-MSG-002 · F — requestNotification key-0003 (202)",
           "request": {
             "method": "POST",
             "header": [
@@ -8226,7 +8358,7 @@
             "url": "{{baseUrl}}/api/v1/notifications",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idempotencyKey\": \"k-003\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
+              "raw": "{\n  \"idempotencyKey\": \"key-0003\",\n  \"templateCode\": \"invoice-issued\",\n  \"recipients\": [\n    \"Ana@Example.com\",\n    \"luis@example.com\"\n  ],\n  \"variables\": [\n    {\n      \"name\": \"invoiceNumber\",\n      \"value\": \"F-0001\"\n    },\n    {\n      \"name\": \"customerName\",\n      \"value\": \"Ana\"\n    },\n    {\n      \"name\": \"amount\",\n      \"value\": \"10,00 €\"\n    }\n  ]\n}"
             }
           },
           "event": [
@@ -10185,7 +10317,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.1.0"
+      "value": "0.2.0"
     },
     {
       "key": "webOrigin",

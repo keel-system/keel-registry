@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.0 -->
+<!-- keel:version 0.2.0 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,9 +188,9 @@
 const KEEL = {
   "service": {
     "name": "notifications",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Envía correo transaccional a partir de plantillas que gestiona negocio, a petición de los sistemas de la organización por HTTP o por eventos, sin enviar nunca dos veces el mismo correo.",
-    "generatedAt": "2026-10-05"
+    "generatedAt": "2026-10-20"
   },
   "links": [
     {
@@ -631,7 +631,8 @@ const KEEL = {
         "Si la plantilla tenía una versión active, pasa a archived.",
         "hasActiveVersion de la plantilla queda true.",
         "El motor de plantillas solo sustituye variables por nombre; no evalúa expresiones, condicionales ni llamadas.",
-        "Orden de evaluación: plantilla existente (TEMPLATE_NOT_FOUND), después nombres repetidos en variables (DUPLICATE_TEMPLATE_VARIABLES), después marcadores sin declarar (UNDECLARED_TEMPLATE_VARIABLES)."
+        "Toda aparición de {{ en subject, htmlBody o textBody abre un marcador {{name}} bien formado: tras {{ vienen cero o más espacios (solo U+0020; un tabulador o un salto de línea no cuentan), un VariableName, cero o más espacios y }}. El texto se lee de izquierda a derecha y solo {{ abre un marcador: un }} fuera de un marcador es texto literal, así que {{name}}} es un marcador seguido de '}'. Cualquier otra forma, incluida la triple llave {{{name}}}, se rechaza con MALFORMED_TEMPLATE_MARKER: no existe forma de escribir un valor sin escapar.",
+        "Orden de evaluación: plantilla existente (TEMPLATE_NOT_FOUND), después nombres repetidos en variables (DUPLICATE_TEMPLATE_VARIABLES), después marcadores mal formados (MALFORMED_TEMPLATE_MARKER), después marcadores sin declarar (UNDECLARED_TEMPLATE_VARIABLES)."
       ],
       "errors": [
         {
@@ -642,6 +643,11 @@ const KEEL = {
         {
           "code": "DUPLICATE_TEMPLATE_VARIABLES",
           "when": "variables declara dos veces el mismo name.",
+          "http": 422
+        },
+        {
+          "code": "MALFORMED_TEMPLATE_MARKER",
+          "when": "subject, htmlBody o textBody contienen un {{ que no abre un marcador {{name}} bien formado, como la triple llave {{{name}}}.",
           "http": 422
         },
         {
@@ -701,6 +707,8 @@ const KEEL = {
       },
       "rules": [
         "Si la versión indicada ya está active, la operación no cambia nada y la devuelve.",
+        "Una versión archived que no cumple la regla de marcadores bien formados de publishTemplateVersion (solo puede ser una publicada antes de la v0.2.0) no se reactiva y se rechaza con MALFORMED_TEMPLATE_MARKER.",
+        "Orden de evaluación: plantilla existente (TEMPLATE_NOT_FOUND), después versión existente (TEMPLATE_VERSION_NOT_FOUND), después versión ya active (no-op), después marcadores bien formados (MALFORMED_TEMPLATE_MARKER).",
         "La versión que estaba active, si había una, pasa a archived.",
         "hasActiveVersion de la plantilla queda true."
       ],
@@ -714,6 +722,11 @@ const KEEL = {
           "code": "TEMPLATE_VERSION_NOT_FOUND",
           "when": "La plantilla no tiene una versión con ese versionNumber.",
           "http": 404
+        },
+        {
+          "code": "MALFORMED_TEMPLATE_MARKER",
+          "when": "La versión archived contiene un {{ que no abre un marcador {{name}} bien formado (publicada antes de la v0.2.0).",
+          "http": 422
         },
         {
           "code": "CONCURRENT_MODIFICATION",
@@ -1040,7 +1053,7 @@ const KEEL = {
         ]
       },
       "rules": [
-        "Orden de evaluación: (1) forma de la petición y variables repetidas; (2) comprobar la repetición; (3) remitente, plantilla, variables y supresiones.",
+        "Orden de evaluación: (1) forma de la petición y variables repetidas; (2) comprobar la repetición; (3) remitente, plantilla, variables, longitud del asunto renderizado y supresiones.",
         "Los destinatarios se normalizan a minúsculas y se deduplican antes de cualquier comparación; recipients conserva el orden de llegada y, ante duplicados, la primera aparición.",
         "La comprobación de supresiones se hace para todos los destinatarios a la vez, no una consulta por destinatario.",
         "Mismo contenido significa mismo templateCode, mismo conjunto de destinatarios normalizados y mismo conjunto de pares (name, value) de las variables declaradas por la versión congelada, sin importar el orden.",
@@ -1048,7 +1061,7 @@ const KEEL = {
         "Dos valores para el mismo name en variables son DUPLICATE_TEMPLATE_VARIABLES, y se comprueba antes de la repetición.",
         "Si ya existe un mensaje con el mismo (requestedBy, idempotencyKey) y el mismo contenido, se devuelve ese mensaje sin crear otro, aunque desde entonces la plantilla se haya retirado, el remitente haya cambiado o un destinatario se haya suprimido.",
         "Las variables que la versión active no declara se descartan en silencio y no se guardan.",
-        "El asunto se renderiza al aceptar con la versión active, sustituyendo cada marcador {{name}} por su valor (cadena vacía si es una opcional sin valor) y reemplazando por un espacio los saltos de línea de los valores; los cuerpos se renderizan al enviar con esa misma versión, que es inmutable.",
+        "El asunto se renderiza al aceptar con la versión active, sustituyendo cada marcador {{name}} por su valor (cadena vacía si es una opcional sin valor) y reemplazando por un espacio cada salto de línea de los valores (\\r\\n, \\n y un \\r suelto cuentan cada uno como un solo salto); los cuerpos se renderizan al enviar con esa misma versión, que es inmutable.",
         "El mensaje congela: el remitente (address, name y replyToAddress de SenderSettings), templateCode, versionNumber e id de la versión active.",
         "El mensaje queda en queued con requestedAt; la entrega ocurre después, en sendQueuedMessage."
       ],
@@ -1086,6 +1099,11 @@ const KEEL = {
         {
           "code": "MISSING_TEMPLATE_VARIABLES",
           "when": "Falta alguna variable que la versión active declara required.",
+          "http": 422
+        },
+        {
+          "code": "RENDERED_SUBJECT_TOO_LONG",
+          "when": "El asunto renderizado pasa de 300 caracteres; no se recorta y no se acepta el mensaje.",
           "http": 422
         },
         {
@@ -1164,7 +1182,9 @@ const KEEL = {
       "rules": [
         "Si algún destinatario tiene ahora una supresión active, el mensaje pasa de queued a failed con failureReason recipient-suppressed y failedAt, se publica EmailDeliveryFailed y no se envía nada.",
         "En otro caso pasa a sending con sendingSince, y esa transición se confirma antes de entregar el correo al relay. Quien pierde la transición no envía nada.",
+        "Las dos salidas de queued (a failed por supresión y a sending) compiten por la misma transición condicionada a queued. Si dos ejecuciones procesan el mismo mensaje a la vez, gana la primera que la confirma; la otra la pierde, termina como MESSAGE_NOT_QUEUED y no envía ni publica nada.",
         "Renderiza los cuerpos con la versión congelada y variableValues, y entrega un único correo html+text con todos los recipients en To, el remitente y el reply-to congelados, y un Message-ID cuya parte local (lo que va antes de la arroba) es el id del EmailMessage, para que el proveedor pueda asociar los rebotes; el dominio del Message-ID es despliegue.",
+        "La sustitución es de una sola pasada, igual que la del asunto al aceptar: el valor insertado nunca se vuelve a interpretar, aunque contenga {{otra}}. Solo se sustituyen los marcadores bien formados; un {{ mal formado de una versión anterior a la v0.2.0 que siga active va como texto literal (escapado en htmlBody), nunca sin escapar.",
         "Cada marcador {{name}} se sustituye por su valor; una variable opcional sin valor se sustituye por cadena vacía. En htmlBody los valores se escapan como texto HTML escapando solo los caracteres & < > \" ' (como &amp; &lt; &gt; &quot; &#39;); el resto, incluidos acentos y símbolos como €, va literal. El asunto ya viene renderizado desde la aceptación (renderedSubject); el To lleva los recipients en su orden.",
         "El intento contra el relay tiene un tope de 1 minuto, muy por debajo de sendingTimeoutMinutes.",
         "Si el relay acepta el correo para al menos un destinatario, pasa a sent con sentAt y publica EmailSent; los destinatarios que rechazó se tratan como rebotes y llegan por reportEmailBounce.",
@@ -2069,6 +2089,7 @@ const KEEL = {
         },
         "invariants": [
           "subject, htmlBody, textBody y variables no cambian tras crear la versión.",
+          "Toda aparición de {{ en subject, htmlBody o textBody abre un marcador {{name}} bien formado (la triple llave {{{name}}} no lo es). Rige desde la v0.2.0; las versiones anteriores que no lo cumplan no se pueden reactivar.",
           "Todo marcador {{name}} de subject, htmlBody o textBody nombra una variable declarada en variables.",
           "Los nombres de variables son únicos dentro de la versión."
         ]
@@ -2382,7 +2403,7 @@ const KEEL = {
         "name": "VariableName",
         "kind": "escalar",
         "detail": "string · pattern ^[a-zA-Z][a-zA-Z0-9_]{0,63}$",
-        "description": "Nombre de una variable de plantilla. En subject, htmlBody y textBody se usa con el marcador {{name}} (se admiten espacios dentro de las llaves: {{ name }}). No hay expresiones, condicionales, filtros ni bucles, y no existe forma de escribir {{ como literal."
+        "description": "Nombre de una variable de plantilla. En subject, htmlBody y textBody se usa con el marcador {{name}} (se admiten espacios U+0020 dentro de las llaves: {{ name }}; ni tabuladores ni saltos de línea). No hay expresiones, condicionales, filtros ni bucles, y no existe forma de escribir {{ como literal."
       },
       {
         "name": "TemplateVariable",

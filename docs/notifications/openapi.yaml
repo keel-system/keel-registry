@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notifications
-  version: 0.1.0
+  version: 0.2.0
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -402,8 +402,16 @@ paths:
 
         - El motor de plantillas solo sustituye variables por nombre; no evalúa expresiones, condicionales ni llamadas.
 
+        - Toda aparición de {{ en subject, htmlBody o textBody abre un marcador {{name}} bien formado: tras {{ vienen
+        cero o más espacios (solo U+0020; un tabulador o un salto de línea no cuentan), un VariableName, cero o
+        más espacios y }}. El texto se lee de izquierda a derecha y solo {{ abre un marcador: un }} fuera de un
+        marcador es texto literal, así que {{name}}} es un marcador seguido de ''}''. Cualquier otra forma, incluida
+        la triple llave {{{name}}}, se rechaza con MALFORMED_TEMPLATE_MARKER: no existe forma de escribir un valor
+        sin escapar.
+
         - Orden de evaluación: plantilla existente (TEMPLATE_NOT_FOUND), después nombres repetidos en variables
-        (DUPLICATE_TEMPLATE_VARIABLES), después marcadores sin declarar (UNDECLARED_TEMPLATE_VARIABLES).'
+        (DUPLICATE_TEMPLATE_VARIABLES), después marcadores mal formados (MALFORMED_TEMPLATE_MARKER), después marcadores
+        sin declarar (UNDECLARED_TEMPLATE_VARIABLES).'
       requestBody:
         required: true
         content:
@@ -456,8 +464,9 @@ paths:
                 $ref: '#/components/schemas/Error'
         '422':
           description: 'Regla de negocio incumplida: `DUPLICATE_TEMPLATE_VARIABLES` — variables declara dos veces
-            el mismo name.; `UNDECLARED_TEMPLATE_VARIABLES` — subject, htmlBody o textBody usan una variable que
-            no está en variables.'
+            el mismo name.; `MALFORMED_TEMPLATE_MARKER` — subject, htmlBody o textBody contienen un {{ que no abre
+            un marcador {{name}} bien formado, como la triple llave {{{name}}}.; `UNDECLARED_TEMPLATE_VARIABLES`
+            — subject, htmlBody o textBody usan una variable que no está en variables.'
           content:
             application/json:
               schema:
@@ -608,6 +617,12 @@ paths:
       - Plantillas
       description: '- Si la versión indicada ya está active, la operación no cambia nada y la devuelve.
 
+        - Una versión archived que no cumple la regla de marcadores bien formados de publishTemplateVersion (solo
+        puede ser una publicada antes de la v0.2.0) no se reactiva y se rechaza con MALFORMED_TEMPLATE_MARKER.
+
+        - Orden de evaluación: plantilla existente (TEMPLATE_NOT_FOUND), después versión existente (TEMPLATE_VERSION_NOT_FOUND),
+        después versión ya active (no-op), después marcadores bien formados (MALFORMED_TEMPLATE_MARKER).
+
         - La versión que estaba active, si había una, pasa a archived.
 
         - hasActiveVersion de la plantilla queda true.'
@@ -662,6 +677,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '422':
+          description: 'Regla de negocio incumplida: `MALFORMED_TEMPLATE_MARKER` — La versión archived contiene
+            un {{ que no abre un marcador {{name}} bien formado (publicada antes de la v0.2.0).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
       security:
       - userAuth: []
       x-keel-permissions:
@@ -678,7 +700,7 @@ paths:
       tags:
       - Servidor a servidor
       description: '- Orden de evaluación: (1) forma de la petición y variables repetidas; (2) comprobar la repetición;
-        (3) remitente, plantilla, variables y supresiones.
+        (3) remitente, plantilla, variables, longitud del asunto renderizado y supresiones.
 
         - Los destinatarios se normalizan a minúsculas y se deduplican antes de cualquier comparación; recipients
         conserva el orden de llegada y, ante duplicados, la primera aparición.
@@ -701,8 +723,9 @@ paths:
         - Las variables que la versión active no declara se descartan en silencio y no se guardan.
 
         - El asunto se renderiza al aceptar con la versión active, sustituyendo cada marcador {{name}} por su valor
-        (cadena vacía si es una opcional sin valor) y reemplazando por un espacio los saltos de línea de los valores;
-        los cuerpos se renderizan al enviar con esa misma versión, que es inmutable.
+        (cadena vacía si es una opcional sin valor) y reemplazando por un espacio cada salto de línea de los valores
+        (\r\n, \n y un \r suelto cuentan cada uno como un solo salto); los cuerpos se renderizan al enviar con esa
+        misma versión, que es inmutable.
 
         - El mensaje congela: el remitente (address, name y replyToAddress de SenderSettings), templateCode, versionNumber
         e id de la versión active.
@@ -758,7 +781,8 @@ paths:
         '422':
           description: 'Regla de negocio incumplida: `DUPLICATE_TEMPLATE_VARIABLES` — variables trae dos valores
             con el mismo name.; `MISSING_TEMPLATE_VARIABLES` — Falta alguna variable que la versión active declara
-            required.; `RECIPIENT_SUPPRESSED` — Algún destinatario tiene una supresión active.'
+            required.; `RENDERED_SUBJECT_TOO_LONG` — El asunto renderizado pasa de 300 caracteres; no se recorta
+            y no se acepta el mensaje.; `RECIPIENT_SUPPRESSED` — Algún destinatario tiene una supresión active.'
           content:
             application/json:
               schema:
@@ -1450,8 +1474,8 @@ components:
       type: string
       pattern: ^[a-zA-Z][a-zA-Z0-9_]{0,63}$
       description: 'Nombre de una variable de plantilla. En subject, htmlBody y textBody se usa con el marcador
-        {{name}} (se admiten espacios dentro de las llaves: {{ name }}). No hay expresiones, condicionales, filtros
-        ni bucles, y no existe forma de escribir {{ como literal.'
+        {{name}} (se admiten espacios U+0020 dentro de las llaves: {{ name }}; ni tabuladores ni saltos de línea).
+        No hay expresiones, condicionales, filtros ni bucles, y no existe forma de escribir {{ como literal.'
     VariableValue:
       type: object
       required:

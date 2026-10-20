@@ -1,6 +1,6 @@
 # notifications — Documento de diseño
 
-> specs/notifications v0.1.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/notifications v0.2.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -78,6 +78,10 @@ seguimiento de aperturas y clics, canal automático de quejas y multitenancy.
 
 ## 3. Invariantes y reglas clave
 
+- Toda aparición de `{{` en el asunto y los cuerpos abre un marcador `{{name}}` bien formado:
+  `{{`, espacios U+0020 opcionales (ni tabuladores ni saltos de línea), un nombre de variable,
+  espacios opcionales y `}}`. Solo `{{` abre un marcador; un `}` o `}}` suelto es texto. La triple
+  llave `{{{name}}}` no existe: no hay forma de escribir un valor sin escapar. Rige desde la v0.2.0.
 - Todo marcador `{{name}}` del asunto y los cuerpos nombra una variable declarada por la versión.
 - `sent ⇒ sentAt`; `failed ⇒ failureReason + failedAt`; `sending|sent ⇒ sendingSince`; `failed`
   sin `sendingSince` ⇒ `recipient-suppressed`.
@@ -90,8 +94,12 @@ seguimiento de aperturas y clics, canal automático de quejas y multitenancy.
 - Las variables no declaradas se descartan en silencio y las `required` se exigen.
 - Los destinatarios conservan el orden de llegada y la primera aparición de cada duplicado; van
   todos en `To`.
-- Render: en HTML se escapan solo `& < > " '`; en el asunto, los saltos de línea pasan a espacio;
-  una variable opcional ausente se sustituye por cadena vacía. El motor nunca evalúa expresiones.
+- Render: de una sola pasada (un valor insertado nunca se reinterpreta, aunque contenga
+  `{{otra}}`); en HTML se escapan solo `& < > " '`; en el asunto, cada salto de línea (`\r\n`, `\n`
+  o `\r` suelto) pasa a un espacio, y un asunto renderizado de más de 300 caracteres se rechaza, no
+  se recorta; una variable opcional ausente se sustituye por cadena vacía. El motor nunca evalúa
+  expresiones. Un `{{` mal formado de una versión anterior a la v0.2.0 se renderiza como texto
+  literal, escapado.
 - El `Message-ID` del correo lleva como parte local el id del `EmailMessage`, que es lo que el
   proveedor devuelve en los rebotes.
 
@@ -101,8 +109,10 @@ seguimiento de aperturas y clics, canal automático de quejas y multitenancy.
 `getSenderSettings`.
 
 **Plantillas** — `createTemplate` (sin contenido todavía), `publishTemplateVersion` (crea la
-versión, la activa y archiva la anterior), `activateTemplateVersion` (revertir a una archivada; un
-no-op si ya está activa), `retireTemplate` (archiva la activa y conserva el historial),
+versión, la activa y archiva la anterior; rechaza marcadores mal formados con
+`MALFORMED_TEMPLATE_MARKER`), `activateTemplateVersion` (revertir a una archivada; un no-op si ya
+está activa; no reactiva una versión anterior a la v0.2.0 con marcadores mal formados),
+`retireTemplate` (archiva la activa y conserva el historial),
 `getTemplate`, `listTemplates` (por `code`), `getTemplateVersion` y `listTemplateVersions` (de la
 más nueva a la más antigua, sin cuerpos). Las creaciones responden `200`: los recursos se
 direccionan por clave natural.
@@ -128,7 +138,7 @@ como mucho 5000 por ciclo, y se puede repetir sin efectos.
 
 | Operación | Ruta | Quién | Contrato |
 |---|---|---|---|
-| `requestNotification` | `POST /notifications` → `202` | `billing`, `shipping`, `dispatch-only` (`notification:send`) | Idempotencia permanente por `(requestedBy, idempotencyKey)`; errores `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENCY_KEY_IN_PROGRESS`, `SENDER_SETTINGS_NOT_CONFIGURED`, `TEMPLATE_NOT_FOUND`, `TEMPLATE_NOT_PUBLISHED`, `MISSING_TEMPLATE_VARIABLES`, `RECIPIENT_SUPPRESSED`, `DUPLICATE_TEMPLATE_VARIABLES` |
+| `requestNotification` | `POST /notifications` → `202` | `billing`, `shipping`, `dispatch-only` (`notification:send`) | Idempotencia permanente por `(requestedBy, idempotencyKey)`; errores `IDEMPOTENCY_KEY_REUSED`, `IDEMPOTENCY_KEY_IN_PROGRESS`, `SENDER_SETTINGS_NOT_CONFIGURED`, `TEMPLATE_NOT_FOUND`, `TEMPLATE_NOT_PUBLISHED`, `MISSING_TEMPLATE_VARIABLES`, `RENDERED_SUBJECT_TOO_LONG`, `RECIPIENT_SUPPRESSED`, `DUPLICATE_TEMPLATE_VARIABLES` |
 | `findMessageByIdempotencyKey` | `GET /notifications/{idempotencyKey}` | `billing`, `shipping` (`notification:read`) | Solo los mensajes del propio llamante; `404` = no aceptada |
 | `reportEmailBounce` | `POST /messages/{messageId}/bounces` → `204` | `mail-provider` (`bounce:report`) | Un rebote `permanent` suprime con `hard-bounce`, aunque una persona la hubiera liberado; uno `transient` solo se registra en el log |
 
@@ -223,6 +233,26 @@ supresión rancios llevarían a decisiones erróneas.
 **Retención como parámetro** (`personalDataRetentionMonths`, meses de calendario, 18). Hace la purga
 verificable en pruebas (valor 0).
 
+**Marcadores estrictos, sin migrar lo publicado** (v0.2.0). El servidor generado rechazaba
+`{{{name}}}` sin que el diseño lo dijera, así que dos generadores podían divergir. Se declara
+`MALFORMED_TEMPLATE_MARKER` (422) para todo `{{` que no abra un marcador bien formado, con un error
+propio porque `UNDECLARED_TEMPLATE_VARIABLES` engañaría al editor si la variable sí está declarada.
+Solo el espacio U+0020 cuenta dentro de las llaves, para que «espacio» signifique lo mismo en
+cualquier stack. Las versiones ya publicadas no se migran: no se pueden reactivar y, si siguen
+activas, su `{{` mal formado va literal y escapado. *Descartado*: rechazarlo como
+`UNDECLARED_TEMPLATE_VARIABLES`, tratar las llaves como literales, aceptar cualquier blanco, o
+archivar las versiones antiguas con un paso de migración. Se versiona como **minor** porque el
+error nuevo solo rechaza contenido cuyo resultado en la v0.1.0 no estaba definido: ningún cliente
+dependía de un comportamiento contractual.
+
+**Asunto largo: rechazar, no recortar** (v0.2.0). Con valores de hasta 10000 caracteres el asunto
+renderizado podía pasar de 300. `requestNotification` responde `RENDERED_SUBJECT_TOO_LONG` (422):
+el llamante se entera en el momento y ningún correo sale con el dato importante cortado.
+*Descartado*: recortar a 300 con `…`.
+
+**Sustitución de una sola pasada** (v0.2.0). Un valor que contiene `{{otra}}` sale literal: así un
+valor no puede inyectar el de otra variable, y el correo es el mismo en cualquier motor.
+
 **`complaint` solo manual.** No hay canal de quejas del proveedor; abrirlo es una evolución.
 
 **Dirección en la ruta de supresiones.** Se acepta con codificación porcentual: el registro de
@@ -275,8 +305,10 @@ la mayoría de los despliegues.
 ## Cobertura de comportamiento
 
 `specs/notifications/validation-scenarios.md` cubre las 22 operaciones en 40 flujos: remitente,
-plantillas, envío M2M (idempotencia secuencial y en carrera, precedencia de las 7 guardas,
+plantillas (marcadores bien formados y su precedencia), envío M2M (idempotencia secuencial y en
+carrera, precedencia de las 8 guardas, asunto demasiado largo,
 credenciales), eventos (reentrega, DLQ y reinyección), despacho (supresión al enviar, rechazo total
-y parcial, relay caído, render y escapado, dos réplicas, rescate y su cota, outbox), rebotes,
+y parcial, relay caído, render de una pasada y escapado, dos réplicas, rescate y su cota, outbox), rebotes,
 supresiones, consulta, purga y autorización. Sin escenario, y declarado: la guarda interna de
-`sendQueuedMessage`, el cron de purga y la aceptación tardía del relay.
+`sendQueuedMessage` (incluida la carrera entre supresión y reclamo), el rechazo y el render de
+versiones anteriores a la v0.2.0, el cron de purga y la aceptación tardía del relay.

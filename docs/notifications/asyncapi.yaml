@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: notifications
-  version: 0.1.0
+  version: 0.2.0
   description: 'Envía correo transaccional a partir de plantillas que gestiona negocio, a petición de los sistemas
     de la organización por HTTP o por eventos, sin enviar nunca dos veces el mismo correo.
 
@@ -167,8 +167,8 @@ components:
       type: string
       pattern: ^[a-zA-Z][a-zA-Z0-9_]{0,63}$
       description: 'Nombre de una variable de plantilla. En subject, htmlBody y textBody se usa con el marcador
-        {{name}} (se admiten espacios dentro de las llaves: {{ name }}). No hay expresiones, condicionales, filtros
-        ni bucles, y no existe forma de escribir {{ como literal.'
+        {{name}} (se admiten espacios U+0020 dentro de las llaves: {{ name }}; ni tabuladores ni saltos de línea).
+        No hay expresiones, condicionales, filtros ni bucles, y no existe forma de escribir {{ como literal.'
     VariableValue:
       type: object
       required:

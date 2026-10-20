@@ -122,8 +122,8 @@
       "variant": null,
       "service": {
         "name": "notifications",
-        "version": "0.1.0",
-        "dsl": "2.19",
+        "version": "0.2.0",
+        "dsl": "2.22",
         "domain": null,
         "basedOn": null,
         "description": "Envía correo transaccional a partir de plantillas que gestiona negocio, a petición de los sistemas de la organización por HTTP o por eventos, sin enviar nunca dos veces el mismo correo."
@@ -179,9 +179,9 @@
         "mailSenders": 1
       },
       "status": {
-        "ok": false,
+        "ok": true,
         "pending": 0,
-        "errors": 1
+        "errors": 0
       },
       "derivatives": {
         "fresh": 9,

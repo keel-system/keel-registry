@@ -18,7 +18,7 @@ types:
     base: string
     description: >-
       Nombre de una variable de plantilla. En subject, htmlBody y textBody se usa con el marcador
-      {{name}} (se admiten espacios dentro de las llaves: {{ name }}). No hay expresiones,
+      {{name}} (se admiten espacios U+0020 dentro de las llaves: {{ name }}; ni tabuladores ni saltos de línea). No hay expresiones,
       condicionales, filtros ni bucles, y no existe forma de escribir {{ como literal.
     constraints: { pattern: "^[a-zA-Z][a-zA-Z0-9_]{0,63}$" }
   TemplateVariable:
@@ -107,6 +107,7 @@ entities:
         archived: [active]
     invariants:
       - subject, htmlBody, textBody y variables no cambian tras crear la versión.
+      - Toda aparición de {{ en subject, htmlBody o textBody abre un marcador {{name}} bien formado (la triple llave {{{name}}} no lo es). Rige desde la v0.2.0; las versiones anteriores que no lo cumplan no se pueden reactivar.
       - Todo marcador {{name}} de subject, htmlBody o textBody nombra una variable declarada en variables.
       - Los nombres de variables son únicos dentro de la versión.
 

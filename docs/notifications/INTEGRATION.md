@@ -1,6 +1,6 @@
 ---
 service: notifications
-version: 0.1.0
+version: 0.2.0
 basePath: /api/v1
 m2mAuth:
   protocol: client-credentials
@@ -51,6 +51,8 @@ errors:
   - code: TEMPLATE_NOT_PUBLISHED
     http: 409
   - code: MISSING_TEMPLATE_VARIABLES
+    http: 422
+  - code: RENDERED_SUBJECT_TOO_LONG
     http: 422
   - code: RECIPIENT_SUPPRESSED
     http: 422
@@ -160,7 +162,7 @@ entrega**: el desenlace se publica como `EmailSent` o `EmailDeliveryFailed`, o s
 | requestedBy | string | Tu cliente máquina. |
 | idempotencyKey | string | La que enviaste. |
 | recipients | string[] | Normalizados. `[]` tras la purga de datos personales (18 meses). |
-| renderedSubject | string \| null | Asunto ya renderizado. `null` tras la purga. |
+| renderedSubject | string \| null | Asunto ya renderizado, ≤300 caracteres: los valores se sustituyen de una sola pasada y cada salto de línea pasa a un espacio. `null` tras la purga. |
 | sender | `{ address, name, replyToAddress }` | Remitente congelado al aceptar; `name` y `replyToAddress` pueden ser `null`. |
 | templateCode | string | |
 | templateVersionNumber | int | Versión de la plantilla congelada al aceptar. |
@@ -205,7 +207,7 @@ con que coincida `templateCode`. Si cambias el contenido, `409 IDEMPOTENCY_KEY_R
 
 **Orden de evaluación** (si fallan varias a la vez, ves el primer error): forma de la petición y
 variables repetidas → repetición de la clave → remitente configurado → plantilla existente → plantilla
-publicada → variables required → destinatarios suprimidos.
+publicada → variables required → longitud del asunto renderizado → destinatarios suprimidos.
 
 | Código | HTTP | Cuándo | Acción recomendada |
 |---|---|---|---|
@@ -217,6 +219,7 @@ publicada → variables required → destinatarios suprimidos.
 | TEMPLATE_NOT_FOUND | 404 | No existe una plantilla con ese `templateCode`. | No reintentar; corrige el código. |
 | TEMPLATE_NOT_PUBLISHED | 409 | La plantilla no tiene versión activa. | No reintentar hasta que negocio la publique. |
 | MISSING_TEMPLATE_VARIABLES | 422 | Falta una variable que la versión activa declara `required`. | Corregir input. |
+| RENDERED_SUBJECT_TOO_LONG | 422 | El asunto renderizado con tus valores pasa de 300 caracteres; no se recorta. | Corregir input: acorta los valores que van en el asunto. |
 | RECIPIENT_SUPPRESSED | 422 | Algún destinatario tiene una supresión activa. | Corregir input: quita la dirección. |
 | UNAUTHENTICATED | 401 | Falta el token o no es válido. | Obtener un token y reintentar. |
 | ACCESS_DENIED | 403 | El token no tiene `notification:send` o se emitió para otra audiencia. | No reintentar; revisa scopes y `aud`. |

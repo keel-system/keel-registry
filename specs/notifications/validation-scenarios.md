@@ -1,7 +1,7 @@
 # notifications — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/notifications v0.1.0. Contrato de validación para la fase de generación.
+> specs/notifications v0.2.0. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -250,17 +250,30 @@ resto igual.
 **Then**:
 6. Status `422`, code `UNDECLARED_TEMPLATE_VARIABLES`. `listTemplateVersions` sigue con 2 versiones.
 
+**When** (4): `editor` publica la versión de P-TPL cambiando solo `htmlBody` por
+`"<p>Hola {{{customerName}}}</p>"` (`customerName` sí está declarada).
+**Then**:
+7. Status `422`, code `MALFORMED_TEMPLATE_MARKER`. `listTemplateVersions` sigue con 2 versiones.
+
 **Orden de evaluación** (`publishTemplateVersion`):
 1. Forma del cuerpo (cotas de `subject`, cuerpos, `variables`) → `400 VALIDATION_ERROR`.
 2. La plantilla existe → `TEMPLATE_NOT_FOUND` (`404`).
 3. Ningún `name` repetido en `variables` → `DUPLICATE_TEMPLATE_VARIABLES` (`422`).
-4. Todo marcador está declarado → `UNDECLARED_TEMPLATE_VARIABLES` (`422`).
-5. Escritura concurrente sobre la plantilla → `CONCURRENT_MODIFICATION` (`409`, ver FL-TPL-011).
+4. Toda aparición de `{{` abre un marcador `{{name}}` bien formado → `MALFORMED_TEMPLATE_MARKER` (`422`).
+5. Todo marcador está declarado → `UNDECLARED_TEMPLATE_VARIABLES` (`422`).
+6. Escritura concurrente sobre la plantilla → `CONCURRENT_MODIFICATION` (`409`, ver FL-TPL-011).
 
 **Casos borde**:
 - `variables` con dos entradas `name: "amount"` → `422 DUPLICATE_TEMPLATE_VARIABLES`.
 - Publicar en `no-existe` con variables repetidas → `404 TEMPLATE_NOT_FOUND` (la guarda 2 precede a la 3).
-- Variables repetidas **y** marcador sin declarar → `422 DUPLICATE_TEMPLATE_VARIABLES` (la 3 precede a la 4).
+- Variables repetidas **y** marcador sin declarar → `422 DUPLICATE_TEMPLATE_VARIABLES` (la 3 precede a la 5).
+- `subject: "Factura {{ invoiceNumber }}"` (espacios dentro de las llaves) → `200`: es un marcador bien formado.
+- `subject` con un tabulador o un salto de línea dentro de las llaves (`"Factura {{\tinvoiceNumber}}"`)
+  → `422 MALFORMED_TEMPLATE_MARKER`: solo el espacio U+0020 cuenta.
+- `textBody: "Total {{amount}}} y fin }}"` → `200`: `{{amount}}` es un marcador y cada `}}` o `}` fuera
+  de un marcador es texto literal.
+- `textBody` con `"{{ }}"`, `"{{1x}}"` o `"{{customerName"` (sin cerrar) → `422 MALFORMED_TEMPLATE_MARKER`.
+- `{{{dueDate}}}` con `dueDate` sin declarar → `422 MALFORMED_TEMPLATE_MARKER` (la 4 precede a la 5).
 - Sin `textBody` → `400 VALIDATION_ERROR`; `subject` de 301 caracteres → `400 VALIDATION_ERROR`;
   51 variables → `400 VALIDATION_ERROR`.
 - `getTemplateVersion` de la versión 9 → `404 TEMPLATE_VERSION_NOT_FOUND`.
@@ -397,7 +410,9 @@ en el buzón).
 3. Sin la variable `amount` → `422 MISSING_TEMPLATE_VARIABLES`.
 4. `recipients: ["ana@example.com", "Blocked@Example.com"]` → `422 RECIPIENT_SUPPRESSED`.
 5. Dos valores para `amount` → `422 DUPLICATE_TEMPLATE_VARIABLES`.
-6. Para cada una de las cinco, `findMessageByIdempotencyKey` responde `404` y, tras un ciclo del
+6. `invoiceNumber` de 293 caracteres (el asunto renderizado `"Factura " + invoiceNumber` suma 301)
+   → `422 RENDERED_SUBJECT_TOO_LONG`.
+7. Para cada una de las seis, `findMessageByIdempotencyKey` responde `404` y, tras un ciclo del
    despacho, el buzón no recibe ningún correo.
 
 **Orden de evaluación** (`requestNotification`):
@@ -408,12 +423,16 @@ en el buzón).
 4. La plantilla existe → `TEMPLATE_NOT_FOUND` (`404`).
 5. Tiene versión active → `TEMPLATE_NOT_PUBLISHED` (`409`).
 6. Variables required presentes → `MISSING_TEMPLATE_VARIABLES` (`422`).
-7. Ningún destinatario suprimido → `RECIPIENT_SUPPRESSED` (`422`).
+7. El asunto renderizado cabe en 300 caracteres → `RENDERED_SUBJECT_TOO_LONG` (`422`).
+8. Ningún destinatario suprimido → `RECIPIENT_SUPPRESSED` (`422`).
 
 **Casos borde**:
 - `templateCode: "no-existe"` **y** sin `amount` **y** destinatario suprimido → `404 TEMPLATE_NOT_FOUND`.
 - `templateCode: "draft-tpl"` con variables repetidas → `422 DUPLICATE_TEMPLATE_VARIABLES` (la 1 precede a todo).
-- Sin `amount` **y** destinatario suprimido → `422 MISSING_TEMPLATE_VARIABLES` (la 6 precede a la 7).
+- Sin `amount` **y** destinatario suprimido → `422 MISSING_TEMPLATE_VARIABLES` (la 6 precede a la 8).
+- `invoiceNumber` de 293 caracteres **y** destinatario suprimido → `422 RENDERED_SUBJECT_TOO_LONG` (la 7
+  precede a la 8).
+- `invoiceNumber` de 292 caracteres → `202`: el asunto de 300 caracteres justos se acepta sin recortar.
 - `recipients: []` o 21 destinatarios → `400 VALIDATION_ERROR`; `idempotencyKey: "abc"` (menos de 8)
   → `400 VALIDATION_ERROR`; dirección mal formada → `400 VALIDATION_ERROR`.
 - **La repetición precede a la supresión**: `billing` pide R1 (`202`, `m1`); `operator` suprime
@@ -504,7 +523,7 @@ el almacén y el mensaje se **reinyecta** desde la deadLetter dos veces.
 
 ### FL-DSP-001: el despacho vacía la cola
 
-**Given**: P-TPL; `billing` pide tres notificaciones (`k-001`, `k-002`, `k-003`).
+**Given**: P-TPL; `billing` pide tres notificaciones (`key-0001`, `key-0002`, `key-0003`).
 **When**: pasa un ciclo del despacho.
 **Then**:
 1. Los tres mensajes están `sent`; el buzón tiene tres correos y `notificationEvents` tres `EmailSent`.
@@ -545,7 +564,8 @@ adelanta, el flujo se repite.
 
 ### FL-DSP-022: con el relay caído el mensaje falla y no se reintenta
 
-**Given**: P-TPL; el relay **indisponible**; `billing` pide R1 → `m1`.
+**Given**: P-TPL; el relay **indisponible**: no acepta conexiones, así que el intento falla sin
+respuesta del relay (no es un rechazo); `billing` pide R1 → `m1`.
 **When**: pasa un ciclo del despacho; después el relay vuelve y pasan dos ciclos más.
 **Then**:
 1. `m1` queda `failed` con `failureReason: "delivery-error"` y se publica `EmailDeliveryFailed`.
@@ -562,15 +582,21 @@ adelanta, el flujo se repite.
 3. Parte `text/plain`: `Hola Ana <b>&</b>, total 5 €. Gracias`.
 4. `To` = [`ana@example.com`], `Reply-To` `soporte@example.com`, parte local del `Message-ID` = `m1`.
 
+**Casos borde** (cada uno en su propia petición, con su propia `idempotencyKey`, tras un ciclo):
+- `customerName: "{{note}}"` con `note: "Gracias"` → la parte `text/plain` empieza por
+  `Hola {{note}}, total`: la sustitución es de una sola pasada y el valor insertado no se reinterpreta.
+- `invoiceNumber: "F-1\r\nX"` → `renderedSubject` `"Factura F-1 X"` (un solo espacio: `\r\n` es un
+  salto); `invoiceNumber: "F-1\rX"` → `"Factura F-1 X"`.
+
 ### FL-DSP-040: dos réplicas del despacho no mandan dos correos
 
 **Given**: **dos instancias** del servicio vivas (clúster de 2 réplicas). P-TPL; `billing` pide cinco
-notificaciones (`c-001`…`c-005`), y un sexto mensaje `c-000` pedido y ya `sent` antes de arrancar la
+notificaciones (`cyc-0001`…`cyc-0005`), y un sexto mensaje `cyc-0000` pedido y ya `sent` antes de arrancar la
 segunda instancia (fila de control).
 **When**: pasan dos ciclos de `dispatchQueuedMessages` en las dos instancias.
 **Then**:
-1. El buzón recibe **exactamente un** correo por cada uno de `c-001`…`c-005` (cinco en total).
-2. El buzón **no** recibe un segundo correo de `c-000`.
+1. El buzón recibe **exactamente un** correo por cada uno de `cyc-0001`…`cyc-0005` (cinco en total).
+2. El buzón **no** recibe un segundo correo de `cyc-0000`.
 3. `notificationEvents` recibe exactamente cinco `EmailSent` nuevos.
 
 **Notas de determinación**: la instancia que pierde la transición `queued → sending` recibe
@@ -617,7 +643,8 @@ ciclo; si un ciclo se adelanta y envía `m1`, el flujo se repite.
 
 ### FL-OBX-002: el evento que el relay de eventos abandona no se pierde en silencio
 
-**Given**: el canal de eventos indisponible; `m1` ya `sent` con su `EmailSent` pendiente de salir.
+**Given**: P-TPL; el canal de eventos **indisponible**; `billing` pide R1 → `m1`; tras un ciclo del
+despacho, `m1` está `sent` con su `EmailSent` pendiente de salir.
 **When**: se agota el presupuesto de reintentos de ese evento.
 **Then**:
 1. El servidor informa de **un** evento abandonado.
@@ -724,20 +751,20 @@ y `mail-provider` vuelve a reportar el rebote permanente.
 
 ### FL-MSG-001: leer y listar correos con filtros
 
-**Given**: P-TPL; en este orden, `billing` pide `k-001` a `ana@example.com`, `billing` pide `k-002` a
-`luis@example.com` y `shipping` pide `k-003` a `zed@rejected.invalid`. Tras un ciclo del despacho,
-`k-001` y `k-002` están `sent` y `k-003` `failed` (`delivery-rejected`).
+**Given**: P-TPL; en este orden, `billing` pide `key-0001` a `ana@example.com`, `billing` pide `key-0002` a
+`luis@example.com` y `shipping` pide `key-0003` a `zed@rejected.invalid`. Tras un ciclo del despacho,
+`key-0001` y `key-0002` están `sent` y `key-0003` `failed` (`delivery-rejected`).
 **When**: `operator` consulta.
 **Then**:
-1. `getMessage` de `k-001` → `200` con la proyección completa de `EmailMessage`.
+1. `getMessage` de `key-0001` → `200` con la proyección completa de `EmailMessage`.
 2. `getMessage` de un id inexistente → `404 MESSAGE_NOT_FOUND`.
-3. `listMessages` sin filtros → `items` = [`k-003`, `k-002`, `k-001`] (`requestedAt` descendente,
+3. `listMessages` sin filtros → `items` = [`key-0003`, `key-0002`, `key-0001`] (`requestedAt` descendente,
    desempate por `id` ascendente), `totalElements: 3`.
-4. `?recipient=ANA@example.com` → [`k-001`].
-5. `?requestedBy=billing` → [`k-002`, `k-001`]; `?requestedBy=shipping` → [`k-003`];
-   `?status=failed` → [`k-003`]; `?templateCode=invoice-issued&status=sent` → [`k-002`, `k-001`].
-6. `?requestedFrom=<requestedAt de k-002>` → [`k-003`, `k-002`] (inclusivo);
-   `?requestedTo=<requestedAt de k-002>` → [`k-001`] (exclusivo).
+4. `?recipient=ANA@example.com` → [`key-0001`].
+5. `?requestedBy=billing` → [`key-0002`, `key-0001`]; `?requestedBy=shipping` → [`key-0003`];
+   `?status=failed` → [`key-0003`]; `?templateCode=invoice-issued&status=sent` → [`key-0002`, `key-0001`].
+6. `?requestedFrom=<requestedAt de key-0002>` → [`key-0003`, `key-0002`] (inclusivo);
+   `?requestedTo=<requestedAt de key-0002>` → [`key-0001`] (exclusivo).
 7. `?requestedFrom=2026-10-05T10:00:00Z&requestedTo=2026-10-05T09:00:00Z` → `422 INVALID_TIME_WINDOW`.
 8. Ningún elemento trae `variableValues`.
 
@@ -824,7 +851,14 @@ depende del reloj del despacho.
 - **La guarda de `sendQueuedMessage` por sí sola** (`OBL-GUARD-UNOBSERVABLE`, aceptada en
   `decisions.yaml`): es interna y solo la alcanza el despacho. FL-DSP-040 cubre su efecto a través
   del barrido; su verificación propia es la comprobación de idempotencia de infraestructura del
-  generador (dos ejecuciones concurrentes sobre el mismo mensaje producen un solo correo).
+  generador (dos ejecuciones concurrentes sobre el mismo mensaje producen un solo correo). Eso
+  incluye la carrera entre la salida por supresión y el reclamo a `sending`: gana la primera
+  transición desde `queued` que se confirma, y la otra termina `MESSAGE_NOT_QUEUED` sin enviar ni
+  publicar nada.
+- **`activateTemplateVersion` con `MALFORMED_TEMPLATE_MARKER`**: solo lo provoca una versión publicada
+  antes de la v0.2.0, y desde la v0.2.0 `publishTemplateVersion` ya no deja publicarla (FL-TPL-010),
+  así que en caja negra no se puede preparar. Se verifica sembrando la versión directamente en el
+  almacén. Lo mismo vale para el render literal de un `{{` mal formado de esas versiones.
 - **La ejecución programada de la purga**: su condición de entrada es el paso del tiempo. Se verifica
   por el disparo manual con `personalDataRetentionMonths: 0` (FL-PRG-001).
 - **La aceptación tardía del relay tras el rescate** (el correo sale con el mensaje ya `failed`): no se
