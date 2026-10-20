@@ -324,6 +324,7 @@ operations:
     idempotency: { keySource: client-key, ttlSeconds: 86400 }
     rules:
       - "El tope de 10 medios active se comprueba antes de llamar a la pasarela."
+      - "Solo un guardado con éxito queda registrado bajo la Idempotency-Key. Si la operación termina en error (tope alcanzado, la pasarela rechaza, exige autenticar o no contesta), la clave queda libre: una petición posterior con la misma clave vuelve a ejecutarse, con el mismo paymentToken o con otro, y no recibe IDEMPOTENCY_KEY_IN_PROGRESS ni IDEMPOTENCY_KEY_REUSED."
       - Si el titular no tiene Wallet, se crea con este primer medio.
       - El medio se guarda solo si la pasarela lo acepta; guarda su referencia opaca y el resumen de la tarjeta.
       - El medio queda por defecto si makeDefault es true o si el titular no tenía ningún medio active; el anterior por defecto deja de serlo.

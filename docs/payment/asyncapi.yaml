@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: payment
-  version: 0.1.0
+  version: 0.1.1
   description: |-
     Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente.
 

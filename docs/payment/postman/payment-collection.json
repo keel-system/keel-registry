@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "payment — flujos y operaciones",
-    "description": "Derivada de specs/payment v0.1.0. Importa antes auth-collection.json.",
+    "description": "Derivada de specs/payment v0.1.1. Importa antes auth-collection.json.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -570,6 +570,48 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 503', () => pm.response.to.have.status(503));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-004 · E — Reintento con la misma clave tras el 503 (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m4d"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-4\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('el 503 no consumió la clave', () => pm.expect(pm.response.json().code).to.be.undefined);"
                 ]
               }
             }
@@ -2772,7 +2814,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.1.0"
+      "value": "0.1.1"
     },
     {
       "key": "paymentToken",

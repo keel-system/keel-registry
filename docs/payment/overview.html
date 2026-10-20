@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.0 -->
+<!-- keel:version 0.1.1 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,10 +188,10 @@
 const KEEL = {
   "service": {
     "name": "payment",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente.",
     "domain": "commerce",
-    "generatedAt": "2026-10-05"
+    "generatedAt": "2026-10-20"
   },
   "links": [
     {
@@ -1350,6 +1350,7 @@ const KEEL = {
       },
       "rules": [
         "El tope de 10 medios active se comprueba antes de llamar a la pasarela.",
+        "Solo un guardado con éxito queda registrado bajo la Idempotency-Key. Si la operación termina en error (tope alcanzado, la pasarela rechaza, exige autenticar o no contesta), la clave queda libre: una petición posterior con la misma clave vuelve a ejecutarse, con el mismo paymentToken o con otro, y no recibe IDEMPOTENCY_KEY_IN_PROGRESS ni IDEMPOTENCY_KEY_REUSED.",
         "Si el titular no tiene Wallet, se crea con este primer medio.",
         "El medio se guarda solo si la pasarela lo acepta; guarda su referencia opaca y el resumen de la tarjeta.",
         "El medio queda por defecto si makeDefault es true o si el titular no tenía ningún medio active; el anterior por defecto deja de serlo.",

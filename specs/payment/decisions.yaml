@@ -45,8 +45,11 @@ structural:
     reason: >-
       El token de la pasarela es de un solo uso: repetirlo fallaría con PAYMENT_METHOD_REJECTED o
       guardaría la misma tarjeta dos veces en el Wallet. Con la clave, el reintento devuelve el medio ya
-      guardado.
-    since: 0.1.0
+      guardado. Un error no consume la clave (v0.1.1): reintentar con la misma clave tras un rechazo, un
+      3DS pendiente o una pasarela que no contestó vuelve a ejecutar, que es lo que GATEWAY_UNAVAILABLE y
+      PAYMENT_METHOD_AUTHENTICATION_REQUIRED prometen; congelar el error 24 h no protege nada, porque
+      nada se guardó. Decidido por el diseñador.
+    since: 0.1.1
   - section: '3.3'
     scope: use-cases.getPayment.cache
     chosen: sin caché

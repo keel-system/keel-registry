@@ -230,8 +230,8 @@
       "variant": null,
       "service": {
         "name": "payment",
-        "version": "0.1.0",
-        "dsl": "2.19",
+        "version": "0.1.1",
+        "dsl": "2.22",
         "domain": "commerce",
         "basedOn": null,
         "description": "Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente."
@@ -287,9 +287,9 @@
         "persistedEntities": 4
       },
       "status": {
-        "ok": false,
+        "ok": true,
         "pending": 0,
-        "errors": 1
+        "errors": 0
       },
       "derivatives": {
         "fresh": 9,

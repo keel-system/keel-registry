@@ -1,6 +1,6 @@
 ---
 service: payment
-version: 0.1.0
+version: 0.1.1
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -398,7 +398,7 @@ Anula un cobro `authorized` o uno que espera el 3DS (`actionRequired`).
 |---|---|
 | Endpoint | `POST /api/v1/payment-methods` |
 | Acceso | `service` — scope `payment-method:write` |
-| Idempotencia | sí — header `Idempotency-Key` **obligatorio**, recordado 24 h. La misma clave y el mismo cuerpo devuelven el medio ya guardado. |
+| Idempotencia | sí — header `Idempotency-Key` **obligatorio**, recordado 24 h. La misma clave y el mismo cuerpo devuelven el medio ya guardado. Solo cuenta un guardado con éxito: si la petición terminó en error, la clave queda libre y puedes reintentar con ella, con el mismo token o con otro. |
 | Éxito | `201` con el medio, sin `Location` (no hay lectura de un medio por id) |
 
 **Request**
@@ -435,7 +435,7 @@ Anula un cobro `authorized` o uno que espera el 3DS (`actionRequired`).
 | PAYMENT_METHOD_LIMIT_REACHED | 422 | El titular ya tiene 10 medios `active`. | No reintentar; retira uno antes. |
 | PAYMENT_METHOD_AUTHENTICATION_REQUIRED | 422 | La pasarela exige autenticar al cliente (3DS) para guardarlo. | Completa la autenticación al tokenizar y pide el guardado con un token nuevo. |
 | PAYMENT_METHOD_REJECTED | 422 | La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza el medio. | Corregir input: token nuevo u otro medio. |
-| GATEWAY_UNAVAILABLE | 503 | La pasarela no contestó; aquí no se guardó nada. | Reintentable, con un token nuevo y otra clave. |
+| GATEWAY_UNAVAILABLE | 503 | La pasarela no contestó; aquí no se guardó nada. | Reintentable con un token nuevo; la misma clave vale, porque el error no la consume. |
 | CONCURRENT_MODIFICATION | 409 | El Wallet cambió a la vez. | Reintentar. |
 
 ### listPaymentMethods

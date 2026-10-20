@@ -1,6 +1,6 @@
 # payment — Documento de diseño
 
-> specs/payment v0.1.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/payment v0.1.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -87,8 +87,9 @@ al mes en curso, UTC).
   `CHARGE_REQUEST_CONFLICT` / `REFUND_REQUEST_CONFLICT`. Dos peticiones idénticas a la vez convergen en
   un solo cobro.
 - Un rechazo de la pasarela no es un error de `requestCharge`: el cobro se devuelve en `failed` con su
-  motivo. En captura, anulación y devolución el rechazo sí responde error, pero el cambio de estado y
-  el evento se confirman igual.
+  motivo. En captura, anulación y devolución el rechazo sí responde error (`CAPTURE_REJECTED`,
+  `CANCEL_REJECTED`, `REFUND_REJECTED`; `onRejected: { error }` en la capa `payments`) y el cobro vuelve
+  al estado de origen, pero el cambio de estado y el evento se confirman igual.
 - Si el aviso de la pasarela aplica el desenlace antes que la respuesta síncrona, la operación relee
   y responde el cobro como esté: el consumidor no ve un `409` por una acción que sí se hizo.
 - Ni el token ni la referencia de la pasarela de un medio se guardan o se exponen.
@@ -113,7 +114,7 @@ Toda la superficie es **servidor-a-servidor** (`defaultAudience: services`), baj
 
 | Operación | Endpoint | Qué hace |
 |---|---|---|
-| `savePaymentMethod` | `POST /payment-methods` → `201` | Guarda el medio de un token; el primero queda por defecto. Exige `Idempotency-Key` (24 h). |
+| `savePaymentMethod` | `POST /payment-methods` → `201` | Guarda el medio de un token; el primero queda por defecto. Exige `Idempotency-Key` (24 h); un error no la consume. |
 | `listPaymentMethods` | `GET /payment-methods?customerRef=` | Los medios `active`, el preferente primero. Sin paginar (≤ 10). |
 | `setDefaultPaymentMethod` | `POST /payment-methods/{id}/default` | Marca el preferente. |
 | `removePaymentMethod` | `DELETE /payment-methods/{id}?customerRef=` → `204` | Lo retira; no se vuelve a cobrar. |
@@ -178,6 +179,10 @@ Fuente: `specs/payment/decisions.yaml` (estructurales y aceptadas) y `specs/paym
 - `refundPayment`: una entidad `Refund` con **`refundRequestId` único** frente a un importe
   acumulado, que devolvería dos veces al reintentar.
 - `savePaymentMethod`: **`Idempotency-Key` obligatoria, 24 h**, porque el token es de un solo uso.
+  Solo un guardado con éxito queda bajo la clave (v0.1.1): tras un rechazo, un 3DS pendiente o una
+  pasarela que no contestó, reintentar con la misma clave vuelve a ejecutar, que es lo que prometen
+  `GATEWAY_UNAVAILABLE` y `PAYMENT_METHOD_AUTHENTICATION_REQUIRED`. *Descartado*: reproducir el error
+  durante 24 h, que congela un 503 transitorio sin proteger nada, porque nada se guardó.
 
 **Lo que puede llegar rancio (§3.3)** — **sin caché** en ninguna lectura. El estado del cobro cambia
 por vías asíncronas y se consulta precisamente para saber si se resolvió.
@@ -274,4 +279,6 @@ cuando hace falta multi-aplicación, cobro por evento o captura parcial.
 
 `specs/payment/validation-scenarios.md`: 31 flujos que cubren las 18 operaciones, todos los códigos
 de error y todos los estados. Incluyen las carreras de idempotencia, el outbox con el canal caído y
-con el relay rendido, el rescate del barrido, el clúster de dos réplicas y la autorización por scope.
+con el relay rendido, el rescate del barrido (que no vuelve a consultar un cobro cuya marca acaba de
+renovar), el reintento de un guardado fallido con la misma clave, el clúster de dos réplicas y la
+autorización por scope.

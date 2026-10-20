@@ -1,7 +1,7 @@
 # payment — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/payment v0.1.0. Contrato de validación para la fase de generación.
+> specs/payment v0.1.1. Contrato de validación para la fase de generación.
 
 > **Un único diseño, cualquier pasarela.** Estos escenarios no nombran ninguna pasarela y tienen que
 > pasar igual con todas las que el generador ofrezca. Hablan de la **pasarela de prueba**: el doble
@@ -237,10 +237,19 @@ prueba configurada para rechazar el medio.
 4. Sin respuesta: status `503` con `GATEWAY_UNAVAILABLE`.
 5. `listPaymentMethods` de `cus-4` responde `[]` en los tres casos.
 
+**When**: la pasarela de prueba vuelve a aceptar medios, y se repite el guardado de `cus-4` con **la
+misma** `Idempotency-Key` del caso sin respuesta y un `paymentToken` nuevo.
+
+**Then**:
+6. Status `201` con el medio guardado, y la pasarela recibe un guardado nuevo: el `503` no consumió
+   la clave, así que no hay `IDEMPOTENCY_KEY_IN_PROGRESS` ni `IDEMPOTENCY_KEY_REUSED`.
+7. `listPaymentMethods` de `cus-4` devuelve **exactamente un** medio.
+
 **Orden de evaluación** (`savePaymentMethod`):
 1. Cabecera `Idempotency-Key` presente → `IDEMPOTENCY_KEY_REQUIRED` (`400`).
-2. Repetición de una clave ya vista: mismo cuerpo → la respuesta original; otro cuerpo →
-   `IDEMPOTENCY_KEY_REUSED` (`409`); en curso → `IDEMPOTENCY_KEY_IN_PROGRESS` (`409`).
+2. Repetición de una clave ya vista (solo cuenta un guardado con éxito: un error libera la clave):
+   mismo cuerpo → la respuesta original; otro cuerpo → `IDEMPOTENCY_KEY_REUSED` (`409`); en curso →
+   `IDEMPOTENCY_KEY_IN_PROGRESS` (`409`).
 3. Tope de 10 medios `active` → `PAYMENT_METHOD_LIMIT_REACHED` (`422`).
 4. La pasarela → `PAYMENT_METHOD_AUTHENTICATION_REQUIRED` (`422`), `PAYMENT_METHOD_REJECTED` (`422`)
    o `GATEWAY_UNAVAILABLE` (`503`).
@@ -661,7 +670,10 @@ con la **credencial de máquina del cliente `checkout`**.
 ### FL-STL-009: el aviso adelanta a la respuesta de la captura
 
 **Given**: un cobro `ch-120` autorizado, y la pasarela de prueba configurada para avisar de la
-captura **antes** de contestar a la petición de captura.
+captura **antes** de contestar a la petición de captura: retiene su respuesta hasta que el servicio
+ha procesado el aviso, y solo entonces contesta que la captura se hizo. El orden lo fija ese
+encadenamiento, no un retraso medido en segundos, así que no depende del tope de lectura del cliente
+de la pasarela.
 
 **When**: `capturePayment` sobre `ch-120`.
 
@@ -832,8 +844,9 @@ prueba no contesta, y `ch-341`, que la pasarela registró como autorizado y cuya
 **Then**:
 1. `ch-340` sigue en `pending` con `failureReason: null`: sin respuesta no se da por fallido, y
    `paymentEvents` no recibe nada para él.
-2. La pasarela de prueba recibe al menos una consulta de estado de `ch-340`, y una más en el segundo
-   ciclo si su marca vuelve a superar el umbral.
+2. La pasarela de prueba recibe **exactamente una** consulta de estado de `ch-340` en el primer
+   ciclo y **ninguna** en el segundo: al tomarlo, el barrido renovó su `awaitingSince`, y en el
+   segundo ciclo la marca todavía no supera el umbral.
 3. `ch-341` queda en `authorized` y `paymentEvents` recibe **exactamente un** `PaymentAuthorized`
    para él: el cobro que no contesta no bloquea al resto de la pasada.
 

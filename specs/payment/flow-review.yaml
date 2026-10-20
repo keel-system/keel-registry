@@ -89,3 +89,47 @@ findings:
     markFailed con su motivo y responde 200 con el cobro en failed, usando la arista canceling → failed que ya existía.
     Ese cambio del YAML no se ha careado porque el presupuesto de tres pasadas de la v0.1.0 estaba agotado; queda
     registrado aquí para que la próxima versión lo carée.'
+- flow: FL-MTH-004
+  step: Then 5
+  kind: other
+  artifact: use-cases.savePaymentMethod.idempotency
+  evidence: >-
+    Hueco reportado por keel-spring (services/payment-spring/design-gaps.yaml, FL-MTH-001-A): si la
+    pasarela falla tras reclamar la Idempotency-Key, reintentar con la misma clave devolvía 409
+    IDEMPOTENCY_KEY_IN_PROGRESS y el diseño no decía qué pasaba con la clave, aunque GATEWAY_UNAVAILABLE
+    promete que se puede reintentar.
+  proposal: Declarar que un error libera la clave y afirmar el reintento con la misma clave.
+  resolution: scenario
+  reason: >-
+    Corregido en v0.1.1 en el diseño (rule de savePaymentMethod: solo un guardado con éxito queda
+    registrado bajo la clave) y en el escenario (When y Then 6-7, y el orden de evaluación). Resello
+    acotado autorizado por el diseñador: presupuesto de careo agotado.
+  sealAfter: 018abc88ddce115ef9a2e6f83a5311a0a2925e2420b78082df9ca305cfcd59a7
+- flow: FL-STL-009
+  step: Given
+  kind: other
+  artifact: validation-scenarios.FL-STL-009
+  evidence: >-
+    Hueco reportado por keel-spring (FL-STL-009-A): «la pasarela avisa antes de contestar a la captura»
+    no decía cómo se programa ese orden, y la prueba dependía del tope de lectura del cliente.
+  proposal: Fijar el orden por encadenamiento de eventos, no por tiempo.
+  resolution: scenario
+  reason: >-
+    Corregido en v0.1.1: la pasarela de prueba retiene su respuesta hasta que el servicio procesó el
+    aviso. El desenlace ya estaba en el diseño (relee y responde sin 409). Resello acotado autorizado
+    por el diseñador.
+  sealAfter: c0472118c8c7917828a0d1ac815afe2b295edd56ac2a3a9d5dbd29e19f7fadd6
+- flow: FL-REC-005
+  step: Then 2
+  kind: other
+  artifact: use-cases.sweepPendingPayments.rules
+  evidence: >-
+    Hueco reportado por keel-spring (FL-REC-005-B): el Then pedía otra consulta en el segundo ciclo,
+    pero el barrido renueva awaitingSince al tomar el cobro, así que en el segundo ciclo no lo vuelve a
+    tomar.
+  proposal: Afirmar exactamente una consulta en el primer ciclo y ninguna en el segundo.
+  resolution: scenario
+  reason: >-
+    Corregido en v0.1.1 según la rule del barrido, sin cambiar el diseño. Resello acotado autorizado
+    por el diseñador.
+  sealAfter: 9777d5fa9917e7ebc258e8195b8d7cc18b386d09c1907da1bdfb32c0f466ae16
