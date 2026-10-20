@@ -214,3 +214,11 @@ decisions:
       y un reintento puede crear una segunda dirección (acotada por el límite de 20). Decidido por el
       diseñador para no romper a clientes que no la manden; el front propio la manda siempre.
     since: 0.1.0
+  - id: CHK-PERSIST-NATURAL-KEY-ERROR-UNNAMED
+    scope: persistence.entities.UserProfile.naturalKey
+    reason: >-
+      Vale el canónico USER_PROFILE_SUBJECT_ALREADY_EXISTS porque nunca sale del servidor: la colisión
+      de subject solo ocurre en la carrera de dos aprovisionamientos, y la petición que choca relee y
+      devuelve el perfil ganador (regla de provisionProfileFromIdentity, structural 3.2). Nombrar un 409
+      propio añadiría al contrato un error que ningún cliente puede recibir. Decidido por el diseñador.
+    since: 0.1.2

@@ -1,6 +1,6 @@
 # user-profile — Documento de diseño
 
-> specs/user-profile v0.1.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/user-profile v0.1.2. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
