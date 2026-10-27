@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.1.2. Contrato de validación para la fase de generación.
+> specs/catalog v0.1.3. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 

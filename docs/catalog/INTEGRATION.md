@@ -1,6 +1,6 @@
 ---
 service: catalog
-version: 0.1.2
+version: 0.1.3
 domain: commerce
 basePath: /api/v1
 m2mAuth:
