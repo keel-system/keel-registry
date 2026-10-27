@@ -1,6 +1,6 @@
 # notifications — Documento de diseño
 
-> specs/notifications v0.2.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/notifications v0.2.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 

@@ -1,7 +1,7 @@
 # notifications — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/notifications v0.2.0. Contrato de validación para la fase de generación.
+> specs/notifications v0.2.1. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 

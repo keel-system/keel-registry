@@ -1,6 +1,6 @@
 ---
 service: notifications
-version: 0.2.0
+version: 0.2.1
 basePath: /api/v1
 m2mAuth:
   protocol: client-credentials
