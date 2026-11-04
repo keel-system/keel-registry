@@ -269,6 +269,33 @@ findings:
       que escribe la ruta afirma su final, no la igualdad. Los escenarios ya están escritos con esa convención
       y no cambian.
   - class: 12
+    unit: api.pagination
+    what: >-
+      FL-BRD-030 (paso 4) y FL-CAT-030 (paso 3) afirmaban los totales reales del listado en una página fuera
+      de rango (totalElements: 21 y 3), y la revisión de la generación keel-go lo atribuyó al diseño. Contradecían
+      la convención de página vacía de los propios escenarios y el contrato canónico.
+    severity: gap
+    state: decided
+    reason: >-
+      Lo fija el DSL para todo servicio (docs/dsl/api.md § pagination y docs/wire-contract.md § Página): una
+      página vacía lleva totalElements: 0 y totalPages: 0, también fuera de rango y aunque el listado tenga
+      elementos en otras páginas. El defecto era de los dos escenarios, que se corrigen con page y size los
+      pedidos. FL-SHP-001 (paso 9) no afirma totales en su página vacía y no cambia.
+  - class: 12
+    unit: api.createProduct
+    what: >-
+      openapi.yaml declaraba description como string no nulo en createBrand, createCategory y createProduct,
+      y los escenarios envían description null en esas altas (FL-BRD-010, FL-CAT-001 y FL-PRD-001), que el
+      servidor acepta.
+    severity: gap
+    state: decided
+    reason: >-
+      El diseño ya lo decía: description es opcional en las tres altas, y mandan los escenarios. El defecto era
+      del contrato derivado, no del spec: openapi.yaml se regeneró con description [string, null] en las tres.
+      El resto de opcionales de las peticiones no se contradice: los PATCH ya admiten null donde los escenarios
+      lo envían, name, sku, price, brandId y categoryId a null siguen siendo 400, y altText en addProductImage
+      viaja en multipart, donde ningún escenario envía null.
+  - class: 12
     unit: service
     what: >-
       Product.name no se recorta de espacios (Brand.name y Category.name sí), así que "   " o " Camiseta"

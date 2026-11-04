@@ -1,7 +1,7 @@
 # catalog — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/catalog v0.1.3. Contrato de validación para la fase de generación.
+> specs/catalog v0.1.4. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -203,7 +203,7 @@ Transversales: el outbox (FL-EVT-001, FL-EVT-002) y CORS (FL-SEC-001).
 2. `items` trae 20 marcas en orden `Marca 01` … `Marca 20`, cada una con la proyección completa de
    gestión (incluidos `lockVersion` y los cuatro campos de auditoría); `Marca 02` con `active: false`.
 3. `?page=1` trae solo `Marca 21`.
-4. `?page=5` trae `items: []`, `totalElements: 21`, `totalPages: 2`, `page: 5`, `size: 20`.
+4. `?page=5` trae `items: []`, `totalElements: 0`, `totalPages: 0`, `page: 5`, `size: 20`.
 5. `?size=500` responde con `size: 100` y las 21 marcas.
 6. `?active=false` trae solo `Marca 02`; `?name=rca 1` trae `Marca 10` … `Marca 19` en orden.
 7. `?name=Inexistente` trae la página vacía canónica: `items: []`, `totalElements: 0`, `totalPages: 0`.
@@ -310,7 +310,7 @@ Transversales: el outbox (FL-EVT-001, FL-EVT-002) y CORS (FL-SEC-001).
 1. Status `200`; `totalElements: 3`, `totalPages: 1`, `items` en orden `Calzado`, `Deporte`, `Hogar`,
    con la proyección completa de gestión.
 2. `?active=true` trae `Calzado`, `Hogar`; `?name=calz` trae `Calzado`.
-3. `?page=1` trae la página vacía (`items: []`, `totalElements: 3`, `totalPages: 1`).
+3. `?page=1` trae `items: []`, `totalElements: 0`, `totalPages: 0`, `page: 1`, `size: 20`.
 4. `?size=1` trae solo `Calzado` con `totalPages: 3`; `?size=1&page=1` trae `Deporte`.
 
 ---
