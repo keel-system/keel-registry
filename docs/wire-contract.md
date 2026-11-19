@@ -43,6 +43,20 @@ pueden, el tipo correcto es un `string` con formato, no un `long`.
   es ISO-8601, una fecha que no existe (`2026-02-30`).
 - Una propiedad desconocida se ignora.
 
+### La query de un listado (DSL 2.32)
+
+- Una **lista** en la query viaja repitiendo el parámetro: `?statuses=active&statuses=draft`. Un valor con
+  comas también se parte (`?statuses=active,draft`, como hace Spring), así que un elemento que contenga
+  una coma solo viaja repitiendo el parámetro. Ausente, no filtra; vacía (`?statuses=`) o con un elemento
+  vacío (`?statuses=active,`), es **400**.
+- El **orden** que pide el cliente es `?sort=campo` (ascendente) o `?sort=campo,asc|desc`, repetido para
+  ordenar por varios campos en ese orden. Solo valen los campos de `sortable` del listado, y la dirección
+  en minúsculas. Sustituye al orden del diseño, no se le suma; el id desempata siempre. Un campo fuera de
+  `sortable`, una dirección ilegible, más de una coma, el mismo campo dos veces o cualquier `?sort=` en un
+  listado sin `sortable` es **400** (`VALIDATION_ERROR`, «No se puede ordenar por '…'»).
+- El texto se ordena por punto de código en los tres motores: `Z` antes que `a`, y `z` antes que `á`.
+- Lo que no se puede leer de `page` y `size` no es un 400: vale su default.
+
 ## Nulos
 
 Por defecto un campo sin valor viaja como `null`. Con `conventions.nulls: omit` en el manifiesto, no
@@ -86,3 +100,129 @@ fuera de rango, aunque el listado tenga elementos en otras.
 **Envoltura de un evento** — `metadata` y `data`; la `metadata`, en este orden: `eventId`,
 `eventType`, `eventVersion`, `occurredAt`, `source`, `correlationId`, `traceparent` (ver
 `docs/dsl/messaging.md § La envoltura Keel`).
+
+**Entrada del historial** (DSL 2.29) — `at`, `author`, `change`, `changes`; cada elemento de `changes`, `field`,
+`before`, `after`. Va dentro de la página de arriba, la más reciente primero y, a igual `at`, en un orden estable:
+
+```json
+{
+  "at": "2026-11-13T10:02:00.000Z",
+  "author": "6f1c9a2e-0b7d-4f53-9a51-0c1e9d2a7b44",
+  "change": "updated",
+  "changes": [
+    { "field": "email", "before": "ana@example.com", "after": "ana.r@example.com" }
+  ]
+}
+```
+
+- `at` es la hora a la que se confirmó la escritura, y se guarda con la precisión del cable (milisegundos): el `at` de una
+  entrada sirve tal cual de extremo de los filtros `from` y `to`, que incluyen el suyo.
+- `change` es `created`, `updated`, `deleted`, `restored` o `anonymized`. `deleted` y `restored` llevan `changes: []`.
+- `author` es el actor de la autoría: el `sub` del token, el cliente de la clave de API o `system` (con
+  `system:<correlationId>` si hay correlación) cuando la escritura no viene de una petición.
+- `field` es la ruta del contrato (`price.amount`, `lines[<id>].quantity`, `categoryId`). `before` y `after` llevan el
+  valor con las reglas de § Tipos, y `null` cuando no había o ya no hay. En una entrada `anonymized` los dos son el
+  valor anonimizado: el anterior ya no existe en ninguna parte.
+
+## Lotes
+
+Solo en las operaciones con `batch` (DSL 2.30, ver `docs/dsl/use-cases.md § Lotes`). El diseño no declara la forma
+de la respuesta: la operación lleva `output: void`, y cada elemento con éxito devuelve lo que diga `batch.output`.
+
+**Resultado del lote** — `summary`, `items`. El `summary`, en este orden: `total`, `succeeded`, `failed`,
+`notAttempted`. Cada elemento de `items`, en orden de índice: `index`, `status`, `result`, `error`, `message`.
+
+```json
+{
+  "summary": { "total": 500, "succeeded": 497, "failed": 3, "notAttempted": 0 },
+  "items": [
+    { "index": 0, "status": "succeeded", "result": { "productId": "0190f3c1-7b2e-7a4d-9c1e-3f5a6b7c8d9e" }, "error": null, "message": null },
+    { "index": 7, "status": "failed", "result": null, "error": "SKU_ALREADY_EXISTS", "message": "Ya existe un producto con ese SKU" }
+  ]
+}
+```
+
+- Con `atomicity: per-item` la respuesta es **siempre `207`**, también si todo salió bien: el status no depende del
+  desenlace, y el cliente tiene un solo lector. Con `all-or-nothing` el mismo cuerpo sale con el `successStatus` del
+  endpoint, o la respuesta es el error del elemento culpable, con su ruta en `details` (`"items[7]"`), y no queda
+  nada confirmado.
+- Cada elemento lleva **siempre** sus cinco claves, con `null` donde no aplica: su forma es estable, como la del
+  error, y no depende de `conventions.nulls`. `result` es `null` en un elemento que no tuvo éxito y en uno de una
+  operación sin `batch.output`.
+- `status` es `succeeded`, `failed` o `notAttempted`. Un elemento falla **solo él** con un `code` de `itemErrors` o
+  con `VALIDATION_ERROR` (sus cotas, su formato), y el lote sigue. Cualquier otro fallo **detiene** el lote: ese
+  elemento sale `failed` con su `code`, o con `BATCH_ABORTED` si no tiene (`framework-errors.md`), lo anterior queda
+  confirmado y lo siguiente sale `notAttempted`, que es lo que el cliente tiene que reenviar.
+- Son un `400` del lote entero, sin procesar ningún elemento, solo el sobre: el campo que se recorre ausente o con más
+  elementos que su `maxItems`.
+- Con `idempotency`, repetir la clave devuelve la **misma respuesta** sin volver a procesar el lote, rehecha de lo que se
+  guardó elemento a elemento. Si el primero se cortó a mitad, la repetición sigue desde el último elemento confirmado y
+  su `207` los cuenta todos. Mientras el primero sigue en marcha, la repetición recibe el `409` de la clave en curso
+  (`IDEMPOTENCY_KEY_IN_PROGRESS` o el que declare el diseño), y la misma clave con otro cuerpo, el de la clave
+  reutilizada. Un lote `all-or-nothing` que falló no se guarda: repetirlo lo vuelve a procesar.
+
+### Lotes asíncronos
+
+Con `batch.execution: async` (siempre `per-item`), la operación responde **`202`** con el trabajo y su URL en
+`Location`, y no procesa nada en la petición. Cuelgan de su ruta dos más, con su misma regla de acceso, que solo
+contestan a **quien creó el trabajo** (cualquier otro, o un id que no existe, recibe `404` con
+`BATCH_JOB_NOT_FOUND`):
+
+- `GET <ruta>/jobs/{jobId}` — el trabajo: `id`, `status`, `summary`, `createdAt`, `finishedAt`.
+- `GET <ruta>/jobs/{jobId}/results` — los resultados de los elementos intentados, en orden de índice, con el sobre
+  de página de siempre (`page`, `size`) y la forma de cada elemento del `207`.
+
+```json
+{
+  "id": "0190f3c1-7b2e-7a4d-9c1e-3f5a6b7c8d9e",
+  "status": "aborted",
+  "summary": { "total": 500, "succeeded": 299, "failed": 2, "notAttempted": 199 },
+  "createdAt": "2026-11-14T10:00:00.000Z",
+  "finishedAt": "2026-11-14T10:03:12.400Z"
+}
+```
+
+- `status` es `queued` (nada procesado), `running`, `completed` (todos intentados) o `aborted` (un elemento que no
+  falla solo él lo detuvo). `finishedAt` es `null` mientras no termina.
+- `notAttempted` solo cuenta en un trabajo `aborted`: son los índices desde el último intentado, que no salen en
+  los resultados. Lo que queda por procesar de un trabajo en marcha no está descartado.
+- Con `idempotency` (`client-key` o `payload-hash`), repetir la clave responde el **mismo** `202`, con el mismo
+  `Location` y el trabajo en el estado en que esté, también mientras corre. La misma clave con otro cuerpo es
+  `409 IDEMPOTENCY_KEY_REUSED`. La clave se acota por quien creó el trabajo, y `ttlSeconds` dice cuánto vale.
+  Dos cuerpos son el mismo si son los mismos bytes.
+
+## Escritura condicional
+
+Solo en las operaciones de `api.concurrency` (ver `docs/dsl/api.md § concurrency`).
+
+- **`ETag`** — la versión de la raíz entre comillas dobles: `"7"`. Es fuerte (nunca `W/`) y opaca: el cliente no la
+  interpreta, la devuelve tal cual en `If-Match`. La dan las lecturas de esa raíz y las escrituras listadas que la
+  devuelven, ya con la versión que dejó el guardado.
+- **`If-Match`** — se compara en fuerte. `*` se cumple si el recurso existe. Una lista (`"5", "7"`) se cumple si
+  coincide cualquiera. Un `W/"7"`, un `7` sin comillas, un `"07"` o algo ilegible no coincide con nada y da `412`, no
+  `400`. Una cabecera vacía cuenta como ausente: `428` con `conditionalWrites: required`, y sin comparación con
+  `optional`.
+- El orden de los fallos: `401` → `403` → `428` → `400` → `404` → `412` → `409`. Quien no puede ver el recurso recibe
+  su `404` o su `403` antes que el `412`. El `409` (`CONCURRENT_MODIFICATION`) sigue siendo otra cosa: dos escrituras que
+  se cruzan dentro del servidor con la versión correcta.
+- `ETag` va en las cabeceras expuestas de CORS, o un navegador no la puede leer.
+
+## Invariantes del agregado
+
+Solo en las entidades con `checks`, con cotas en sus campos o con un `computed` estructurado (DSL 2.31, ver
+`docs/dsl/domain.md`).
+
+- **`422 INVARIANT_VIOLATED`** — la escritura dejaría el agregado fuera de una invariante con un valor que calculó el
+  servidor (una cantidad que se suma a la que había, un derivado que no cabe en su tipo). No se escribe nada. Lo anuncia
+  el contrato en toda operación que escribe una raíz guardada; ninguna lectura lo responde. Un check con `error` propio
+  responde ese `code` con el `http` que declara la operación.
+- La misma cota rota por la **entrada** sigue siendo `400 VALIDATION_ERROR`, en el borde y antes que la guarda: el
+  cliente sí mandó algo inválido.
+- El `message` nombra la regla del diseño y nunca el valor (`Product: discount ≤ listPrice.`,
+  `Product: stockCount queda fuera de sus cotas.`): el valor lo calculó el servidor y puede venir de un campo
+  `sensitive`. `details` es `null`.
+- Cuando se rompen dos a la vez, gana la primera en este orden, el mismo en los cuatro generadores: las hijas antes que
+  su padre, y en cada entidad sus derivados, las cotas en el orden de sus campos y los checks en el del diseño.
+- Un **derivado** (`computed: { sum | count }`) viaja como cualquier campo de su tipo, marcado `readOnly` en el contrato:
+  sale en las respuestas y nunca se lee de la entrada. Su valor es el último que guardó el servidor; la lectura no lo
+  recalcula.

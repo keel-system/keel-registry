@@ -96,6 +96,7 @@ Por cada entidad con `lifecycle`:
 - Por cada transición declarada: ¿qué operación la ejecuta, y **lo declara con `transitions`**? Una transición que nadie ejecuta no es contrato, es intención — `keel validate` lo avisa, pero quién debería ejecutarla es respuesta de diseño.
 - ¿Hay estados **terminales**? ¿Es correcto que no tengan salida, o el negocio necesita revertirlos (cancelar, reactivar, devolver)? **Cruza esta pregunta con las `compensations`**: una compensación que tiene que devolver la entidad a un estado anterior necesita esa arista de vuelta declarada aquí, y el estado terminal es justo donde se olvida (clase 8).
 - ¿Qué operaciones están **prohibidas** en cada estado, y con qué error? Modificar un pedido entregado suele ser un error declarado que nadie declara.
+- ¿Algún estado **caduca** por el paso del tiempo (una reserva sin pagar, una invitación, un código)? Entonces es un **plazo de negocio** y se declara en `lifecycle.deadlines` (DSL 2.26), no en prosa: cuánto (`after`), desde qué marca (`since`), a qué estado (`to`), con qué operación (`by`) y qué pasa con una acción tardía (`lateAction`). Esta última no tiene default ni admite cierre `aceptado`. No confundir con el rescate de una fila en vuelo (`stalledAfter`, clase 13) ni con el silencio de un proveedor (`reconciledBy`, clase 8).
 
 ### 2. Guardas ↔ errores
 
@@ -118,6 +119,9 @@ Por cada `command`, cruzando `preconditions`, `rules`, `errors` y las constraint
 Campo a campo, en `domain`:
 
 - Cada campo `computed`: ¿está su **regla**? Y más importante, ¿**cuándo** se recalcula — en cada escritura, solo si su fuente cambió, bajo demanda?
+  Si es una suma (con un solo factor) o una cuenta de las hijas **del mismo agregado**, escríbelo estructurado (`computed: { sum: lines.price, times: quantity }` o `{ count: lines }`, DSL 2.31): entonces lo calcula la entidad en cada escritura, con la escala del campo y `HALF_UP` una sola vez, y viaja de solo lectura. Lo que dependa del llamante o de otro agregado se queda en prosa.
+- Cada `invariants` en prosa: ¿cabe en `checks`? «En `running` tiene `runningSince`» es `requires` + `when`; «solo en `actionRequired`» es `forbids` + `unless`; «no supera `amount`» es una comparación campo contra campo; «uno de los dos» es `exactlyOne` (ver `docs/dsl/domain.md` § `checks` y derivados). Si cabe, escríbelo ahí: la entidad lo hace cumplir en cada `save` y responde `422 INVARIANT_VIOLATED` o el `error` que le pongas. En prosa, solo lo guarda un escenario, y únicamente en la operación que lo pisa.
+- Cada campo con **cota** (`min`, `max`, `maxLength`, `pattern`…): la cota de la entidad se cumple **siempre**, también cuando el valor lo calcula el servidor (una cantidad que se suma a la que había, una devolución que repone stock). ¿Hay alguna operación que pueda dejarlo fuera a propósito? Entonces la cota no es de la entidad, sino de una entrada: muévela al `input.fields` de la operación que la necesita. Si se queda, ¿qué `error` ve el cliente cuando la suma se pasa? Sin decirlo, `422 INVARIANT_VIOLATED`.
 - Cada campo `generated`: ¿quién lo asigna y con qué criterio (secuencia, uuid, marca de tiempo de servidor)?
 - Cada campo **requerido**: ¿de dónde sale? Si no llega en ningún input, no es `computed` ni `generated` y no tiene `default`, hay un hueco.
 - Campos con `default` implícito en la prosa pero no en el artefacto.
@@ -130,6 +134,7 @@ Campo a campo, en `domain`:
 - Por cada `unique` en `domain` o `persistence`: ¿hay un `error` de colisión declarado en las operaciones que escriben ese campo?
 - ¿Hay algún «**como máximo uno … que cumpla X**»? Una versión activa por clave, un contacto principal por cliente, una suscripción vigente por usuario. Es unicidad **condicionada al estado**, no de columnas, y con `unique` a secas hay que elegir entre lo imposible (no poder tener nunca dos versiones) y lo que no garantiza nada. Se declara con la forma larga de `persistence.entities.<E>.indexes` (`{ fields, unique: true, when: { field, equals } }`, ver `docs/dsl/persistence.md`). La pregunta se hace aquí porque el que responde «sí» casi siempre lo tenía como una regla en prosa dentro de `rules`, donde no la sostiene nada más que el orden de dos escrituras.
 - ¿Qué pasa si **dos peticiones concurrentes** ejecutan el mismo command sobre la misma entidad? ¿Último gana, o conflicto explícito? Si el negocio no tolera la pérdida de actualizaciones, hay que declararlo — y el sitio donde se declara es `persistence.consistency.optimisticLocking` (clase 14), no la prosa de `rules`.
+- ¿Y si las dos peticiones **no** son concurrentes sino que están **separadas en el tiempo**? Ana carga la ficha, Luis la cambia y la guarda, y Ana guarda después con lo que cargó: `optimisticLocking` no lo ve, porque cada escritura carga la versión vigente. Si alguien edita un formulario, la pregunta es si su escritura compara la versión que leyó: `api.concurrency` (`ETag`/`If-Match`, `412` y `428`, ver `docs/dsl/api.md § concurrency`). Un PUT o PATCH sobre una raíz con versión sin decidirlo abre `OBL-API-CONCURRENCY-UNDECIDED`.
 - Operaciones con `retry` que las alcanzan: ¿la operación destino es idempotente, y **con el mecanismo del eje correcto**? Si quien reintenta es una subscription, es `contract.messageId` o una transición irrepetible; si es un cliente HTTP contra un endpoint nuestro, es `idempotency`. Declarar el de un eje contra la repetición del otro no protege nada.
 - ¿Hay operaciones que **leen y luego escriben** en función de lo leído (reservar stock, asignar numeración)? Ese patrón sin política de concurrencia es una condición de carrera declarada.
 
@@ -141,7 +146,8 @@ Por cada operación `kind: query`:
 
 - ¿Devuelve **colección**? Entonces: ¿cuál es el **orden**? Sin orden declarado, dos motores devuelven órdenes distintos y ambos son "correctos". ¿Es orden **total** (el campo de orden puede empatar → desempate por id)? No admite cierre `aceptado`.
 - ¿Está **paginada**? Una colección que puede crecer sin cota y no pagina es un problema de diseño, no de rendimiento.
-- ¿Con qué criterios se **filtra**, y qué pasa con los filtros combinados?
+- ¿Puede el **cliente** elegir el orden? Si sí, ¿por qué campos (`sortable`)? Sin `sortable`, cualquier `?sort=` es `400` (DSL 2.32): en un listado para usuarios la pregunta es obligatoria (`OBL-QUERY-SORT-UNDECIDED`). Nunca por un campo `sensitive` ni `personal`, ni por una ruta de otro agregado. Y el texto se ordena por punto de código (`Z` antes que `a`, `z` antes que `á`): si el negocio espera el orden de un diccionario, es una decisión que el DSL no expresa hoy y se dice.
+- ¿Con qué criterios se **filtra**, y qué pasa con los filtros combinados? ¿Alguno es «cualquiera de estos valores» (`op: in`, con la lista vacía como `400`), «distinto de» (`op: ne`, que **incluye** la fila sin valor) o un texto libre sobre varios campos a la vez (`search`, un literal sin relevancia)?
 - ¿Qué devuelve cuando no hay resultados: colección vacía o `404`?
 - ¿Devuelve campos `sensitive`, directamente o a través de una relación?
 - Si tiene `cache`: ¿`invalidatedBy` cubre **todas** las operaciones y eventos que mutan lo cacheado? Basta una vía de mutación no listada para servir datos rancios indefinidamente.
@@ -223,6 +229,8 @@ El hueco más caro y el que ninguna regla mecánica puede ver. **Ningún hallazg
 - ¿De dónde sale la relación "es suyo": un campo de la entidad (`ownerId`, `customerId`) que se compara con la identidad del token? Si esa relación no está modelada, no se puede implementar.
 - Y el síntoma que delata que este hallazgo se cerró sin decidir: un **error 403 declarado** en operaciones cuya regla de acceso solo exige roles o permissions. `keel validate` lo avisa, pero llega tarde a propósito — cuando aparece, el diseño ya escribió errores y escenarios contra un alcance que no existe. La pregunta se hace aquí, antes.
 - Las **queries de colección**: ¿devuelven todo, o solo lo del solicitante? Es el mismo hueco, y aquí se convierte en fuga de datos masiva.
+- Cada **lectura** sobre una entidad que `scoping` u `ownership` acota: ¿se acota por construcción? Entonces va en `reads` (DSL 2.27), con `readMiss` —¿quien pide por id una fila ajena recibe el 404, que no revela que existe, o el 403?—. Si ninguna se acota (un catálogo que lee cualquiera y donde la propiedad solo acota la edición), `reads: []`. Una acotación de lectura escrita solo como `rule` no la aplica el adaptador, y olvidarla no rompe ningún escenario de un solo llamante.
+- Una lectura pública que se **personaliza** si llega un token (favoritos, «lo sigo»): es `level: optional`, no `public`. Y con un token caducado, ¿401 o anónimo? El DSL fija 401.
 - ¿Hay campos que un rol ve y otro no dentro de la **misma** respuesta?
 - Operaciones de mutación con acceso `public`: ¿deliberado?
 
@@ -304,6 +312,7 @@ Un `schedule` es la única superficie del servicio sin cliente que espere respue
 - `defaultAudience` fija la audiencia de todos los endpoints que no la declaran, incluidos los derivados por `auto`. ¿Se miró **uno a uno** cuál queda expuesto a quién, o se heredó en bloque?
 - **Versionado**: cuando este contrato cambie de forma incompatible, ¿qué pasa con los consumidores ya acoplados? La respuesta afecta a `basePath` y, si hay superficie M2M, es parte del contrato (clase 11).
 - ¿Llama un **navegador** directamente a esta API? Entonces `cors` es parte del contrato, no del despliegue. Si no se declaró, o no lo llama nadie desde el navegador, o el servicio no funcionará ahí.
+- **¿Recibe lotes?** Un command con un campo `list` en el input y un `POST` es la forma de «importar 500 filas». Si alguna de ellas puede fallar sola, la operación es un **lote** (`batch`, ver `docs/dsl/use-cases.md § Lotes`) y hay que decidir tres cosas que son contrato: si un elemento que falla deshace los demás (`atomicity`, sin default: `OBL-BATCH-ATOMICITY-UNDECIDED`), qué errores fallan solo su elemento (`itemErrors`) y cuántos caben (`maxItems`, ≤ 1000 si el cliente espera la respuesta). Sin `batch`, la lista falla entera o termina entera, y responder por elemento obliga a inventar un `code` fuera del catálogo de errores.
 - Operaciones `internal: true`: ¿quién las invoca de verdad? Una operación sin trigger y sin llamante conocido es código muerto declarado.
 
 No es hueco lo que ya es **contrato canónico** del DSL y por tanto no puede divergir: el sobre de paginación y los nombres `page`/`size` (`docs/dsl/api.md § pagination`). No lo listes.
@@ -341,6 +350,19 @@ Un cobro es dinero de una persona real que sale por un sistema que no es el nues
 - **La misma referencia, otro mensaje.** Si `charge` lo dispara una suscripción, ¿qué se hace con un mensaje distinto cuya referencia ya tiene cobro: se confirma como duplicado (`onFailure.acknowledgeOn`) o va al descarte para que alguien lo mire?
 - **Los datos de tarjeta.** Ningún campo del diseño puede llevar número, caducidad o CVV: solo los tokens que produce el componente de la pasarela. Un campo `cardNumber` en un input mete al servicio entero en el alcance de PCI.
 - **Quién puede pedir un cobro.** Con varios llamantes (usuarios, otros servicios), ¿puede uno cobrar un medio de pago guardado por otro? La referencia guardada no es un secreto: si basta con conocerla para cobrar, no protege nada.
+
+### 19. Ciclo de vida del dato
+
+*Aplica si:* algún agregado tiene campos `personal`, alguna raíz declara `deletion`, `restorableFor` o `retention`, o está en `audit.history`. Las unidades son esas raíces.
+
+Un dato tiene tres momentos que el resto de clases no mira: cuando se **borra**, cuánto **vive** y de **quién** es. Los tres son verdad del servicio aunque nadie lo construya, y casi siempre son además obligación legal (RGPD, LGPD, CCPA, Ley 1581). Y los tres fallan en silencio: un email personal en un log, un pedido que se guarda para siempre o una clave que no se puede volver a registrar no rompen ningún escenario.
+
+- **Qué es personal.** ¿Están marcados `personal` todos los campos que identifican a una persona o hablan de ella: nombre, email, teléfono, dirección, documento, IP? Marcar es barato y de ello cuelga todo lo demás: que no acabe en un log, qué vacía una anonimización. Lo juzga `REV-PERSONAL-CLASSIFICATION`, porque reconocerlo por el nombre del campo sería adivinar.
+- **Qué significa borrar.** ¿El `DELETE` de esta raíz la hace desaparecer, o la oculta y la conserva (`deletion: logical`)? Lo segundo es lo que pide un agregado que otros referencian (la factura conserva a su cliente) o uno que se puede deshacer. Con borrado lógico, la clave del borrado (el email) queda libre para un registro nuevo, y quien pide la fila borrada recibe 404.
+- **Si se puede deshacer.** ¿Durante cuánto tiempo (`restorableFor`), con qué operación (`restores`) y con qué error pasada la ventana? ¿Y si mientras tanto otro registro ocupó su clave? Recibe el 409 de esa unicidad: ¿es lo que el cliente espera?
+- **Cuánto vive.** ¿Desde qué instante se cuenta (`retention.from`: el cierre, la emisión, el borrado) y cuánto (`keep`)? ¿Hay una obligación de conservar (fiscal, sanitaria) que manda sobre la de borrar? Una raíz con datos personales sin `retention` abre `OBL-PERSONAL-RETENTION-UNDECIDED`: se acepta solo con su motivo.
+- **Su historial.** ¿Alguien tendrá que responder qué valía un campo en una fecha, quién lo cambió y desde qué valor (`audit.history`)? Es lo único de esta clase que no se puede decidir tarde: lo que no se guardó desde el principio no se reconstruye. Si se guarda, ¿qué query lo lee y con qué alcance? Una raíz con historial que ninguna query lee abre `OBL-HISTORY-UNREAD`. El historial hereda el régimen de su raíz: la retención que borra la raíz borra sus entradas, y la que anonimiza reescribe también ahí los valores personales.
+- **Y después.** ¿Se borra el agregado entero (`then: delete`) o se conserva sin sus datos personales (`then: anonymize`)? Una raíz que otro agregado referencia no se puede borrar sin dejar referencias colgando. Anonimizar deja a null los campos personales opcionales y escribe un sustituto irreversible en los obligatorios de texto: ¿la forma de cada uno lo admite?
 
 ### 16. Decisiones estructurales sin dueño
 

@@ -127,16 +127,144 @@
                   "type": "array",
                   "items": { "type": "string" }
                 }
+              },
+              "deadlines": {
+                "type": "object",
+                "minProperties": 1,
+                "description": "Plazos de NEGOCIO (DSL 2.26): un estado del que la entidad sale sola cuando pasa un tiempo, porque el paso del tiempo es por sí mismo la causa de la transición (una reserva sin pagar caduca a los 15 minutos). La clave es el estado de origen; un estado tiene como mucho un plazo. No es el rescate de una fila en vuelo (eso es stalledAfter, en use-cases) ni el silencio de un proveedor (reconciledBy, en dependencies).",
+                "additionalProperties": {
+                  "type": "object",
+                  "required": ["after", "since", "to", "by"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "after": {
+                      "description": "Cuánto dura el plazo: segundos literales, o un service.parameters de tipo int con su unidad (la forma de stalledAfter), si cada despliegue puede querer otro.",
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "required": ["seconds"],
+                          "additionalProperties": false,
+                          "properties": { "seconds": { "type": "integer", "minimum": 1 } }
+                        },
+                        {
+                          "type": "object",
+                          "required": ["parameter", "unit"],
+                          "additionalProperties": false,
+                          "properties": {
+                            "parameter": { "type": "string", "description": "Nombre de un service.parameters de tipo int: el valor del plazo." },
+                            "unit": { "enum": ["seconds", "minutes", "hours", "days"] }
+                          }
+                        }
+                      ]
+                    },
+                    "since": {
+                      "type": "string",
+                      "pattern": "^[a-z][A-Za-z0-9]*$",
+                      "description": "Campo timestamp de la entidad desde el que se cuenta el plazo. Se elige a propósito: createdAt engaña si la entidad puede llegar al estado mucho después de nacer."
+                    },
+                    "to": {
+                      "type": "string",
+                      "description": "Estado al que pasa la entidad cuando vence el plazo. Tiene que ser una arista declarada en transitions.<estado>."
+                    },
+                    "by": {
+                      "type": "string",
+                      "pattern": "^[a-z][A-Za-z0-9]*$",
+                      "description": "La operación que caduca UNA entidad: un command internal cuya entrada lleva el id de la entidad y que declara la transición estado → to, sin schedule. La despacha el cronómetro del servicio, una vez por cada entidad vencida. Lo que haga además (emitir un evento, liberar algo) es suyo."
+                    },
+                    "lateAction": {
+                      "description": "Qué pasa con una transición que sale del estado hacia OTRO destino cuando el plazo ya venció pero la caducidad todavía no se ha ejecutado. { error: CODE }: se rechaza con ese error, en el instante exacto del vencimiento, pase lo que pase con el cronómetro. allow: se admite mientras la caducidad no haya pasado. Sin él no hay default seguro, y keel validate lo pregunta.",
+                      "oneOf": [
+                        { "const": "allow" },
+                        {
+                          "type": "object",
+                          "required": ["error"],
+                          "additionalProperties": false,
+                          "properties": { "error": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" } }
+                        }
+                      ]
+                    },
+                    "description": { "type": "string" }
+                  }
+                }
               }
             }
           },
           "invariants": {
             "type": "array",
-            "description": "Reglas que siempre deben cumplirse, en lenguaje declarativo legible por humanos y agentes.",
+            "description": "Reglas que siempre deben cumplirse, en lenguaje declarativo legible por humanos y agentes. Lo que cabe en el vocabulario de checks se escribe ahí, donde se hace cumplir.",
             "items": { "type": "string", "minLength": 5 }
+          },
+          "checks": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Invariantes de la entidad que se hacen cumplir (DSL 2.31): la entidad las comprueba al final de cada mutación, antes de guardar, y una rota es INVARIANT_VIOLATED (422) o el error del check. Cinco formas: requires (presente), forbids (ausente), una comparación campo contra campo (than) o contra un literal (value) y exactlyOne. Ausente es nulo, la lista vacía o la cadena vacía; un json solo si es nulo. Lo que no quepa sigue en invariants.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "requires": { "$ref": "#/$defs/checkPath", "description": "Campo o relación a-uno que tiene que estar presente (donde aplique el check)." },
+                "forbids": { "$ref": "#/$defs/checkPath", "description": "Campo o relación a-uno que tiene que estar ausente (donde aplique el check)." },
+                "field": { "$ref": "#/$defs/checkPath", "description": "Campo comparado: de la entidad o un subcampo de uno de sus value objects (price.amount)." },
+                "op": {
+                  "enum": ["eq", "ne", "lt", "lte", "gt", "gte"],
+                  "description": "Cómo se compara field. Los de orden solo sobre números e instantes; con un operando ausente, la comparación se cumple (si tiene que estar, dilo con requires)."
+                },
+                "than": { "$ref": "#/$defs/checkPath", "description": "El otro campo de la comparación, del mismo tipo comparable." },
+                "value": { "type": ["string", "number", "boolean"], "description": "El literal de la comparación." },
+                "exactlyOne": {
+                  "type": "array",
+                  "minItems": 2,
+                  "uniqueItems": true,
+                  "items": { "$ref": "#/$defs/checkPath" },
+                  "description": "Campos o relaciones a-uno de los que exactamente uno está presente."
+                },
+                "when": { "$ref": "#/$defs/checkCondition", "description": "El check solo aplica cuando se cumple la condición." },
+                "unless": { "$ref": "#/$defs/checkCondition", "description": "El check aplica salvo cuando se cumple la condición." },
+                "error": {
+                  "$ref": "https://keel.dev/schema/2.0/common.schema.json#/$defs/errorCode",
+                  "description": "El error del diseño que significa romper este check. Lo declaran, con su http, las operaciones que escriben la entidad. Sin él, INVARIANT_VIOLATED (422)."
+                },
+                "description": { "type": "string" }
+              },
+              "oneOf": [
+                { "required": ["requires"], "not": { "anyOf": [{ "required": ["forbids"] }, { "required": ["field"] }, { "required": ["exactlyOne"] }] } },
+                { "required": ["forbids"], "not": { "anyOf": [{ "required": ["requires"] }, { "required": ["field"] }, { "required": ["exactlyOne"] }] } },
+                {
+                  "required": ["field", "op"],
+                  "oneOf": [{ "required": ["than"] }, { "required": ["value"] }],
+                  "not": { "anyOf": [{ "required": ["requires"] }, { "required": ["forbids"] }, { "required": ["exactlyOne"] }] }
+                },
+                { "required": ["exactlyOne"], "not": { "anyOf": [{ "required": ["requires"] }, { "required": ["forbids"] }, { "required": ["field"] }] } }
+              ],
+              "allOf": [
+                { "not": { "required": ["when", "unless"] } },
+                {
+                  "if": { "not": { "required": ["field"] } },
+                  "then": { "not": { "anyOf": [{ "required": ["op"] }, { "required": ["than"] }, { "required": ["value"] }] } }
+                }
+              ]
+            }
           }
         }
       }
+    }
+  },
+  "$defs": {
+    "checkPath": {
+      "type": "string",
+      "pattern": "^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)?$"
+    },
+    "checkCondition": {
+      "type": "object",
+      "required": ["field"],
+      "additionalProperties": false,
+      "description": "Una condición sobre un campo enum o boolean de la propia entidad: in (uno de esos valores) o equals (ese valor). Sin disyunciones anidadas.",
+      "properties": {
+        "field": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*$" },
+        "in": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": ["string", "boolean"] } },
+        "equals": { "type": ["string", "boolean"] }
+      },
+      "oneOf": [{ "required": ["in"] }, { "required": ["equals"] }]
     }
   }
 }

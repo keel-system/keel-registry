@@ -154,6 +154,65 @@ del `http` del `errors[].code` correspondiente en `use-cases` (duplicado → 409
 inexistente → 404, permiso insuficiente → 403, validación → 400…): usa siempre el
 declarado en el diseño, nunca uno supuesto.
 
+### Escritura condicional (`api.concurrency`)
+
+Si el diseño declara `api.concurrency`, las escrituras listadas comparan la versión que el cliente leyó:
+
+- La **lectura** que da el `ETag` (la query con endpoint que devuelve la raíz entera) lo **captura** en una variable de
+  colección, en su script `test`:
+  `pm.collectionVariables.set('etag_<raíz>', pm.response.headers.get('ETag'));`
+- Cada **escritura listada** lo manda tal cual en `If-Match: {{etag_<raíz>}}`, y si su respuesta devuelve la raíz, vuelve
+  a capturar el `ETag` nuevo: así dos ediciones encadenadas no necesitan releer.
+- El `ETag` es **opaco**: no lo construyas a mano ni le quites las comillas.
+- Con `conditionalWrites: required`, una escritura sin `If-Match` responde **428**. Solo la request del escenario que afirma
+  ese 428 va sin la cabecera; `keel validate` avisa (`CHK-DOCS-POSTMAN-DRIFT`) de cualquier otra.
+- El escenario del **412** manda un `ETag` viejo a propósito: guárdalo en otra variable antes de la escritura que lo deja
+  obsoleto.
+
+### Lectura acotada e identidad opcional (`reads`, `level: optional`)
+
+- Una operación con **`level: optional`** se pide **sin** cabecera `Authorization` salvo que el Given del escenario nombre
+  un llamante: entonces lleva su `token_<rol>`. Nunca la cabecera con un global vacío: `Bearer ` sin token es una
+  credencial inválida, y el servidor responde **401** donde el escenario esperaba la respuesta anónima.
+- Una lectura en **`reads`** responde según quién la pide. El escenario que lee una fila **ajena** necesita dos llamantes
+  —el dueño, que la crea, y otro, que la lee—: si son del mismo rol, el segundo usa `token_<rol>-other`, y si la
+  `auth-collection.json` no lo trae, repórtalo en vez de reutilizar el token del dueño (la request pasaría sin probar
+  nada). El status lo decide `readMiss`: con `not-found`, **404** con el `code` de no encontrado, igual que una fila que no
+  existe; con `forbidden`, **403** con el error del bloque.
+- Un **listado** acotado devuelve solo las filas del llamante: su test asserta lo que diga el Then (las filas propias, el
+  total), nunca un recuento que dependa de lo que crearon otros flujos.
+
+### Borrado lógico y restauración (`deletion: logical`, `restores`)
+
+- Tras borrar, **toda** lectura de la fila responde como si no existiera: la ficha, **404** con el `code` de no encontrado; el listado, sin ella y con su total rebajado. Borrar otra vez también es **404**, nunca 410.
+- El escenario que vuelve a usar la clave de una fila borrada (el mismo email, el mismo código) espera el **201** del alta, no el 409 de la unicidad: las claves de lo borrado quedan libres.
+- La restauración se prueba dentro de su ventana (la fila vuelve a leerse) y, si el Then lo pide, con la clave ocupada por otra viva (**409** de esa unicidad). Fuera de la ventana no se puede llegar por HTTP sin esperar días: si un escenario lo exige, repórtalo en vez de falsear el reloj desde la colección.
+- Un campo `x-personal` del `openapi.yaml` lleva en el body de ejemplo un valor **inventado** y reconocible (`ana.ejemplo@example.com`), nunca uno que pueda ser de una persona real.
+
+### Historial de cambios (`output: { history }`)
+
+- La query de historial se pide **después** de las escrituras del flujo, con el mismo token del titular, y se asertan las entradas por su posición: la más reciente primero (`items[0].change === 'updated'` tras crear y editar, `items[1].change === 'created'`). Nunca se manda `sort`: el orden es fijo.
+- `changes` se aserta por `field`, `before` y `after` del campo que el flujo cambió, y que no aparece ninguno que no cambió. `author` se compara con el `sub` del token con el que se escribió, que el script obtiene del propio token, no a mano.
+- Los filtros se prueban por separado: `field` con el nombre de un campo de la raíz (casa también sus rutas internas, `price` con `price.amount`), y `from`/`to` con el `at` de una entrada leída antes (los dos son inclusivos).
+- Tras borrar la raíz, el historial da el mismo **404** que su ficha, no una página vacía; una raíz ajena, el error de su `readMiss`.
+- Un valor de una ruta de `x-personal-fields` en un ejemplo es **inventado** y reconocible, como el de un campo `x-personal`.
+
+### Búsqueda y orden del cliente (`in`, `ne`, `search`, `sortable`)
+
+- La lista de un `in` se manda **repitiendo** el parámetro (`?statuses=active&statuses=draft`), nunca como un JSON ni con corchetes. Su variante vacía (`?statuses=`) es **400**, y el escenario que la pida la aserta así.
+- `ne` deja pasar la fila **sin valor** en ese campo: el escenario que la siembre la espera en la página.
+- El texto de un `search` se busca como **literal** en todos los campos de `over` a la vez: un `%`, un `_` o un `.` en el texto se buscan tal cual. Se aserta por las filas que casan, no por su número total si el flujo no sembró la colección entera.
+- `?sort=` solo se manda en un listado con `sortable`, con un campo de la lista y la dirección en minúsculas; el escenario que pida otro campo o un listado sin `sortable` espera **400** `VALIDATION_ERROR`. El orden pedido **sustituye** al del diseño: se aserta el orden de `items` por ese campo, y por el id cuando empatan.
+
+### Lotes (`batch`)
+
+- Un lote `per-item` se asserta con **207** siempre, también si todo salió bien, y por elemento: `items[i].index`, `status` y, en los fallidos, `error` y `message`; `summary` cuadra con los `items` (`succeeded + failed + notAttempted === total`). Nunca se asserta un 200 ni un 4xx del lote por un elemento malo.
+- El escenario de fallo parcial manda en **un mismo lote** el elemento que falla solo él (un `code` de `itemErrors`, o uno mal formado, que sale `failed` con `VALIDATION_ERROR`) entre dos válidos, y asserta que los válidos se confirmaron leyéndolos después. Dos elementos con la misma clave natural en el lote: falla siempre el **segundo**.
+- Un `all-or-nothing` con un elemento malo responde el error de ese elemento con `items[<i>]` en `details`, y el flujo comprueba después que **ninguno** del lote existe.
+- El `400` del lote solo sale por el sobre: sin el campo `over`, o con un elemento más que `maxItems`.
+- Un lote **`async`**: el alta asserta **202**, guarda `id` y `Location` en variables y **sondea** `GET …/jobs/{{jobId}}` con `pm.execution.setNextRequest` sobre sí misma hasta que `status` sea `completed` o `aborted`, con un **tope de intentos** contado en una variable (sin tope, un trabajo atascado cuelga la colección). Después lee `…/jobs/{{jobId}}/results` y asserta por elemento como en el 207. Si la operación tiene `idempotency`, repetir el alta con la misma clave devuelve **202** con el **mismo** `id`.
+- El trabajo de otro llamante, un id inventado o uno purgado responden **404** `BATCH_JOB_NOT_FOUND`: el escenario del lector ajeno usa el `token_<rol>-other` como en las lecturas acotadas.
+
 ### Carpeta «Operaciones»
 
 Una request por endpoint de `api` (explícito o derivado de `auto`) que ningún
@@ -170,5 +229,6 @@ escenario cubre:
 - [ ] Cada rol usado por flujos u operaciones tiene su request de token y su global `token_<rol>`.
 - [ ] Una carpeta por `FL-*` con una request por escenario (felices y de error).
 - [ ] Carpeta «Operaciones» con los endpoints no cubiertos.
+- [ ] Con `api.concurrency`: la lectura captura `ETag` y cada escritura listada lo manda en `If-Match` (salvo la del 428).
 - [ ] `{{baseUrl}}` (y las variables de auth) declaradas en `variable[]`.
 - [ ] Ambos JSON válidos; reporta rutas y orden de importación (auth primero).

@@ -36,11 +36,17 @@ donde «aceptado» significaría dejársela al generador. Están marcadas como t
 | `OBL-IDEM-REUSE-CODE` | `use-cases`: alguna operación declara `idempotency` | el desenlace «misma clave, otro cuerpo» no tiene `code` nombrado | 4 | sí |
 | `OBL-IDEM-KEY-REQUIRED` | `use-cases`: alguna operación declara `idempotency` con `keySource: client-key` | no está decidido qué pasa si el cliente NO manda la cabecera | 4 | sí |
 | `OBL-CONCURRENCY-CODE` | `persistence`: `consistency.optimisticLocking` es `all` o `declared` | el conflicto de escritura concurrente no tiene `code` nombrado | 4 | sí |
-| `OBL-ENTITY-UNREACHABLE` | `domain`: una raíz de agregado a la que ninguna operación se refiere | una raíz de agregado que ninguna operación puede crear | 14 | sí |
+| `OBL-QUERY-SORT-UNDECIDED` | `use-cases`: una query paginada sobre una entidad, con endpoint para personas (audience users o both), sin `sortable` | no está decidido por qué columnas puede ordenar una pantalla | 5 | sí |
+| `OBL-API-CONCURRENCY-UNDECIDED` | `api`: un PUT o PATCH sobre una raíz con versión que recibe su id, en un diseño sin `concurrency` | no está decidido si quien guarda un formulario viejo puede pisar el cambio de otro | 4 | sí |
+| `OBL-ENTITY-UNREACHABLE` | `domain`: una raíz de agregado —o una entidad persistida fuera de todo agregado— a la que ninguna operación se refiere | una raíz de agregado que ninguna operación puede crear | 14 | sí |
 | `OBL-CALLER-IDENTITY` | `security`: se declara `serviceAuth` (clientes máquina) y alguna operación recibe campos de entrada | con clientes máquina, no está decidido si la identidad del llamante entra en el trabajo | 9 | sí |
 | `OBL-DECIMAL-SCALE-POLICY` | `domain`/`use-cases`: un decimal con `scale` llega al `input` de alguna operación | no está decidido qué pasa con un importe de entrada con más decimales que su escala | 12 | sí |
 | `OBL-OUTCOME-NEGATIVE-UNDECIDED` | `dependencies`: una activación con `awaits: outcome` cuya llamada devuelve un campo booleano | el desenlace NEGATIVO de la llamada no está decidido | 13 | sí |
 | `OBL-GUARD-UNOBSERVABLE` | `mail`: una operación de `sentBy` con estado en vuelo y sin puerta propia | la guarda del efecto irreversible no la mide ningún escenario | 12 | sí |
+| `OBL-READ-SCOPE-UNDECIDED` | `security`: una query expuesta (required o admin) lee una entidad que scoping u ownership acota, en un bloque sin `reads` | no está decidido si una lectura sobre una entidad acotada se acota por construcción | 9 | sí |
+| `OBL-PERSONAL-RETENTION-UNDECIDED` | `persistence`: una raíz persistida cuyo agregado tiene campos `personal` y que no declara `retention` | no está decidido cuánto viven los datos personales de un agregado ni qué pasa después | 19 | sí |
+| `OBL-HISTORY-UNREAD` | `persistence`: una raíz en `audit.history` que ninguna query lee | no está decidido quién lee el historial de una raíz | 19 | sí |
+| `OBL-BATCH-ATOMICITY-UNDECIDED` | `use-cases`: una operación con `batch` sin `atomicity` | no está decidido si un elemento que falla deshace el lote entero | 15 | no |
 | `OBL-RESOURCE-SCOPE` | `use-cases`: una operación protegida por rol declara un error 403 | un 403 que nada de lo declarado puede producir | 9 | no |
 | `OBL-PAYMENTS-FOLLOWUP-REJECTED` | `payments`: una acción de seguimiento (`capture`, `void`, `refund`) sin `onRejected` | no está decidido qué pasa cuando la pasarela contesta que NO a una acción de seguimiento | 18 | no |
 | `OBL-PAYMENTS-REFERENCE-REUSED` | `payments` + `messaging`: una suscripción dispara el cobro y no declara `onFailure.acknowledgeOn` | no está decidido qué se hace con un mensaje distinto cuya referencia de cobro ya tiene cobro | 18 | sí |

@@ -127,20 +127,62 @@
           "description": "La infraestructura asigna el valor (ids, timestamps de auditoría); nunca viene del cliente."
         },
         "computed": {
-          "type": "string",
-          "minLength": 5,
-          "description": "Regla de dominio que deriva el valor a partir de otros campos; nunca viene del cliente. Excluyente con generated."
+          "description": "Regla de dominio que deriva el valor a partir de otros campos; nunca viene del cliente. Excluyente con generated. En prosa, o (DSL 2.31) un agregado sobre una relación a-muchos del mismo agregado, que la entidad recalcula en cada mutación de la relación y se guarda: { sum: <relación>.<campo>, times: <campo de la hija> } o { count: <relación> }.",
+          "oneOf": [
+            { "type": "string", "minLength": 5 },
+            {
+              "type": "object",
+              "required": ["sum"],
+              "additionalProperties": false,
+              "properties": {
+                "sum": {
+                  "type": "string",
+                  "pattern": "^[a-z][A-Za-z0-9]*\\.[a-z][A-Za-z0-9]*$",
+                  "description": "La relación a-muchos y el campo numérico de la hija que se suma: lines.productPrice. Con la escala del campo derivado y HALF_UP; el desbordamiento es INVARIANT_VIOLATED."
+                },
+                "times": {
+                  "type": "string",
+                  "pattern": "^[a-z][A-Za-z0-9]*$",
+                  "description": "Un solo factor: otro campo numérico de la misma hija, que multiplica a sum antes de sumar (productPrice × count)."
+                },
+                "description": { "type": "string" }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["count"],
+              "additionalProperties": false,
+              "properties": {
+                "count": {
+                  "type": "string",
+                  "pattern": "^[a-z][A-Za-z0-9]*$",
+                  "description": "La relación a-muchos cuyos elementos se cuentan."
+                },
+                "description": { "type": "string" }
+              }
+            }
+          ]
         },
         "sensitive": {
           "type": "boolean",
           "default": false,
           "description": "Excluido por defecto de todo output y payload de evento; solo se expone si un payload lo pide explícitamente vía fields."
         },
+        "personal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Dato personal del titular (DSL 2.28): una clasificación legal, ortogonal a sensitive, que decide qué sale en un output. De ella se derivan que ningún log ni traza del servidor lleve el valor, lo que alcanza una retención con then: anonymize y el inventario de datos personales del proyecto generado."
+        },
         "default": {},
         "compare": {
           "type": "string",
           "enum": ["exact", "ignore-case", "ignore-case-accents"],
           "description": "Cómo se comparan dos valores de TEXTO de este campo. En domain gobierna la unicidad y la igualdad (`ACME` y `Acmé` son el mismo nombre con ignore-case-accents); en el input de una query, cómo casa el filtro. Por defecto exact."
+        },
+        "historyFilter": {
+          "type": "string",
+          "enum": ["field", "from", "to"],
+          "description": "Qué filtra este campo del input de una query de historial (output: { history: <Raíz> }, DSL 2.29): field, las entradas que cambiaron ese campo (su dot-path del contrato, string); from y to, las confirmadas desde o hasta ese instante, extremos incluidos (timestamp). Cada uno a lo sumo una vez; los demás campos del input localizan la raíz."
         },
         "match": {
           "type": "string",
@@ -160,14 +202,44 @@
             },
             "op": {
               "type": "string",
-              "enum": ["eq", "gt", "gte", "lt", "lte"],
-              "description": "eq: igual (con match/compare si es texto). gt/gte/lt/lte: el valor guardado comparado con el del input, extremos incluidos en gte y lte. Los de orden solo sobre números e instantes."
+              "enum": ["eq", "ne", "in", "gt", "gte", "lt", "lte"],
+              "description": "eq: igual (con match/compare si es texto). ne (2.32): distinto, y una fila con el campo nulo o ausente también es distinta; sin match ni compare. in (2.32): igual a uno de los valores de una lista (el input es `list: true` del tipo del campo; sobre texto pliega cada uno con su `compare` y solo admite `match: exact`). gt/gte/lt/lte: el valor guardado comparado con el del input, extremos incluidos en gte y lte. Los de orden solo sobre números e instantes."
+            }
+          }
+        },
+        "search": {
+          "type": "object",
+          "required": ["over"],
+          "additionalProperties": false,
+          "description": "Búsqueda libre de un input de TEXTO de una query (2.32): casa si casa con alguno de los campos de `over`, todos con el mismo `match` y el mismo `compare`. `q: { type: string, search: { over: [name, description], match: contains, compare: ignore-case-accents } }`. Sin índice de texto completo ni relevancia: es un OR de comparaciones de texto, determinista en los tres motores.",
+          "properties": {
+            "over": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "description": "Los campos de texto de la entidad de la salida, o subcampos de texto de sus value objects (`address.city`), en los que se busca.",
+              "items": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)?$" }
+            },
+            "match": {
+              "type": "string",
+              "enum": ["exact", "contains", "prefix"],
+              "default": "contains",
+              "description": "Cómo casa con cada campo: el valor entero, una parte o el principio. Por defecto contains."
+            },
+            "compare": {
+              "type": "string",
+              "enum": ["exact", "ignore-case", "ignore-case-accents"],
+              "description": "Cómo se comparan los textos, el mismo para todos los campos de `over`. Por defecto exact."
             }
           }
         },
         "constraints": { "$ref": "#/$defs/constraints" }
       },
       "allOf": [
+        {
+          "if": { "required": ["search"] },
+          "then": { "not": { "anyOf": [{ "required": ["filter"] }, { "required": ["match"] }, { "required": ["compare"] }] } }
+        },
         {
           "if": { "properties": { "type": { "const": "enum" } }, "required": ["type"] },
           "then": { "required": ["values"] }
@@ -233,8 +305,17 @@
               "type": "array",
               "description": "Orden POR DEFECTO de un payload de salida con 'list' o 'paginated', como '<campo>[:asc|desc]' (default 'asc'). Es contrato: es lo que recibe quien no pide un orden concreto. El id del agregado se añade siempre como último criterio de desempate, aunque no se declare 'sort': sin él, dos páginas consecutivas pueden repetir u omitir filas. Un dot-path ('brand.name') ordena por un campo de otro agregado y exige que esa relación esté en 'embed' del mismo payload; la profundidad se corta en 1, igual que 'embed'.",
               "items": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)?(:(asc|desc))?$" }
+            },
+            "sortable": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "description": "Los campos por los que el CLIENTE puede ordenar un listado paginado con `?sort=campo,asc|desc` (2.32). Es contrato: cualquier otro campo, o una dirección que no sea asc/desc, es 400. Sin `sortable`, el listado no ofrece `sort` y todo `?sort=` es 400. Campos escalares de la entidad o subcampos de sus value objects (`price.amount`), nunca `sensitive` ni `personal` (ordenar es un oráculo de su valor), ni de otro agregado, ni listas. El id se añade siempre como desempate.",
+              "items": { "type": "string", "pattern": "^[a-z][A-Za-z0-9]*(\\.[a-z][A-Za-z0-9]*)?$" }
             }
-          }
+          },
+          "if": { "required": ["sortable"] },
+          "then": { "required": ["paginated"], "properties": { "paginated": { "const": true } } }
         },
         {
           "type": "object",
@@ -242,6 +323,16 @@
           "additionalProperties": false,
           "properties": {
             "fields": { "$ref": "#/$defs/fieldMap" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["history"],
+          "additionalProperties": false,
+          "description": "El historial de cambios de una raíz con persistence.audit.history (DSL 2.29): una página de entradas, una por escritura confirmada, del cambio más reciente al más antiguo. La forma de cada entrada (at, author, change, changes[{field, before, after}]) la fija wire-contract.md § Historial, no el diseño. Solo en el output de una query, y siempre paginada.",
+          "properties": {
+            "history": { "$ref": "#/$defs/typeName" },
+            "paginated": { "type": "boolean", "default": false }
           }
         }
       ]
@@ -253,7 +344,8 @@
     },
     "authLevel": {
       "type": "string",
-      "enum": ["public", "required", "admin", "service"]
+      "enum": ["public", "optional", "required", "admin", "service"],
+      "description": "public: sin identidad. optional (2.27): sin token se ejecuta como pública con la identidad nula; con un token válido hay identidad; con uno inválido o caducado, 401 —nunca anónimo—. No admite roles, permissions ni scopes. required: un token válido. admin: el rol admin (o los roles que nombre la regla). service: un cliente máquina."
     },
     "accessRule": {
       "type": "object",
@@ -396,6 +488,11 @@
           "pattern": "^[a-z][A-Za-z0-9]*$",
           "description": "Con keySource: payload-field, el campo del input que lleva la clave. Se nombra en vez de adivinarse: cuál identifica la petición es del diseño, no una convención del generador."
         },
+        "storedIn": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z0-9]*$",
+          "description": "Con keySource: payload-field, el campo de la entidad que la operación escribe en el que acaba guardada la clave, cuando no se llama como keyField (una rule lo deriva de él: el eventId que se guarda como dedupeKey). Tiene que participar en su naturalKey: entonces la guarda es la constraint, permanente y común a todas las puertas, y no un almacén de claves. Sin él se compara keyField por nombre. DSL 2.24."
+        },
         "ttlSeconds": {
           "type": "integer",
           "minimum": 1,
@@ -420,8 +517,8 @@
             "required": ["keySource"]
           },
           "then": {
-            "not": { "required": ["keyField"] },
-            "$comment": "keyField solo significa algo cuando la clave ES un campo del input: con la cabecera o con el hash del payload no hay campo que nombrar, y dejarlo pasar declararía una intención que nada implementa."
+            "not": { "anyOf": [{ "required": ["keyField"] }, { "required": ["storedIn"] }] },
+            "$comment": "keyField y storedIn solo significan algo cuando la clave ES un campo del input: con la cabecera o con el hash del payload no hay campo que nombrar, y dejarlo pasar declararía una intención que nada implementa."
           }
         }
       ]
