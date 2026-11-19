@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.2 -->
+<!-- keel:version 0.1.3 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,10 +188,10 @@
 const KEEL = {
   "service": {
     "name": "payment",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "description": "Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente.",
     "domain": "commerce",
-    "generatedAt": "2026-10-20"
+    "generatedAt": "2026-11-19"
   },
   "links": [
     {
@@ -676,7 +676,7 @@ const KEEL = {
         "El cobro pasa a canceling antes de llamar a la pasarela: estampa awaitingSince, anota en cancelOrigin el estado del que sale y conserva customerAction y actionRequiredSince si venía de actionRequired.",
         "Si la pasarela anula, se aplica markCanceled; si no contesta, el cobro se queda en canceling y lo resuelve el barrido.",
         "Si la pasarela responde que el cobro ya terminó fallido (p. ej. el cliente falló la autenticación), se aplica markFailed con su motivo y la operación responde 200 con el cobro en failed.",
-        "Si la pasarela rechaza la anulación, el cobro vuelve al estado que dice cancelOrigin (con awaitingSince renovado si vuelve a actionRequired, vacío si vuelve a authorized), se vacía cancelOrigin, se publica PaymentActionRejected y responde CANCEL_REJECTED.",
+        "Si la pasarela rechaza la anulación, el cobro vuelve al estado que dice cancelOrigin (con awaitingSince renovado y el mismo actionRequiredSince de antes si vuelve a actionRequired, vacío si vuelve a authorized), se vacía cancelOrigin, se publica PaymentActionRejected y responde CANCEL_REJECTED.",
         "Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan.",
         "Un rechazo de la pasarela confirma el cambio de estado y el evento aunque la operación responda con error."
       ],
@@ -1245,6 +1245,7 @@ const KEEL = {
       },
       "rules": [
         "La devolución en pending del cobro pasa a succeeded con el importe que informa la pasarela (que manda si difiere del pedido), y se vacía awaitingSince.",
+        "Si el importe informado supera lo que quedaba por devolver (amount menos refundedAmount antes de esta devolución), la devolución se registra por lo que quedaba: lo devuelto nunca supera lo cobrado.",
         "El cobro pasa a refunded si refundedAmount llega a amount; si no, vuelve a captured.",
         "Si el cobro ya no está en refunding, no hace nada y no es un error."
       ],
@@ -1284,7 +1285,7 @@ const KEEL = {
         "Tras una parada recupera todo lo pendiente, sin límite de antigüedad.",
         "Aplica el desenlace que diga la pasarela con su operación (markAuthorized, markActionRequired, markCaptured, markFailed, markCanceled, markRefunded).",
         "Un cobro en pending que la pasarela no conoce se da por fallido con failureReason notReceived.",
-        "Si la pasarela dice que una acción en vuelo fue rechazada, o que nunca la recibió, el cobro vuelve al estado del que salió (cancelOrigin en una anulación; una devolución pasa a failed) y se publica PaymentActionRejected. Al volver a authorized o captured se vacía awaitingSince; al volver a actionRequired se renueva.",
+        "Si la pasarela dice que una acción en vuelo fue rechazada, o que nunca la recibió, el cobro vuelve al estado del que salió (cancelOrigin en una anulación; una devolución pasa a failed) y se publica PaymentActionRejected. Al salir de canceling se vacía cancelOrigin. Al volver a authorized o captured se vacía awaitingSince; al volver a actionRequired se renueva, y actionRequiredSince conserva el de antes.",
         "Un cobro en actionRequired cuyo actionRequiredSince es anterior a hace actionRequiredTimeoutHours, y que la pasarela sigue dando por pendiente del cliente, se anula como en cancelPayment: pasa a canceling con cancelOrigin actionRequired y se pide la anulación a la pasarela. El plazo se cuenta con actionRequiredSince, no con awaitingSince, que el barrido renueva en cada consulta.",
         "Cada cobro se procesa aislado: un fallo con uno no aborta la pasada ni deshace los demás.",
         "Si la pasarela no contesta, el cobro se queda como estaba y se vuelve a consultar en la siguiente pasada en que vuelva a superar el umbral, sin techo de intentos: un cobro cuyo estado real tiene la pasarela no se da por fallido a ciegas."
@@ -1947,7 +1948,8 @@ const KEEL = {
             "type": "CustomerRef",
             "list": false,
             "flags": [
-              "requerido"
+              "requerido",
+              "personal"
             ],
             "description": "Titular del cobro."
           },
@@ -2009,7 +2011,7 @@ const KEEL = {
             "type": "timestamp",
             "list": false,
             "flags": [],
-            "description": "Desde cuándo espera el cobro la autenticación del cliente; lo estampa la entrada en actionRequired y no lo renuevan las consultas del barrido. Es el reloj del plazo del 3DS."
+            "description": "Desde cuándo espera el cobro la autenticación del cliente; lo estampa markActionRequired al entrar en actionRequired desde pending, y no lo renuevan las consultas del barrido ni la vuelta a actionRequired desde canceling (se conserva el de antes). Es el reloj del plazo del 3DS."
           },
           {
             "name": "cancelOrigin",
@@ -2059,14 +2061,24 @@ const KEEL = {
           }
         ],
         "invariants": [
-          "awaitingSince tiene valor si y solo si el cobro está en pending, actionRequired, capturing, canceling o refunding.",
-          "customerAction tiene valor si y solo si el cobro está en actionRequired, o en canceling con cancelOrigin actionRequired.",
-          "cancelOrigin tiene valor si y solo si el cobro está en canceling.",
-          "actionRequiredSince tiene valor si y solo si el cobro está en actionRequired, o en canceling con cancelOrigin actionRequired.",
-          "failureReason tiene valor si y solo si el cobro está en failed.",
+          "check: awaitingSince presente cuando status en [pending, actionRequired, capturing, canceling, refunding]",
+          "check: awaitingSince ausente salvo si status en [pending, actionRequired, capturing, canceling, refunding]",
+          "check: cancelOrigin presente cuando status en [canceling]",
+          "check: cancelOrigin ausente salvo si status en [canceling]",
+          "check: failureReason presente cuando status en [failed]",
+          "check: failureReason ausente salvo si status en [failed]",
+          "check: customerAction presente cuando status en [actionRequired]",
+          "check: customerAction presente cuando cancelOrigin en [actionRequired]",
+          "check: customerAction ausente salvo si status en [actionRequired, canceling]",
+          "check: customerAction ausente cuando cancelOrigin en [authorized]",
+          "check: actionRequiredSince presente cuando status en [actionRequired]",
+          "check: actionRequiredSince presente cuando cancelOrigin en [actionRequired]",
+          "check: actionRequiredSince ausente salvo si status en [actionRequired, canceling]",
+          "check: actionRequiredSince ausente cuando cancelOrigin en [authorized]",
+          "check: refundedAmount lte amount",
+          "check: refundedAmount eq amount cuando status en [refunded]",
+          "check: refundedAmount ne amount salvo si status en [refunded]",
           "Si el cobro tiene paymentMethodId, el medio pertenece al Wallet cuyo customerRef es el del cobro.",
-          "refundedAmount nunca supera amount.",
-          "Un cobro está en refunded si y solo si refundedAmount es igual a amount.",
           "Un cobro tiene como mucho una devolución en pending, y solo mientras está en refunding.",
           "La moneda de un cobro no cambia nunca después de crearlo.",
           "Los decimales de amount no superan los de la moneda según ISO 4217 (JPY 0, EUR 2, KWD 3)."
@@ -2146,13 +2158,15 @@ const KEEL = {
             "flags": [
               "requerido"
             ],
-            "description": "Importe pedido; si la pasarela informa al completarla un importe devuelto distinto, se guarda el informado."
+            "description": "Importe pedido; si la pasarela informa al completarla un importe devuelto distinto, se guarda el informado, sin pasar de lo que quedaba por devolver del cobro."
           },
           {
             "name": "reason",
             "type": "string",
             "list": false,
-            "flags": [],
+            "flags": [
+              "personal"
+            ],
             "description": "Motivo libre que informa el consumidor, para su propio rastro."
           },
           {
@@ -2214,7 +2228,8 @@ const KEEL = {
             "list": false,
             "flags": [
               "requerido",
-              "único"
+              "único",
+              "personal"
             ]
           }
         ],
@@ -2250,7 +2265,8 @@ const KEEL = {
             "list": false,
             "flags": [
               "requerido",
-              "sensible"
+              "sensible",
+              "personal"
             ],
             "description": "Referencia opaca del medio en la pasarela; nunca sale del servicio."
           },
@@ -2259,7 +2275,8 @@ const KEEL = {
             "type": "CardDetails",
             "list": false,
             "flags": [
-              "requerido"
+              "requerido",
+              "personal"
             ]
           },
           {
@@ -2297,8 +2314,8 @@ const KEEL = {
           }
         ],
         "invariants": [
-          "El status de un medio lo gobierna su Wallet: pasa de active a removed al retirarlo, y removed es terminal.",
-          "Un medio removed nunca tiene isDefault a true."
+          "check: isDefault eq false cuando status en [removed]",
+          "El status de un medio lo gobierna su Wallet: pasa de active a removed al retirarlo, y removed es terminal."
         ]
       }
     ],

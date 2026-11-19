@@ -1,5 +1,5 @@
 reviewedBy: keel-gap-sweep
-reviewedAt: 0.1.0
+reviewedAt: 0.1.3
 coverage:
 - class: 1
   units:
@@ -150,6 +150,7 @@ coverage:
   - '3.8'
   - '3.9'
   - 3.9b
+  - '3.13'
   result: findings
 - class: 18
   units:
@@ -158,6 +159,11 @@ coverage:
   - void
   - refund
   - savePaymentMethod
+  result: findings
+- class: 19
+  units:
+  - Wallet
+  - Payment
   result: findings
 findings:
 - class: 1
@@ -534,3 +540,41 @@ findings:
   reason: GATEWAY_UNAVAILABLE dice ahora que aquí no se guardó nada y que se reintenta con un token nuevo. El diseñador
     acepta que un timeout pueda dejar el medio guardado en la pasarela sin registro aquí (nunca se cobra) y que
     guardar dos veces la misma tarjeta cree dos medios.
+- class: 19
+  unit: Wallet
+  what: 'Ningún campo del servicio está marcado personal, y hay datos de una persona: customerRef (en Wallet y en
+    Payment) es el identificador del titular (p. ej. su sub), card (brand, last4, expMonth, expYear) describe su
+    tarjeta y Refund.reason es texto libre que puede hablar de él. Sin la marca, nada impide que esos valores
+    acaben en logs y trazas, una retención con anonymize no tendría qué vaciar, y ni OBL-PERSONAL-RETENTION-UNDECIDED
+    ni REV-PERSONAL-CLASSIFICATION llegan a dispararse.'
+  severity: gap
+  state: decided
+  reason: Se marcan personal Payment.customerRef, Wallet.customerRef, PaymentMethod.card y Refund.reason (v0.1.3);
+    ningún log ni traza los lleva, y la retención de los dos agregados se decide en decisions.yaml.
+- class: 19
+  unit: Wallet
+  what: 'No hay camino para borrar los datos de un titular: ninguna operación borra el Wallet (deletion physical
+    no lo ejecuta nadie), no hay retention y los medios removed conservan para siempre card y gatewayMethodRef.
+    El riesgo aceptado de clase 14 (PaymentMethod) se apoya en que un cobro es un registro contable, que vale
+    para Payment pero no para el Wallet; y si más adelante se añade el borrado, uno physical deja los
+    Payment.paymentMethodId apuntando a un medio que ya no existe, un valor que ninguna regla vigila.'
+  severity: gap
+  state: accepted
+  reason: El diseñador acepta conservar el Wallet con los cobros (OBL-PERSONAL-RETENTION-UNDECIDED aceptada en
+    decisions.yaml para Wallet y Payment). Payment.paymentMethodId apunta también a medios removed, y el resumen
+    de tarjeta identifica con qué se cobró en el registro contable. El borrado o la anonimización de los datos de
+    un titular, con lo que ve paymentMethodId después, queda como evolución minor.
+- class: 19
+  unit: Payment
+  what: 'Nadie decidió si el cobro guarda historial (audit.history), y es lo único de esta clase que no se puede
+    decidir tarde. El 3.9b justifica authorship all con "ante una disputa hay que poder responder qué cliente
+    máquina hizo cada escritura, sobre todo las devoluciones", pero authorship solo guarda la última escritura de
+    cada fila: el desenlace de la pasarela o el barrido (centinela system) pisan al cliente que pidió la captura o
+    la anulación, y de las transiciones del cobro (cuándo se autorizó, se pidió capturar, se capturó) solo queda
+    updatedAt. Sin historial, esa pregunta de la disputa no tiene respuesta; con él, falta decidir qué query lo lee
+    y con qué alcance (o aceptar OBL-HISTORY-UNREAD si lo consulta un auditor en la base).'
+  severity: gap
+  state: decided
+  reason: Se declara audit.history [Payment] (v0.1.3); cada escritura del cobro y sus devoluciones deja su autor,
+    también las que un desenlace o el barrido pisan después. Lo lee un auditor en la base (OBL-HISTORY-UNREAD
+    aceptada en decisions.yaml), y el porqué de la 3.9b se reescribe para decir que es el historial quien responde.

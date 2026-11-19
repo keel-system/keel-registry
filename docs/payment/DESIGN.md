@@ -1,6 +1,6 @@
 # payment — Documento de diseño
 
-> specs/payment v0.1.2. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/payment v0.1.3. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -40,10 +40,12 @@ captura parcial (ver § 7).
   en una transacción. Un cobro guarda el `paymentMethodId` como valor, no como relación a una
   entidad interna de otro agregado.
 
-**`Payment`** — `chargeRequestId` (único), `customerRef`, `amount`, `currency`, `status`,
+**`Payment`** — `chargeRequestId` (único), `customerRef` (**personal**), `amount`, `currency`, `status`,
 `gatewayPaymentId`, `awaitingSince`, `failureReason`, `customerAction` (json opaco),
-`actionRequiredSince`, `cancelOrigin`, `paymentMethodId`, `refundedAmount` (**computed**: suma de las
-devoluciones `succeeded`), `createdAt`/`updatedAt` (**generated**, en el contrato).
+`actionRequiredSince` (el reloj del 3DS: lo estampa la entrada desde `pending` y no lo renuevan ni el
+barrido ni la vuelta desde `canceling`), `cancelOrigin`, `paymentMethodId`, `refundedAmount`
+(**computed**: suma de las devoluciones `succeeded`), `createdAt`/`updatedAt` (**generated**, en el
+contrato).
 
 Ciclo de vida:
 
@@ -62,26 +64,38 @@ Ciclo de vida:
 cobro en ellos *antes* de llamar a la pasarela. Así una respuesta perdida no se repite a ciegas, dos
 acciones incompatibles no llegan las dos a la pasarela, y quien consulta ve que hay algo en curso.
 
-**`Refund`** — `refundRequestId` (único), `amount`, `reason`, `status` (`pending`, `succeeded`,
+**`Refund`** — `refundRequestId` (único), `amount`, `reason` (**personal**), `status` (`pending`, `succeeded`,
 `failed`), `createdAt`/`updatedAt`. Su estado lo gobierna la raíz: cambia en el mismo paso en que el
 cobro entra o sale de `refunding`.
 
-**`PaymentMethod`** — `gatewayMethodRef` (**sensitive**: nunca sale del servicio), `card`,
+**`Wallet`** — `customerRef` (único, **personal**).
+
+**`PaymentMethod`** — `gatewayMethodRef` (**sensitive** y **personal**: nunca sale del servicio ni
+llega a un log), `card` (**personal**),
 `isDefault`, `status` (`active` → `removed`, terminal), `expired` (**computed**: caducidad anterior
 al mes en curso, UTC).
 
+Los campos **personal** no aparecen en ningún log ni traza del servidor; la marca viaja también en los
+`customerRef` y `reason` de las peticiones y de los eventos.
+
 ## 3. Invariantes y reglas clave
 
-- `awaitingSince` solo tiene valor mientras el cobro espera un desenlace; `customerAction` y
+Las que caben en el vocabulario del DSL son **`checks`**: la entidad las comprueba al final de cada
+mutación, y una rota responde `422 INVARIANT_VIOLATED` (ninguna operación declarada llega a romperlas).
+El resto siguen en prosa.
+
+- *(checks)* `awaitingSince` solo tiene valor mientras el cobro espera un desenlace; `customerAction` y
   `actionRequiredSince`, solo en `actionRequired` (y durante la anulación de un cobro que venía de
   ahí); `failureReason`, solo en `failed`; `cancelOrigin`, solo en `canceling`.
 - Un cobro con medio guardado solo usa un medio del Wallet de su mismo titular.
-- Lo devuelto más lo que está en curso nunca supera el importe; un cobro está `refunded` si y solo si
-  se devolvió entero. Como mucho una devolución en curso por cobro.
+- *(checks)* `refundedAmount` nunca supera el importe, y un cobro está `refunded` si y solo si se
+  devolvió entero. Lo devuelto más lo que está en curso tampoco lo supera, y hay como mucho una
+  devolución en curso por cobro. Si la pasarela informa una devolución por más de lo que quedaba, se
+  registra lo que quedaba.
 - Los decimales de cualquier importe no superan los de su moneda (JPY 0, EUR 2, KWD 3). Nunca se
   redondea.
-- Un Wallet tiene como mucho 10 medios `active` y uno solo por defecto; un medio retirado no puede
-  ser el preferente.
+- Un Wallet tiene como mucho 10 medios `active` y uno solo por defecto; *(check)* un medio retirado
+  no puede ser el preferente.
 - **La clave se comprueba antes que cualquier otra guarda**: repetir un cobro o una devolución con
   el mismo contenido devuelve lo ya hecho sin volver a la pasarela; con otro contenido,
   `CHARGE_REQUEST_CONFLICT` / `REFUND_REQUEST_CONFLICT`. Dos peticiones idénticas a la vez convergen en
@@ -124,7 +138,8 @@ medio no existe, está retirado o es de otro titular, sin distinguir cuál.
 
 **Desenlaces** (`internal`, los aplica el servicio al conocerlos por la respuesta, el aviso o el
 barrido): `markAuthorized`, `markActionRequired`, `markCaptured`, `markFailed`, `markCanceled`,
-`markRefunded`. Si un desenlace llega repetido o tarde, no hace nada.
+`markRefunded`. Si un desenlace llega repetido o tarde, no hace nada. `markRefunded` registra el
+importe que informa la pasarela, sin pasar de lo que quedaba por devolver.
 
 **Reconciliación** — `sweepPendingPayments`, cada 5 minutos: consulta a la pasarela, hasta 100 por
 pasada y los más antiguos primero, los cobros que llevan más de 15 minutos esperando sin respuesta.
@@ -147,7 +162,10 @@ preguntando sin techo, y cada cobro se procesa aislado.
   `refundRequestId` y `customerRef` (Wallet); índice `[status, awaitingSince]` para el barrido.
   Frontera `per-operation`: cada acción escribe dos veces, el estado en vuelo antes de llamar y el
   desenlace después. Bloqueo optimista en `Payment` y `Wallet`. Auditoría: fechas en el contrato del
-  cobro y autoría de cada fila fuera del contrato.
+  cobro, autoría de cada fila fuera del contrato e **historial** (`audit.history`) de `Payment` y
+  `Wallet`, que no lee ninguna query: lo consulta un auditor en la base. Borrado **físico** declarado
+  en `Wallet`, aunque ninguna operación lo borra: retirar un medio es la transición `active →
+  removed`. Sin retención: los dos agregados se conservan.
 - **Seguridad**: OIDC con `client-credentials` y audiencia validada. Hay dos clientes máquina de
   ejemplo: `checkout` (cobra, captura, anula, gestiona medios y consulta) y `backoffice` (consulta y
   devuelve). Devolver dinero tiene scope propio.
@@ -197,7 +215,25 @@ toque dos agregados siga siendo atómica. **Bloqueo optimista**: un aviso y el b
 desenlaces distintos a la vez, y sin versión el último pisaría al primero.
 
 **Auditoría (§3.9b)** — fechas del cobro **en el contrato** (ordenan el historial); autoría **fuera
-del contrato**, para responder en una disputa qué cliente devolvió qué.
+del contrato**. La autoría solo guarda la última escritura y un desenlace o el barrido la pisan, así
+que desde v0.1.3 `Payment` y `Wallet` guardan además **historial**: ante una disputa responde quién
+pidió cada captura, anulación o devolución, y quién guardó, eligió o retiró cada medio. *Descartado*:
+exponerlo por la API (sería minor); lo consulta un auditor en la base.
+
+**Qué significa borrar (§3.13)** — **`physical`, escrito** frente a `logical`. Ninguna operación borra
+el Wallet: retirar un medio es la transición `active → removed`, terminal, y el medio se conserva para
+que los cobros sigan apuntando a su `paymentMethodId`. Lo que daría `logical` ya lo da ese estado.
+
+**Datos personales** (v0.1.3) — `customerRef`, `card`, `Refund.reason` y `gatewayMethodRef` son
+**personal**, también en peticiones y eventos, para que ninguno llegue a un log. **Retención aceptada
+por escrito**: un cobro es registro contable con obligación de conservar, y el Wallet se conserva con
+él porque los cobros apuntan a sus medios. *Descartado por ahora*: una operación de borrado o
+anonimización de los datos de un titular (evolución minor).
+
+**Invariantes como `checks`** (v0.1.3) — las que caben en el vocabulario del DSL se hacen cumplir en
+la entidad en vez de dejarlas a la interpretación del generador. La devolución informada por más de
+lo que quedaba se topa, en vez de romper el check en una operación interna y dejar el cobro en
+`refunding` para siempre.
 
 **Plazos y silencios**
 
@@ -263,7 +299,8 @@ major para cualquier cambio de lo estable.
   pasarela, y guardar un medio no admite 3DS (`PAYMENT_METHOD_AUTHENTICATION_REQUIRED`: el frontend
   autentica al tokenizar). Un timeout al guardar puede dejar el medio en la pasarela sin registro
   aquí; nunca se cobra.
-- **Sin retención.** Un cobro es un registro contable y vive indefinidamente.
+- **Sin retención.** Un cobro es un registro contable y vive indefinidamente, y el Wallet con él. No
+  hay operación para borrar o anonimizar los datos de un titular (v0.1.3: aceptado, evolución minor).
 
 ### Cómo reutilizarlo
 
@@ -280,5 +317,7 @@ cuando hace falta multi-aplicación, cobro por evento o captura parcial.
 `specs/payment/validation-scenarios.md`: 31 flujos que cubren las 18 operaciones, todos los códigos
 de error y todos los estados. Incluyen las carreras de idempotencia, el outbox con el canal caído y
 con el relay rendido, el rescate del barrido (que no vuelve a consultar un cobro cuya marca acaba de
-renovar), el reintento de un guardado fallido con la misma clave, el clúster de dos réplicas y la
-autorización por scope.
+renovar), el reintento de un guardado fallido con la misma clave, la devolución informada por más de
+lo que quedaba, el clúster de dos réplicas y la autorización por scope. Sin escenario, con su motivo:
+los `checks` como `422`, los campos `personal` fuera de los logs y el historial (verificación
+estática).

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payment
-  version: 0.1.2
+  version: 0.1.3
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -167,7 +167,10 @@ paths:
                     message: El recurso cambió mientras se procesaba la petición (bloqueo optimista).
         '422':
           description: '`PAYMENT_METHOD_UNAVAILABLE` — El medio indicado no existe, está retirado o no es del titular
-            (no se distingue cuál).'
+            (no se distingue cuál).
+
+
+            `INVARIANT_VIOLATED` — La escritura dejaría el cobro fuera de una invariante del dominio.'
           content:
             application/json:
               schema:
@@ -179,6 +182,12 @@ paths:
                     status: 422
                     code: PAYMENT_METHOD_UNAVAILABLE
                     message: El medio indicado no existe, está retirado o no es del titular (no se distingue cuál).
+                INVARIANT_VIOLATED:
+                  summary: La escritura dejaría el cobro fuera de una invariante del dominio.
+                  value:
+                    status: 422
+                    code: INVARIANT_VIOLATED
+                    message: La escritura dejaría el cobro fuera de una invariante del dominio.
       security:
       - serviceAuth:
         - payment:charge
@@ -193,6 +202,7 @@ paths:
       - name: customerRef
         in: query
         required: true
+        x-personal: true
         schema:
           $ref: '#/components/schemas/CustomerRef'
       - name: page
@@ -537,7 +547,10 @@ paths:
                     code: CONCURRENT_MODIFICATION
                     message: El cobro cambió mientras se procesaba la petición.
         '422':
-          description: '`CAPTURE_REJECTED` — La pasarela rechazó la captura por otro motivo.'
+          description: '`CAPTURE_REJECTED` — La pasarela rechazó la captura por otro motivo.
+
+
+            `INVARIANT_VIOLATED` — La escritura dejaría el cobro fuera de una invariante del dominio.'
           content:
             application/json:
               schema:
@@ -549,6 +562,12 @@ paths:
                     status: 422
                     code: CAPTURE_REJECTED
                     message: La pasarela rechazó la captura por otro motivo.
+                INVARIANT_VIOLATED:
+                  summary: La escritura dejaría el cobro fuera de una invariante del dominio.
+                  value:
+                    status: 422
+                    code: INVARIANT_VIOLATED
+                    message: La escritura dejaría el cobro fuera de una invariante del dominio.
       security:
       - serviceAuth:
         - payment:charge
@@ -563,7 +582,7 @@ paths:
         - El cobro pasa a canceling antes de llamar a la pasarela: estampa awaitingSince, anota en cancelOrigin el estado del que sale y conserva customerAction y actionRequiredSince si venía de actionRequired.
         - Si la pasarela anula, se aplica markCanceled; si no contesta, el cobro se queda en canceling y lo resuelve el barrido.
         - Si la pasarela responde que el cobro ya terminó fallido (p. ej. el cliente falló la autenticación), se aplica markFailed con su motivo y la operación responde 200 con el cobro en failed.
-        - Si la pasarela rechaza la anulación, el cobro vuelve al estado que dice cancelOrigin (con awaitingSince renovado si vuelve a actionRequired, vacío si vuelve a authorized), se vacía cancelOrigin, se publica PaymentActionRejected y responde CANCEL_REJECTED.
+        - Si la pasarela rechaza la anulación, el cobro vuelve al estado que dice cancelOrigin (con awaitingSince renovado y el mismo actionRequiredSince de antes si vuelve a actionRequired, vacío si vuelve a authorized), se vacía cancelOrigin, se publica PaymentActionRejected y responde CANCEL_REJECTED.
         - Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan.
         - Un rechazo de la pasarela confirma el cambio de estado y el evento aunque la operación responda con error.
       parameters:
@@ -659,7 +678,10 @@ paths:
                     code: CONCURRENT_MODIFICATION
                     message: El cobro cambió mientras se procesaba la petición.
         '422':
-          description: '`CANCEL_REJECTED` — La pasarela rechazó la anulación.'
+          description: '`CANCEL_REJECTED` — La pasarela rechazó la anulación.
+
+
+            `INVARIANT_VIOLATED` — La escritura dejaría el cobro fuera de una invariante del dominio.'
           content:
             application/json:
               schema:
@@ -671,6 +693,12 @@ paths:
                     status: 422
                     code: CANCEL_REJECTED
                     message: La pasarela rechazó la anulación.
+                INVARIANT_VIOLATED:
+                  summary: La escritura dejaría el cobro fuera de una invariante del dominio.
+                  value:
+                    status: 422
+                    code: INVARIANT_VIOLATED
+                    message: La escritura dejaría el cobro fuera de una invariante del dominio.
       security:
       - serviceAuth:
         - payment:charge
@@ -810,7 +838,10 @@ paths:
           description: '`REFUND_AMOUNT_EXCEEDED` — amount supera lo que queda por devolver.
 
 
-            `REFUND_REJECTED` — La pasarela rechazó la devolución.'
+            `REFUND_REJECTED` — La pasarela rechazó la devolución.
+
+
+            `INVARIANT_VIOLATED` — La escritura dejaría el cobro fuera de una invariante del dominio.'
           content:
             application/json:
               schema:
@@ -828,6 +859,12 @@ paths:
                     status: 422
                     code: REFUND_REJECTED
                     message: La pasarela rechazó la devolución.
+                INVARIANT_VIOLATED:
+                  summary: La escritura dejaría el cobro fuera de una invariante del dominio.
+                  value:
+                    status: 422
+                    code: INVARIANT_VIOLATED
+                    message: La escritura dejaría el cobro fuera de una invariante del dominio.
       security:
       - serviceAuth:
         - payment:refund
@@ -960,7 +997,10 @@ paths:
 
 
             `PAYMENT_METHOD_REJECTED` — La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza
-            el medio.'
+            el medio.
+
+
+            `INVARIANT_VIOLATED` — La escritura dejaría el medio fuera de una invariante del dominio.'
           content:
             application/json:
               schema:
@@ -1001,6 +1041,12 @@ paths:
                     code: GATEWAY_UNAVAILABLE
                     message: La pasarela no contestó; aquí no se guardó nada y se puede reintentar con un token
                       nuevo.
+                INVARIANT_VIOLATED:
+                  summary: La escritura dejaría el medio fuera de una invariante del dominio.
+                  value:
+                    status: 422
+                    code: INVARIANT_VIOLATED
+                    message: La escritura dejaría el medio fuera de una invariante del dominio.
       security:
       - serviceAuth:
         - payment-method:write
@@ -1017,6 +1063,7 @@ paths:
       - name: customerRef
         in: query
         required: true
+        x-personal: true
         schema:
           $ref: '#/components/schemas/CustomerRef'
       responses:
@@ -1168,6 +1215,19 @@ paths:
                     status: 409
                     code: CONCURRENT_MODIFICATION
                     message: El Wallet cambió mientras se procesaba la petición.
+        '422':
+          description: '`INVARIANT_VIOLATED` — La escritura dejaría el medio fuera de una invariante del dominio.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                INVARIANT_VIOLATED:
+                  summary: La escritura dejaría el medio fuera de una invariante del dominio.
+                  value:
+                    status: 422
+                    code: INVARIANT_VIOLATED
+                    message: La escritura dejaría el medio fuera de una invariante del dominio.
       security:
       - serviceAuth:
         - payment-method:write
@@ -1185,6 +1245,7 @@ paths:
       - name: customerRef
         in: query
         required: true
+        x-personal: true
         schema:
           $ref: '#/components/schemas/CustomerRef'
       - name: paymentMethodId
@@ -1264,6 +1325,19 @@ paths:
                     status: 409
                     code: CONCURRENT_MODIFICATION
                     message: El Wallet cambió mientras se procesaba la petición.
+        '422':
+          description: '`INVARIANT_VIOLATED` — La escritura dejaría el medio fuera de una invariante del dominio.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                INVARIANT_VIOLATED:
+                  summary: La escritura dejaría el medio fuera de una invariante del dominio.
+                  value:
+                    status: 422
+                    code: INVARIANT_VIOLATED
+                    message: La escritura dejaría el medio fuera de una invariante del dominio.
       security:
       - serviceAuth:
         - payment-method:write
@@ -1392,12 +1466,13 @@ components:
           allOf:
           - $ref: '#/components/schemas/Amount'
           description: Importe pedido; si la pasarela informa al completarla un importe devuelto distinto, se guarda
-            el informado.
+            el informado, sin pasar de lo que quedaba por devolver del cobro.
         reason:
           type:
           - string
           - 'null'
           maxLength: 200
+          x-personal: true
           description: Motivo libre que informa el consumidor, para su propio rastro.
         status:
           $ref: '#/components/schemas/RefundStatus'
@@ -1444,6 +1519,7 @@ components:
         customerRef:
           allOf:
           - $ref: '#/components/schemas/CustomerRef'
+          x-personal: true
           description: Titular del cobro.
         amount:
           allOf:
@@ -1484,8 +1560,9 @@ components:
           - string
           - 'null'
           format: date-time
-          description: Desde cuándo espera el cobro la autenticación del cliente; lo estampa la entrada en actionRequired
-            y no lo renuevan las consultas del barrido. Es el reloj del plazo del 3DS.
+          description: Desde cuándo espera el cobro la autenticación del cliente; lo estampa markActionRequired al
+            entrar en actionRequired desde pending, y no lo renuevan las consultas del barrido ni la vuelta a actionRequired
+            desde canceling (se conserva el de antes). Es el reloj del plazo del 3DS.
         cancelOrigin:
           type:
           - string
@@ -1535,6 +1612,7 @@ components:
           format: uuid
         card:
           $ref: '#/components/schemas/CardDetails'
+          x-personal: true
         isDefault:
           type: boolean
           description: Medio preferente del titular.
@@ -1624,6 +1702,7 @@ components:
           description: Clave de negocio del cobro (mismas cotas que RequestReference).
         customerRef:
           $ref: '#/components/schemas/CustomerRef'
+          x-personal: true
         amount:
           type: number
           minimum: 0.001
@@ -1654,6 +1733,7 @@ components:
         reason:
           type: string
           maxLength: 200
+          x-personal: true
     SavePaymentMethodRequest:
       type: object
       required:
@@ -1662,6 +1742,7 @@ components:
       properties:
         customerRef:
           $ref: '#/components/schemas/CustomerRef'
+          x-personal: true
         paymentToken:
           type: string
           maxLength: 255
@@ -1675,3 +1756,4 @@ components:
       properties:
         customerRef:
           $ref: '#/components/schemas/CustomerRef'
+          x-personal: true

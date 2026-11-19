@@ -1,7 +1,7 @@
 # payment — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/payment v0.1.2. Contrato de validación para la fase de generación.
+> specs/payment v0.1.3. Contrato de validación para la fase de generación.
 
 > **Un único diseño, cualquier pasarela.** Estos escenarios no nombran ninguna pasarela y tienen que
 > pasar igual con todas las que el generador ofrezca. Hablan de la **pasarela de prueba**: el doble
@@ -796,6 +796,19 @@ y que la pasarela completó por **5.00**; se envejece la marca y pasa un ciclo.
    chargeRequestId: "ch-313", customerRef: "cus-1", refundRequestId: "rf-021", refundAmount: 5.00,
    refundedAmount: 5.00, currency: "EUR", status: "captured" }`.
 
+**When**: un cobro capturado `ch-314` de 10.00 EUR con una devolución `rf-022` de 4.00 ya en
+`succeeded`; se pide la devolución `rf-023` de 6.00, cuya respuesta se pierde, y la pasarela
+informa que la completó por **7.00**; se envejece la marca y pasa un ciclo.
+
+**Then**:
+8. `ch-314` pasa a `refunded` con `refundedAmount: 10.00`, y la devolución `rf-023` queda en
+   `succeeded` con `amount: 6.00`: el importe informado supera lo que quedaba por devolver, así que
+   se registra lo que quedaba. Lo devuelto nunca supera lo cobrado, y el cobro no se queda en
+   `refunding` ni el barrido vuelve a consultarlo.
+9. `paymentEvents` recibe **exactamente un** `PaymentRefunded` con `data` `{ paymentId,
+   chargeRequestId: "ch-314", customerRef: "cus-1", refundRequestId: "rf-023", refundAmount: 6.00,
+   refundedAmount: 10.00, currency: "EUR", status: "refunded" }`.
+
 ### FL-REC-003: el cobro que espera al cliente demasiado tiempo
 
 **Given**: tres cobros en `actionRequired` (la pasarela de prueba exigió autenticación), que la
@@ -938,5 +951,16 @@ pendiente de salir.
 - **Que la caducidad de una autorización se conozca sin aviso.** Si se pierde el aviso, el cobro
   sigue en `authorized` hasta que alguien lo captura (FL-STL-002, `AUTHORIZATION_EXPIRED`): aceptado
   en el análisis de huecos.
+- **Los `checks` del dominio como respuesta `422 INVARIANT_VIOLATED`.** Ninguna operación declarada
+  lleva el cobro ni el medio a un estado que los rompa: cada transición vacía o estampa los campos que
+  piden (lo afirman los `Then` de cada flujo, p. ej. `cancelOrigin: null` y `awaitingSince: null` en
+  FL-REC-002), y el único desenlace que podía romper uno —una devolución informada por más de lo que
+  quedaba— tiene su regla y su escenario (FL-REC-002, punto 8). Provocar el `422` exigiría escribir
+  en el almacén.
+- **Que los campos `personal` no aparezcan en logs ni trazas.** No es observable en caja negra por la
+  API ni por `paymentEvents`: su verificación es estática, sobre el proyecto generado.
+- **El historial del cobro (`audit.history`).** Ninguna query lo lee: lo consulta un auditor en la
+  base (`OBL-HISTORY-UNREAD` aceptada), así que no hay puerta por la que un ejecutor de caja negra lo
+  afirme. Su verificación es estática.
 - **Desvincular el medio en la pasarela al retirarlo.** La capa payments no tiene esa acción: no hay
   efecto que afirmar.

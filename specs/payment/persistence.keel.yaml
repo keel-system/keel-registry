@@ -31,6 +31,7 @@ entities:
     persisted: true
     naturalKey: [customerRef]
     naturalKeyError: CONCURRENT_MODIFICATION
+    deletion: physical               # ninguna operación borra el Wallet; retirar un medio es la transición active → removed
 
   PaymentMethod:
     persisted: true
@@ -45,6 +46,7 @@ entities:
 audit:
   timestamps: declared             # createdAt/updatedAt de Payment, visibles en el contrato
   authorship: all                  # qué cliente máquina escribió cada fila, fuera del contrato
+  history: [Payment, Wallet]       # quién pidió cada acción del cobro, y quién guardó, eligió o retiró cada medio: ante una disputa
 
 consistency:
   transactionalBoundary: per-operation   # la operación y su fila de outbox confirman juntas

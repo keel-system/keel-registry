@@ -17,7 +17,7 @@ operations:
     input:
       fields:
         chargeRequestId: { type: string, required: true, constraints: { minLength: 1, maxLength: 100, pattern: "^[A-Za-z0-9._:-]+$" }, description: "Clave de negocio del cobro (mismas cotas que RequestReference)." }
-        customerRef:     { type: CustomerRef, required: true }
+        customerRef:     { type: CustomerRef, required: true, personal: true }
         amount:          { type: decimal, required: true, constraints: { min: 0.001, scale: 3, scalePolicy: reject }, description: "Importe en unidades mayores (mismas cotas que Amount)." }
         currency:        { type: CurrencyCode, required: true }
         paymentToken:    { type: string, constraints: { maxLength: 255 }, description: Token de un solo uso que produce el componente de la pasarela en el navegador (cliente presente). }
@@ -89,7 +89,7 @@ operations:
       - "El cobro pasa a canceling antes de llamar a la pasarela: estampa awaitingSince, anota en cancelOrigin el estado del que sale y conserva customerAction y actionRequiredSince si venía de actionRequired."
       - Si la pasarela anula, se aplica markCanceled; si no contesta, el cobro se queda en canceling y lo resuelve el barrido.
       - "Si la pasarela responde que el cobro ya terminó fallido (p. ej. el cliente falló la autenticación), se aplica markFailed con su motivo y la operación responde 200 con el cobro en failed."
-      - "Si la pasarela rechaza la anulación, el cobro vuelve al estado que dice cancelOrigin (con awaitingSince renovado si vuelve a actionRequired, vacío si vuelve a authorized), se vacía cancelOrigin, se publica PaymentActionRejected y responde CANCEL_REJECTED."
+      - "Si la pasarela rechaza la anulación, el cobro vuelve al estado que dice cancelOrigin (con awaitingSince renovado y el mismo actionRequiredSince de antes si vuelve a actionRequired, vacío si vuelve a authorized), se vacía cancelOrigin, se publica PaymentActionRejected y responde CANCEL_REJECTED."
       - "Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan."
       - "Un rechazo de la pasarela confirma el cambio de estado y el evento aunque la operación responda con error."
     errors:
@@ -107,7 +107,7 @@ operations:
         id:              { type: uuid, required: true }
         refundRequestId: { type: RequestReference, required: true }
         amount:          { type: decimal, constraints: { min: 0.001, scale: 3, scalePolicy: reject }, description: "Importe a devolver (mismas cotas que Amount); si se omite, todo lo que queda por devolver." }
-        reason:          { type: string, constraints: { maxLength: 200 } }
+        reason:          { type: string, personal: true, constraints: { maxLength: 200 } }
     output: { entity: Payment }
     transitions:
       - { entity: Payment, from: [captured], to: refunding }
@@ -160,7 +160,7 @@ operations:
     kind: query
     input:
       fields:
-        customerRef: { type: CustomerRef, required: true }
+        customerRef: { type: CustomerRef, required: true, personal: true }
     output: { entity: Payment, paginated: true, sort: [createdAt:desc, id:desc] }
     rules:
       - Un titular sin cobros devuelve una página vacía, no un error.
@@ -275,6 +275,7 @@ operations:
       - { entity: Payment, from: [refunding], to: refunded }
     rules:
       - La devolución en pending del cobro pasa a succeeded con el importe que informa la pasarela (que manda si difiere del pedido), y se vacía awaitingSince.
+      - "Si el importe informado supera lo que quedaba por devolver (amount menos refundedAmount antes de esta devolución), la devolución se registra por lo que quedaba: lo devuelto nunca supera lo cobrado."
       - El cobro pasa a refunded si refundedAmount llega a amount; si no, vuelve a captured.
       - Si el cobro ya no está en refunding, no hace nada y no es un error.
     errors:
@@ -302,7 +303,7 @@ operations:
       - Tras una parada recupera todo lo pendiente, sin límite de antigüedad.
       - "Aplica el desenlace que diga la pasarela con su operación (markAuthorized, markActionRequired, markCaptured, markFailed, markCanceled, markRefunded)."
       - Un cobro en pending que la pasarela no conoce se da por fallido con failureReason notReceived.
-      - "Si la pasarela dice que una acción en vuelo fue rechazada, o que nunca la recibió, el cobro vuelve al estado del que salió (cancelOrigin en una anulación; una devolución pasa a failed) y se publica PaymentActionRejected. Al volver a authorized o captured se vacía awaitingSince; al volver a actionRequired se renueva."
+      - "Si la pasarela dice que una acción en vuelo fue rechazada, o que nunca la recibió, el cobro vuelve al estado del que salió (cancelOrigin en una anulación; una devolución pasa a failed) y se publica PaymentActionRejected. Al salir de canceling se vacía cancelOrigin. Al volver a authorized o captured se vacía awaitingSince; al volver a actionRequired se renueva, y actionRequiredSince conserva el de antes."
       - "Un cobro en actionRequired cuyo actionRequiredSince es anterior a hace actionRequiredTimeoutHours, y que la pasarela sigue dando por pendiente del cliente, se anula como en cancelPayment: pasa a canceling con cancelOrigin actionRequired y se pide la anulación a la pasarela. El plazo se cuenta con actionRequiredSince, no con awaitingSince, que el barrido renueva en cada consulta."
       - "Cada cobro se procesa aislado: un fallo con uno no aborta la pasada ni deshace los demás."
       - "Si la pasarela no contesta, el cobro se queda como estaba y se vuelve a consultar en la siguiente pasada en que vuelva a superar el umbral, sin techo de intentos: un cobro cuyo estado real tiene la pasarela no se da por fallido a ciegas."
@@ -317,7 +318,7 @@ operations:
     kind: command
     input:
       fields:
-        customerRef:  { type: CustomerRef, required: true }
+        customerRef:  { type: CustomerRef, required: true, personal: true }
         paymentToken: { type: string, required: true, constraints: { maxLength: 255 } }
         makeDefault:  { type: boolean, default: false }
     output: { entity: PaymentMethod, exclude: [gatewayMethodRef] }
@@ -343,7 +344,7 @@ operations:
     kind: query
     input:
       fields:
-        customerRef: { type: CustomerRef, required: true }
+        customerRef: { type: CustomerRef, required: true, personal: true }
     output: { entity: PaymentMethod, list: true, sort: [isDefault:desc], exclude: [gatewayMethodRef] }
     rules:
       - Solo devuelve medios active, caducados incluidos (con expired a true); como mucho son 10, así que no se pagina.
@@ -355,7 +356,7 @@ operations:
     kind: command
     input:
       fields:
-        customerRef:     { type: CustomerRef, required: true }
+        customerRef:     { type: CustomerRef, required: true, personal: true }
         paymentMethodId: { type: uuid, required: true }
     output: { entity: PaymentMethod, exclude: [gatewayMethodRef] }
     rules:
@@ -369,7 +370,7 @@ operations:
     kind: command
     input:
       fields:
-        customerRef:     { type: CustomerRef, required: true }
+        customerRef:     { type: CustomerRef, required: true, personal: true }
         paymentMethodId: { type: uuid, required: true }
     output: "void"
     rules:

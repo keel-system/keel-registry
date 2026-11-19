@@ -18,7 +18,7 @@ publishing:
       payload:
         paymentId:        { type: uuid, required: true }
         chargeRequestId:  { type: RequestReference, required: true }
-        customerRef:      { type: CustomerRef, required: true }
+        customerRef:      { type: CustomerRef, required: true, personal: true }
         amount:           { type: Amount, required: true }
         currency:         { type: CurrencyCode, required: true }
         gatewayPaymentId: { type: string, required: true }
@@ -29,7 +29,7 @@ publishing:
       payload:
         paymentId:       { type: uuid, required: true }
         chargeRequestId: { type: RequestReference, required: true }
-        customerRef:     { type: CustomerRef, required: true }
+        customerRef:     { type: CustomerRef, required: true, personal: true }
         amount:          { type: Amount, required: true }
         currency:        { type: CurrencyCode, required: true }
         customerAction:  { type: json, required: true }
@@ -40,7 +40,7 @@ publishing:
       payload:
         paymentId:       { type: uuid, required: true }
         chargeRequestId: { type: RequestReference, required: true }
-        customerRef:     { type: CustomerRef, required: true }
+        customerRef:     { type: CustomerRef, required: true, personal: true }
         amount:          { type: Amount, required: true }
         currency:        { type: CurrencyCode, required: true }
 
@@ -50,7 +50,7 @@ publishing:
       payload:
         paymentId:       { type: uuid, required: true }
         chargeRequestId: { type: RequestReference, required: true }
-        customerRef:     { type: CustomerRef, required: true }
+        customerRef:     { type: CustomerRef, required: true, personal: true }
         amount:          { type: Amount, required: true }
         currency:        { type: CurrencyCode, required: true }
         failureReason:   { type: FailureReason, required: true }
@@ -61,7 +61,7 @@ publishing:
       payload:
         paymentId:       { type: uuid, required: true }
         chargeRequestId: { type: RequestReference, required: true }
-        customerRef:     { type: CustomerRef, required: true }
+        customerRef:     { type: CustomerRef, required: true, personal: true }
         amount:          { type: Amount, required: true }
         currency:        { type: CurrencyCode, required: true }
         requested:       { type: boolean, required: true, description: "true si la anulación la pidió el consumidor o venció el plazo del 3DS; false si la pasarela la cerró por su cuenta (autorización expirada, 3DS caducado)." }
@@ -72,7 +72,7 @@ publishing:
       payload:
         paymentId:       { type: uuid, required: true }
         chargeRequestId: { type: RequestReference, required: true }
-        customerRef:     { type: CustomerRef, required: true }
+        customerRef:     { type: CustomerRef, required: true, personal: true }
         refundRequestId: { type: RequestReference, required: true }
         refundAmount:    { type: Amount, required: true, description: "Importe de esta devolución." }
         refundedAmount:  { type: decimal, required: true, description: "Total devuelto del cobro tras esta devolución." }
@@ -85,7 +85,7 @@ publishing:
       payload:
         paymentId:       { type: uuid, required: true }
         chargeRequestId: { type: RequestReference, required: true }
-        customerRef:     { type: CustomerRef, required: true }
+        customerRef:     { type: CustomerRef, required: true, personal: true }
         action:          { type: enum, values: [capture, cancel, refund], required: true }
         refundRequestId: { type: RequestReference, description: "Solo cuando action es refund." }
         refundAmount:    { type: Amount, description: "Importe de la devolución rechazada; solo cuando action es refund." }

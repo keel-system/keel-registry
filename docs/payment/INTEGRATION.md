@@ -1,6 +1,6 @@
 ---
 service: payment
-version: 0.1.2
+version: 0.1.3
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -115,6 +115,8 @@ errors:
     http: 503
   - code: PAYMENT_METHOD_NOT_FOUND
     http: 404
+  - code: INVARIANT_VIOLATED
+    http: 422
 ---
 
 # Integración con payment
@@ -189,7 +191,7 @@ Toda operación puede responder además, sin que su tabla lo repita:
 |---|---|---|
 | id | uuid | Id del cobro en este servicio. |
 | chargeRequestId | string | Tu clave de negocio (1–100, `[A-Za-z0-9._:-]`). Única: la guarda contra el doble cargo. |
-| customerRef | string | Tu referencia del titular (1–200). |
+| customerRef | string | Tu referencia del titular (1–200). Dato personal: el servicio no la escribe en logs ni trazas. |
 | amount | decimal | Importe autorizado; al capturar se cobra entero. |
 | currency | string | ISO 4217. |
 | status | enum | `pending`, `actionRequired`, `authorized`, `capturing`, `canceling`, `captured`, `refunding`, `refunded`, `canceled`, `failed`. |
@@ -197,12 +199,12 @@ Toda operación puede responder además, sin que su tabla lo repita:
 | awaitingSince | timestamp \| null | Desde cuándo espera un desenlace; solo en `pending`, `actionRequired`, `capturing`, `canceling`, `refunding`. |
 | failureReason | enum \| null | Solo en `failed`: `declined`, `insufficientFunds`, `expiredCard`, `authenticationFailed`, `fraudSuspected`, `invalidPaymentMethod`, `notReceived`, `processingError`. |
 | customerAction | objeto \| null | Acción opaca para el componente de la pasarela en el navegador (3DS). Solo en `actionRequired` y mientras se anula un cobro que venía de ahí. |
-| actionRequiredSince | timestamp \| null | Desde cuándo espera el 3DS; el servicio anula el cobro pasadas 24 h (parámetro de despliegue). |
+| actionRequiredSince | timestamp \| null | Desde cuándo espera el 3DS; el servicio anula el cobro pasadas 24 h (parámetro de despliegue). Si se rechaza una anulación y el cobro vuelve a `actionRequired`, conserva el valor de antes: el plazo no se reinicia. |
 | cancelOrigin | enum \| null | Solo en `canceling`: `authorized` o `actionRequired`, el estado al que vuelve si la pasarela rechaza la anulación. |
 | paymentMethodId | uuid \| null | Medio guardado con el que se cobró; `null` si fue con token. |
 | refundedAmount | decimal | Suma de las devoluciones `succeeded`. |
 | createdAt, updatedAt | timestamp | |
-| refunds | lista de `Refund` | De la más antigua a la más reciente. Cada una: `id`, `refundRequestId`, `amount`, `reason`, `status` (`pending`, `succeeded`, `failed`), `createdAt`, `updatedAt`, `paymentId`. |
+| refunds | lista de `Refund` | De la más antigua a la más reciente. Cada una: `id`, `refundRequestId`, `amount`, `reason` (dato personal), `status` (`pending`, `succeeded`, `failed`), `createdAt`, `updatedAt`, `paymentId`. |
 
 ```json
 {
@@ -273,6 +275,7 @@ Exactamente uno de `paymentToken` o `paymentMethodId`.
 | PAYMENT_METHOD_UNAVAILABLE | 422 | El medio no existe, está retirado o no es del titular (no se distingue cuál). | Corregir input; pedir otro medio o un token. |
 | CHARGE_REQUEST_CONFLICT | 409 | Ya existe un cobro con ese `chargeRequestId` y otro contenido. | No reintentar; usa otra clave o consulta el cobro existente. |
 | CONCURRENT_MODIFICATION | 409 | El cobro cambió mientras se procesaba la petición. | Consultar el cobro y decidir. |
+| INVARIANT_VIOLATED | 422 | La escritura dejaría el cobro fuera de una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo). | No reintentar; avisa al dueño del servicio. |
 
 Orden de evaluación:
 1. La clave: una repetición devuelve el cobro existente aunque el medio se haya retirado después.
@@ -342,6 +345,7 @@ reciente al más antiguo (`createdAt` desc, `id` desc). Un titular sin cobros de
 | AUTHORIZATION_EXPIRED | 409 | La pasarela ya había cancelado la autorización; el cobro queda `canceled`. | No reintentar; pide un cobro nuevo. |
 | CAPTURE_REJECTED | 422 | La pasarela rechazó la captura; el cobro vuelve a `authorized`. | Se puede volver a intentar más tarde. |
 | CONCURRENT_MODIFICATION | 409 | Otra petición tuya cambió el cobro a la vez. | Consultar el cobro y decidir. |
+| INVARIANT_VIOLATED | 422 | La escritura dejaría el cobro fuera de una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo). | No reintentar; avisa al dueño del servicio. |
 
 ### cancelPayment
 
@@ -360,6 +364,7 @@ Anula un cobro `authorized` o uno que espera el 3DS (`actionRequired`).
 | PAYMENT_NOT_CANCELABLE | 409 | El cobro no está en `authorized` ni `actionRequired` (ni ya anulándose o anulado). | No reintentar; si está capturado, devuélvelo. |
 | CANCEL_REJECTED | 422 | La pasarela rechazó la anulación; el cobro vuelve al estado del que salió. | Se puede volver a intentar más tarde. |
 | CONCURRENT_MODIFICATION | 409 | Otra petición tuya cambió el cobro a la vez. | Consultar el cobro y decidir. |
+| INVARIANT_VIOLATED | 422 | La escritura dejaría el cobro fuera de una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo). | No reintentar; avisa al dueño del servicio. |
 
 ### refundPayment
 
@@ -391,6 +396,7 @@ Anula un cobro `authorized` o uno que espera el 3DS (`actionRequired`).
 | REFUND_AMOUNT_EXCEEDED | 422 | `amount` supera lo que queda por devolver. | Corregir input. |
 | REFUND_REJECTED | 422 | La pasarela rechazó la devolución; queda `failed` y el cobro vuelve a `captured`. | Reintentar con **otro** `refundRequestId`. |
 | CONCURRENT_MODIFICATION | 409 | Otra petición cambió el cobro a la vez. | Consultar el cobro y decidir. |
+| INVARIANT_VIOLATED | 422 | La escritura dejaría el cobro fuera de una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo). | No reintentar; avisa al dueño del servicio. |
 
 ### savePaymentMethod
 
@@ -437,6 +443,7 @@ Anula un cobro `authorized` o uno que espera el 3DS (`actionRequired`).
 | PAYMENT_METHOD_REJECTED | 422 | La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza el medio. | Corregir input: token nuevo u otro medio. |
 | GATEWAY_UNAVAILABLE | 503 | La pasarela no contestó; aquí no se guardó nada. | Reintentable con un token nuevo; la misma clave vale, porque el error no la consume. |
 | CONCURRENT_MODIFICATION | 409 | El Wallet cambió a la vez. | Reintentar. |
+| INVARIANT_VIOLATED | 422 | La escritura dejaría el medio fuera de una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo). | No reintentar; avisa al dueño del servicio. |
 
 ### listPaymentMethods
 
@@ -465,6 +472,7 @@ Un titular sin medios devuelve `[]`. No declara errores propios.
 |---|---|---|---|
 | PAYMENT_METHOD_NOT_FOUND | 404 | El medio no existe, está retirado o no es del titular (no se distingue cuál). | No reintentar. |
 | CONCURRENT_MODIFICATION | 409 | El Wallet cambió a la vez. | Reintentar. |
+| INVARIANT_VIOLATED | 422 | La escritura dejaría el medio fuera de una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo). | No reintentar; avisa al dueño del servicio. |
 
 ### removePaymentMethod
 
@@ -482,6 +490,7 @@ la pasarela lo sigue guardando, porque el diseño no tiene acción de desvincula
 |---|---|---|---|
 | PAYMENT_METHOD_NOT_FOUND | 404 | El medio no existe o no es del titular. | No reintentar. |
 | CONCURRENT_MODIFICATION | 409 | El Wallet cambió a la vez. | Reintentar. |
+| INVARIANT_VIOLATED | 422 | La escritura dejaría el medio fuera de una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo). | No reintentar; avisa al dueño del servicio. |
 
 ## Eventos
 
@@ -627,7 +636,7 @@ La pasarela completó una devolución. Emitido por `markRefunded`.
 | chargeRequestId | string | requerido |
 | customerRef | string | requerido |
 | refundRequestId | string | requerido |
-| refundAmount | decimal | requerido; importe de esta devolución (el que informa la pasarela) |
+| refundAmount | decimal | requerido; importe de esta devolución (el que informa la pasarela, sin pasar de lo que quedaba por devolver) |
 | refundedAmount | decimal | requerido; total devuelto del cobro tras ella |
 | currency | string | requerido |
 | status | enum | requerido; `refunded` si se devolvió entero, `captured` si queda saldo |

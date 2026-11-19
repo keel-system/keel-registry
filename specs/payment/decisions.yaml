@@ -127,8 +127,10 @@ structural:
     reason: >-
       Ante una disputa hay que poder responder qué cliente máquina (checkout o backoffice) hizo cada
       escritura, sobre todo las devoluciones. No es contrato: no sale en las respuestas. Los desenlaces y
-      el barrido escriben el centinela del sistema.
-    since: 0.1.0
+      el barrido escriben el centinela del sistema. authorship guarda solo la última escritura, y un
+      desenlace la pisa; por eso Payment y Wallet llevan además audit.history (v0.1.3), que conserva cada escritura
+      con su autor y es lo que de verdad responde ante una disputa.
+    since: 0.1.3
   - section: '3.1'
     scope: messaging.publishing.reliability
     chosen: outbox
@@ -157,8 +159,49 @@ structural:
     discarded: paginated
     reason: El Wallet tiene como mucho 10 medios active (invariante y PAYMENT_METHOD_LIMIT_REACHED); la colección tiene cota.
     since: 0.1.0
+  - section: '3.13'
+    scope: persistence.entities.Wallet.deletion
+    chosen: physical
+    discarded: logical (con o sin restorableFor/retention)
+    reason: >-
+      Ninguna operación borra el Wallet ni sus filas. DELETE /payment-methods/{id} no es un borrado: es la
+      transición de dominio active → removed, terminal, y el medio retirado se conserva para que los cobros
+      ya hechos sigan apuntando a su paymentMethodId. Lo que logical aportaría (ocultar sin perder
+      referencias) ya lo da ese estado. Se escribe physical para que conste que se decidió. Decidido por el
+      diseñador.
+    since: 0.1.3
 
 decisions:
+  - id: OBL-HISTORY-UNREAD
+    scope: persistence.audit.history.Payment
+    reason: >-
+      El historial del cobro es para disputas y auditoría: lo consulta un auditor directamente en la base,
+      no un servidor consumidor. Exponerlo por la API (una query de backoffice) sería una evolución minor.
+      Decidido por el diseñador.
+    since: 0.1.3
+  - id: OBL-PERSONAL-RETENTION-UNDECIDED
+    scope: persistence.Payment.retention
+    reason: >-
+      Un cobro y sus devoluciones son registro contable: hay obligación de conservarlos, y el plazo lo fija
+      la jurisdicción de quien opera el servicio, no el diseño. customerRef y Refund.reason se conservan con
+      el cobro; ningún log ni traza los lleva porque están marcados personal. Purgar o anonimizar a plazo es
+      una evolución minor futura con su retention. Decidido por el diseñador.
+    since: 0.1.3
+  - id: OBL-PERSONAL-RETENTION-UNDECIDED
+    scope: persistence.Wallet.retention
+    reason: >-
+      El Wallet se conserva con los cobros: Payment.paymentMethodId apunta a sus medios, también a los
+      removed, y el resumen de tarjeta (card) es lo que identifica con qué se cobró en ese registro contable.
+      Hoy no hay operación para borrar los datos de un titular; añadirla (borrado o anonimización y qué ve
+      paymentMethodId después) queda como evolución minor. Decidido por el diseñador.
+    since: 0.1.3
+  - id: OBL-HISTORY-UNREAD
+    scope: persistence.audit.history.Wallet
+    reason: >-
+      El historial del Wallet responde, ante la disputa de un cobro con medio guardado, quién guardó la
+      tarjeta y cuándo, cuál era el medio por defecto al cobrar y cuándo se retiró. Lo consulta un auditor
+      en la base, como el del cobro. Exponerlo por la API sería una evolución minor. Decidido por el diseñador.
+    since: 0.1.3
   - id: CHK-PERSIST-BOUNDARY-DEFAULT
     scope: persistence.consistency.transactionalBoundary
     reason: >-

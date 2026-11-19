@@ -1,5 +1,5 @@
 reviewedBy: keel-design-review
-reviewedAt: 0.1.0
+reviewedAt: 0.1.3
 findings:
 - id: REV-DOMAIN-VAGUE-INVARIANT
   scope: domain.entities.Refund.invariants
@@ -22,6 +22,38 @@ findings:
   note: 'Mismo motivo que REV-DOMAIN-ENUM-NO-LIFECYCLE: las tres invariantes describen la máquina de las entidades
     internas, que la gobierna su raíz porque el detector de entidad interna con lifecycle propio impide declararla.
     Decidido por el diseñador.'
+- id: REV-DOMAIN-INVARIANT-PROSE
+  scope: domain.entities.Payment.invariants, domain.entities.PaymentMethod.invariants
+  verdict: fixed
+  note: >-
+    Corregido en v0.1.3 (decidido por el diseñador): las ocho pasan a checks en Payment y PaymentMethod, y
+    keel validate los acepta todos, también refundedAmount lte amount. Las de abajo que se quedan en prosa,
+    siguen en invariants. Hallazgo original: ninguna entidad declaraba checks y ocho invariantes en prosa caben en el vocabulario. Payment:
+    (1) awaitingSince si y solo si status en [pending, actionRequired, capturing, canceling, refunding]
+    -> requires awaitingSince when status in [...] + forbids awaitingSince unless status in [...];
+    (3) cancelOrigin si y solo si canceling -> requires/forbids con when/unless status in [canceling];
+    (5) failureReason si y solo si failed -> requires/forbids con status in [failed];
+    (2) customerAction y (4) actionRequiredSince, presentes en actionRequired o en canceling con cancelOrigin
+    actionRequired: no hay conjunción en when, pero cabe con cuatro checks por campo apoyados en (3):
+    requires when status in [actionRequired], requires when cancelOrigin in [actionRequired], forbids unless
+    status in [actionRequired, canceling], forbids when cancelOrigin in [authorized] (cancelOrigin es un enum
+    de la propia entidad);
+    (7) refundedAmount nunca supera amount -> { field: refundedAmount, op: lte, than: amount };
+    (8) refunded si y solo si refundedAmount igual a amount -> op eq when status in [refunded] y op ne unless
+    status in [refunded] (refundedAmount nunca es ausente: vale cero sin devoluciones).
+    PaymentMethod: «un medio removed nunca tiene isDefault a true» -> { field: isDefault, op: eq, value: false,
+    when: { field: status, in: [removed] } }.
+    Se quedan en prosa con razón: la titularidad de paymentMethodId (cruza al agregado Wallet), la moneda
+    inmutable (no es un estado sino un cambio), los decimales según ISO 4217 de amount y de Refund.amount
+    (tabla externa), «como mucho una devolución pending y solo en refunding», la suma de devoluciones
+    succeeded+pending de Refund, el tope de 10 medios active y el único default active de Wallet (cuentan o
+    suman hijas filtradas por status, y computed solo da sum/count sin filtro; el default único ya lo
+    sostiene el índice parcial de persistence), y las que describen la máquina de Refund y PaymentMethod
+    (aceptadas en REV-DOMAIN-INVARIANT-IS-TRANSITION). Salidas: pasar esas ocho a checks (rotas responden
+    422 INVARIANT_VIOLATED, o el error que se nombre, que entonces hay que declarar en las operaciones que
+    escriben la entidad y cubrir con escenario), con /keel-evolve; o aceptarlas en prosa con el motivo.
+    Nota: el check de (7) compara un computed en prosa; si CHK-DOMAIN-CHECK-* lo rechaza por eso o por
+    comparar Amount con decimal, esa invariante se queda en prosa.
 - id: REV-DOMAIN-COMPUTED-NOT-DERIVABLE
   scope: domain.entities.Payment.fields.refundedAmount
   verdict: ok
@@ -102,3 +134,41 @@ findings:
     el invariante de titularidad. En el fallo de la pasarela y en el notReceived del barrido el cobro ya existe
     con su paymentMethodId, como pide la doctrina. Queda el orden entre esa precondición y la repetición del cobro,
     recogido en REV-USECASES-GUARD-ORDER.'
+- id: REV-PERSONAL-CLASSIFICATION
+  scope: domain.entities.PaymentMethod.fields.gatewayMethodRef
+  verdict: fixed
+  note: >-
+    Corregido en v0.1.3 (decidido por el diseñador): gatewayMethodRef pasa a personal junto a sensitive, y
+    customerRef y reason llevan también la marca en los inputs de use-cases y en los payloads de messaging.
+    Hallazgo original: Las cuatro marcas cubren lo que nombra o describe al titular (Payment.customerRef, Wallet.customerRef,
+    PaymentMethod.card, Refund.reason). Queda sin marcar PaymentMethod.gatewayMethodRef (string, required,
+    sensitive): es el identificador persistente de la tarjeta de esa persona en la pasarela, y con él la
+    pasarela devuelve al titular y su número completo; es dato personal aunque sea opaco, igual que customerRef.
+    sensitive solo lo saca de outputs y eventos; personal es lo que garantiza que no acabe en un log ni en una
+    traza (p. ej. al registrar la llamada de cobro con medio guardado) y lo que vaciaría una futura retención
+    then: anonymize del Wallet (decisions.yaml la deja como evolución minor), que sin la marca conservaría
+    intacta la referencia con la que se puede volver a cobrar a esa tarjeta. El resto se miró y no es de una
+    persona: chargeRequestId y refundRequestId (claves de petición del consumidor), gatewayPaymentId (id de la
+    transacción), customerAction (acción 3DS opaca y transitoria, que se vacía al salir de actionRequired),
+    failureReason y los importes. Salidas: marcar gatewayMethodRef personal: true (patch, junto a sensitive),
+    o aceptarlo en decisions.yaml con el motivo.
+- id: REV-HISTORY-SCOPE
+  scope: persistence.audit.history (Wallet)
+  verdict: fixed
+  note: >-
+    Corregido en v0.1.3 (decidido por el diseñador): history: [Payment, Wallet], con OBL-HISTORY-UNREAD
+    aceptada también para Wallet. Hallazgo original: De las dos raíces persistidas, Payment está en audit.history y es la que mueve dinero (cobro y
+    devoluciones). Wallet no está, y cumple dos de los criterios: guarda datos personales (customerRef,
+    PaymentMethod.card) y es la autorización para cobrar sin el titular presente (requestCharge con
+    paymentMethodId). Ante una disputa de un cobro con medio guardado, las preguntas son de Wallet, no
+    de Payment: quién guardó esa tarjeta y cuándo, si era el medio por defecto en el momento del cobro
+    y quién lo cambió, y si se había retirado antes. Hoy nada lo responde: audit.timestamps es declared
+    y solo Payment declara createdAt/updatedAt, así que PaymentMethod no tiene fecha de alta ni de
+    retirada; authorship all guarda solo el último autor de cada fila (setDefaultPaymentMethod pisa al
+    de savePaymentMethod); y el estado removed conserva la fila pero no el instante. decisions.yaml
+    (structural 3.9b, OBL-HISTORY-UNREAD) justifica el historial de Payment y no dice nada de Wallet.
+    Lo que no se guardó desde el principio no se reconstruye. Salidas: (a) history: [Payment, Wallet]
+    (gatewayMethodRef, sensitive, no entra; card y customerRef sí, y seguirán una futura retention
+    anonymize del Wallet), ampliando OBL-HISTORY-UNREAD a persistence.audit.history.Wallet; o
+    (b) aceptarlo en decisions.yaml con el motivo, p. ej. que la disputa la resuelve la pasarela con su
+    propio registro del mandato del medio guardado.
