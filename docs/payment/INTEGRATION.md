@@ -1,6 +1,6 @@
 ---
 service: payment
-version: 0.1.3
+version: 0.1.4
 domain: commerce
 basePath: /api/v1
 m2mAuth:

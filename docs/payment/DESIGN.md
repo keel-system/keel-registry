@@ -1,6 +1,6 @@
 # payment — Documento de diseño
 
-> specs/payment v0.1.3. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/payment v0.1.4. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 

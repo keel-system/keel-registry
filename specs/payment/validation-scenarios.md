@@ -1,7 +1,7 @@
 # payment — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/payment v0.1.3. Contrato de validación para la fase de generación.
+> specs/payment v0.1.4. Contrato de validación para la fase de generación.
 
 > **Un único diseño, cualquier pasarela.** Estos escenarios no nombran ninguna pasarela y tienen que
 > pasar igual con todas las que el generador ofrezca. Hablan de la **pasarela de prueba**: el doble
@@ -701,7 +701,8 @@ después `page=0&size=500`.
 
 **Then**:
 2. `page=1`: `{ items: [ch-201], page: 1, size: 2, totalElements: 3, totalPages: 2 }`.
-3. `page=5`: `{ items: [], page: 5, size: 2, totalElements: 3, totalPages: 2 }`.
+3. `page=5`: `{ items: [], page: 5, size: 2, totalElements: 0, totalPages: 0 }`: fuera de rango es la
+   página vacía canónica, aunque el titular tenga cobros en otras páginas.
 4. `cus-9` (sin cobros): `{ items: [], page: 0, size: 2, totalElements: 0, totalPages: 0 }`.
 5. `size=500`: `size: 100` en el sobre (se recorta a `maxSize`) y los tres cobros.
 6. Sin `page` ni `size`: `size: 20` (`defaultSize`).

@@ -1,5 +1,5 @@
 reviewedBy: keel-gap-sweep
-reviewedAt: 0.1.3
+reviewedAt: 0.1.4
 coverage:
 - class: 1
   units:
@@ -578,3 +578,14 @@ findings:
   reason: Se declara audit.history [Payment] (v0.1.3); cada escritura del cobro y sus devoluciones deja su autor,
     también las que un desenlace o el barrido pisan después. Lo lee un auditor en la base (OBL-HISTORY-UNREAD
     aceptada en decisions.yaml), y el porqué de la 3.9b se reescribe para decir que es el historial quien responde.
+- class: 12
+  unit: api.pagination
+  what: FL-QRY-001 (Then 3) afirmaba los totales reales del listado en una página fuera de rango (totalElements 3,
+    totalPages 2), y la corrida de keel-spring 0.4.0 lo reportó como contradicción en design-gaps.yaml. Contradecía
+    la página vacía canónica del Then 4 del mismo flujo y el contrato de cable.
+  severity: gap
+  state: decided
+  reason: Lo fija el DSL para todo servicio (docs/dsl/api.md § pagination y docs/wire-contract.md § Página). Una
+    página vacía lleva totalElements 0 y totalPages 0, también fuera de rango y aunque el listado tenga elementos en
+    otras páginas. El defecto era del escenario, que se corrige en v0.1.4 con page y size los pedidos. Ninguna otra
+    aserción paginada de payment cae fuera de rango.
