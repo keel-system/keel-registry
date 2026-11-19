@@ -67,8 +67,8 @@ subscriptions:
     payload:
       idempotencyKey: { type: IdempotencyKey, required: true }
       templateCode:   { type: TemplateCode, required: true }
-      recipients:     { type: EmailAddress, list: true, required: true, constraints: { minItems: 1, maxItems: 20 } }
-      variables:      { type: VariableValue, list: true, constraints: { maxItems: 50 } }
+      recipients:     { type: EmailAddress, list: true, required: true, personal: true, constraints: { minItems: 1, maxItems: 20 } }
+      variables:      { type: VariableValue, list: true, personal: true, constraints: { maxItems: 50 } }
     triggers: requestNotification
     onFailure:
       retry: { maxAttempts: 3, backoff: exponential, initialDelayMs: 1000, maxDelayMs: 30000 }

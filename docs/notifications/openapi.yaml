@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notifications
-  version: 0.2.1
+  version: 0.3.0
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -234,6 +234,24 @@ paths:
           minimum: 1
           default: 20
         description: Tamaño; un valor mayor que 100 se recorta a 100.
+      - name: sort
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            type: string
+            enum:
+            - code
+            - code,asc
+            - code,desc
+            - name
+            - name,asc
+            - name,desc
+        description: Orden pedido por el cliente, `campo` o `campo,asc|desc`, solo sobre `code`, `name`; cualquier
+          otro campo o dirección es `400`. El id desempata siempre. Sin `sort`, el orden por defecto del listado.
       responses:
         '200':
           description: Correcto.
@@ -506,6 +524,24 @@ paths:
           minimum: 1
           default: 20
         description: Tamaño; un valor mayor que 100 se recorta a 100.
+      - name: sort
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            type: string
+            enum:
+            - versionNumber
+            - versionNumber,asc
+            - versionNumber,desc
+            - publishedAt
+            - publishedAt,asc
+            - publishedAt,desc
+        description: Orden pedido por el cliente, `campo` o `campo,asc|desc`, solo sobre `versionNumber`, `publishedAt`; cualquier
+          otro campo o dirección es `400`. El id desempata siempre. Sin `sort`, el orden por defecto del listado.
       responses:
         '200':
           description: Correcto.
@@ -700,7 +736,7 @@ paths:
       tags:
       - Servidor a servidor
       description: '- Orden de evaluación: (1) forma de la petición y variables repetidas; (2) comprobar la repetición;
-        (3) remitente, plantilla, variables, longitud del asunto renderizado y supresiones.
+        (3) remitente, plantilla, variables, asunto renderizado (vacío, después longitud) y supresiones.
 
         - Los destinatarios se normalizan a minúsculas y se deduplican antes de cualquier comparación; recipients
         conserva el orden de llegada y, ante duplicados, la primera aparición.
@@ -781,8 +817,12 @@ paths:
         '422':
           description: 'Regla de negocio incumplida: `DUPLICATE_TEMPLATE_VARIABLES` — variables trae dos valores
             con el mismo name.; `MISSING_TEMPLATE_VARIABLES` — Falta alguna variable que la versión active declara
-            required.; `RENDERED_SUBJECT_TOO_LONG` — El asunto renderizado pasa de 300 caracteres; no se recorta
-            y no se acepta el mensaje.; `RECIPIENT_SUPPRESSED` — Algún destinatario tiene una supresión active.'
+            required.; `EMPTY_RENDERED_SUBJECT` — El asunto renderizado queda vacío o solo con espacios (p. ej. un
+            subject que es solo el marcador de una variable opcional que no llega); no se acepta un correo sin asunto.;
+            `RENDERED_SUBJECT_TOO_LONG` — El asunto renderizado pasa de 300 caracteres; no se recorta y no se acepta
+            el mensaje.; `RECIPIENT_SUPPRESSED` — Algún destinatario tiene una supresión active.; `INVARIANT_VIOLATED`
+            — La escritura dejaría el mensaje fuera de una invariante del dominio (error del framework; ninguna operación
+            declarada llega a provocarlo).'
           content:
             application/json:
               schema:
@@ -925,6 +965,7 @@ paths:
       - name: recipient
         in: query
         required: false
+        x-personal: true
         schema:
           $ref: '#/components/schemas/EmailAddress'
       - name: requestedFrom
@@ -957,6 +998,24 @@ paths:
           minimum: 1
           default: 20
         description: Tamaño; un valor mayor que 100 se recorta a 100.
+      - name: sort
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            type: string
+            enum:
+            - requestedAt
+            - requestedAt,asc
+            - requestedAt,desc
+            - templateCode
+            - templateCode,asc
+            - templateCode,desc
+        description: Orden pedido por el cliente, `campo` o `campo,asc|desc`, solo sobre `requestedAt`, `templateCode`; cualquier
+          otro campo o dirección es `400`. El id desempata siempre. Sin `sort`, el orden por defecto del listado.
       responses:
         '200':
           description: Correcto.
@@ -1014,7 +1073,8 @@ paths:
         se reactiva con reason hard-bounce aunque lo hubiera liberado una persona; si ya está active no cambia nada.
 
         - Al crear o reactivar por rebote, suppressedAt es ahora, releasedAt queda vacío y notes se reemplaza por
-        el id del mensaje y el diagnostic.
+        el id del mensaje, un espacio y el diagnostic; si no cabe en 1000 caracteres, se recorta el diagnostic por
+        el final, de modo que el id siempre queda: un diagnostic largo nunca impide la supresión.
 
         - El proveedor real llega a través de un adaptador de despliegue que traduce su webhook a este contrato;
         el messageId es la parte local del Message-ID del correo rebotado.
@@ -1070,7 +1130,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '422':
           description: 'Regla de negocio incumplida: `RECIPIENT_NOT_IN_MESSAGE` — recipient no está entre los recipients
-            del mensaje, incluido el caso de un mensaje ya purgado.'
+            del mensaje, incluido el caso de un mensaje ya purgado.; `INVARIANT_VIOLATED` — La escritura dejaría el registro de supresión fuera de una invariante del
+            dominio (error del framework; ninguna operación declarada llega a provocarlo).'
           content:
             application/json:
               schema:
@@ -1102,6 +1163,21 @@ paths:
           minimum: 1
           default: 20
         description: Tamaño; un valor mayor que 100 se recorta a 100.
+      - name: sort
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            type: string
+            enum:
+            - suppressedAt
+            - suppressedAt,asc
+            - suppressedAt,desc
+        description: Orden pedido por el cliente, `campo` o `campo,asc|desc`, solo sobre `suppressedAt`; cualquier
+          otro campo o dirección es `400`. El id desempata siempre. Sin `sort`, el orden por defecto del listado.
       responses:
         '200':
           description: Correcto.
@@ -1148,6 +1224,7 @@ paths:
       - name: address
         in: path
         required: true
+        x-personal: true
         schema:
           $ref: '#/components/schemas/EmailAddress'
       responses:
@@ -1218,6 +1295,7 @@ paths:
       - name: address
         in: path
         required: true
+        x-personal: true
         schema:
           $ref: '#/components/schemas/EmailAddress'
       responses:
@@ -1253,6 +1331,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '422':
+          description: 'Regla de negocio incumplida: `INVARIANT_VIOLATED` — La escritura dejaría el registro de supresión fuera de
+            una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1277,6 +1362,7 @@ paths:
       - name: address
         in: path
         required: true
+        x-personal: true
         schema:
           $ref: '#/components/schemas/EmailAddress'
       responses:
@@ -1314,6 +1400,13 @@ paths:
                 $ref: '#/components/schemas/Error'
         '409':
           description: 'Conflicto: `CONCURRENT_MODIFICATION` — Otra escritura modificó el registro a la vez.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: 'Regla de negocio incumplida: `INVARIANT_VIOLATED` — La escritura dejaría el registro de supresión fuera de
+            una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo).'
           content:
             application/json:
               schema:
@@ -1365,6 +1458,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '422':
+          description: 'Regla de negocio incumplida: `INVARIANT_VIOLATED` — La escritura dejaría un mensaje fuera de
+            una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
       security:
       - userAuth: []
       x-keel-permissions:
@@ -1405,7 +1505,7 @@ components:
       - stuck-in-sending
       - recipient-suppressed
       description: 'Por qué un mensaje acabó en failed. delivery-rejected: el relay rechazó el mensaje; delivery-error:
-        el intento falló sin respuesta concluyente; stuck-in-sending: el rescate lo cerró tras 15 minutos en sending,
+        el intento falló sin respuesta concluyente; stuck-in-sending: el rescate lo cerró tras sendingTimeoutMinutes en sending,
         sin reenviarlo; recipient-suppressed: al ir a enviarlo, algún destinatario tenía una supresión active, y
         no se intentó.'
     IdempotencyKey:
@@ -1434,7 +1534,7 @@ components:
         replyToAddress:
           $ref: '#/components/schemas/EmailAddress'
       description: Remitente congelado en el mensaje al aceptarlo; el envío nunca vuelve a leer la configuración
-        viva.
+        viva. Es un buzón de la organización, no dato personal (ver SenderSettings).
     SuppressionReason:
       type: string
       enum:
@@ -1544,8 +1644,9 @@ components:
           maxLength: 120
         replyToAddress:
           $ref: '#/components/schemas/EmailAddress'
-      description: Remitente verificado del servicio. Existe como mucho una; mientras no exista no se acepta ninguna
-        petición de envío.
+      description: 'Remitente verificado del servicio. Existe como mucho una; mientras no exista no se acepta ninguna
+        petición de envío. Es un buzón de la organización, no de una persona: no es dato personal y no lleva personal;
+        senderName no debe nombrar a un empleado.'
     EmailTemplate:
       type: object
       required:
@@ -1638,10 +1739,12 @@ components:
           items:
             $ref: '#/components/schemas/EmailAddress'
           maxItems: 20
+          x-personal: true
           description: Destinatarios deduplicados y en minúsculas. Se vacía al purgar.
         renderedSubject:
           type: string
           maxLength: 300
+          x-personal: true
           description: Asunto renderizado al aceptar. Se vacía al purgar.
         sender:
           $ref: '#/components/schemas/SenderSnapshot'
@@ -1687,11 +1790,13 @@ components:
           format: uuid
         address:
           $ref: '#/components/schemas/EmailAddress'
+          x-personal: true
         reason:
           $ref: '#/components/schemas/SuppressionReason'
         notes:
           type: string
           maxLength: 1000
+          x-personal: true
         status:
           $ref: '#/components/schemas/SuppressionStatus'
         suppressedAt:
@@ -1851,11 +1956,13 @@ components:
             $ref: '#/components/schemas/EmailAddress'
           minItems: 1
           maxItems: 20
+          x-personal: true
         variables:
           type: array
           items:
             $ref: '#/components/schemas/VariableValue'
           maxItems: 50
+          x-personal: true
       required:
       - idempotencyKey
       - templateCode
@@ -1892,6 +1999,7 @@ components:
       properties:
         recipient:
           $ref: '#/components/schemas/EmailAddress'
+          x-personal: true
         bounceType:
           type: string
           enum:
@@ -1900,6 +2008,7 @@ components:
         diagnostic:
           type: string
           maxLength: 1000
+          x-personal: true
       required:
       - recipient
       - bounceType
@@ -1938,6 +2047,7 @@ components:
         notes:
           type: string
           maxLength: 1000
+          x-personal: true
       required:
       - reason
     PurgeMessagePersonalDataResponse:

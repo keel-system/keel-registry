@@ -1,5 +1,5 @@
 reviewedBy: keel-gap-sweep
-reviewedAt: 0.2.0
+reviewedAt: 0.3.0
 
 coverage:
   - class: 1
@@ -49,6 +49,9 @@ coverage:
     result: findings
   - class: 17
     units: [sendQueuedMessage]
+    result: findings
+  - class: 19
+    units: [EmailMessage, SuppressedAddress]
     result: findings
 
 findings:
@@ -505,3 +508,234 @@ findings:
     state: decided
     reason: >-
       Se queda en minor: MALFORMED_TEMPLATE_MARKER solo rechaza contenido cuyo comportamiento en la v0.1.0 no estaba definido (el generador ya lo rechazaba, como UNDECLARED_TEMPLATE_VARIABLES); ningún cliente dependía de un resultado contractual. Queda escrito en DESIGN.md. Decidido por el diseñador.
+
+  # ── Barrido de la v0.3.0 (migración a DSL 2.32: sortable, datos personales, checks, escritura condicional) ──
+
+  - class: 19
+    unit: EmailMessage
+    what: >-
+      Ningún campo del diseño está marcado personal, aunque el propio diseño los trata como datos
+      personales (la purga vacía recipients, renderedSubject y variableValues como datos
+      personales; el registro 3.8 excluye address de sortable por ser dato personal). Sin la marca,
+      el generador no sabe que esos valores no pueden ir a logs ni trazas (reportEmailBounce con
+      transient solo se registra en el log, con recipient y diagnostic), no hay inventario de datos
+      personales y CHK-USECASES-SORTABLE-FIELD no protege ningún listado.
+      Propuesta: domain.keel.yaml, añadir personal: true a EmailMessage.recipients,
+      EmailMessage.renderedSubject, EmailMessage.variableValues, SuppressedAddress.address y
+      SuppressedAddress.notes (lleva el diagnostic del rebote o texto libre de soporte). Al
+      marcarlos se abre OBL-PERSONAL-RETENTION-UNDECIDED en EmailMessage y SuppressedAddress
+      (hallazgos siguientes).
+    severity: gap
+    state: decided
+    reason: >-
+      personal: true en EmailMessage.recipients/renderedSubject/variableValues y
+      SuppressedAddress.address/notes, y en los inputs y payloads que los llevan. El remitente
+      queda sin marcar: es un buzón de la organización.
+
+  - class: 19
+    unit: EmailMessage
+    what: >-
+      La retención de los datos personales del mensaje vive en una operación programada a mano
+      (purgeMessagePersonalData) y no en persistence.entities.EmailMessage.retention, y no está
+      decidido si migra al primitivo de DSL 2.28 o se mantiene a mano. No es una traducción
+      directa: keep con parámetro solo admite days o years (personalDataRetentionMonths son meses de
+      calendario), la purga solo alcanza mensajes sent o failed y fija personalDataPurgedAt, del que
+      depende la regla de repetición de requestNotification, y then: anonymize no escribe esa marca.
+      Propuesta: (a) persistence.keel.yaml, EmailMessage.retention { from: requestedAt, keep:
+      { parameter: <parámetro en days o years>, unit: ... }, then: anonymize } y reescribir la regla
+      de repetición sin personalDataPurgedAt; o (b) mantener purgeMessagePersonalData y aceptar
+      OBL-PERSONAL-RETENTION-UNDECIDED en decisions.yaml (scope persistence.entities.EmailMessage)
+      citando la purga, el parámetro en meses y la marca personalDataPurgedAt que el primitivo no da.
+    severity: gap
+    state: accepted
+    reason: >-
+      Se mantiene purgeMessagePersonalData. OBL-PERSONAL-RETENTION-UNDECIDED aceptada en
+      decisions.yaml (persistence.EmailMessage.retention): el primitivo no se acota a
+      terminales, no admite meses y su anonymize no escribe personalDataPurgedAt. Decidido por
+      el diseñador.
+
+  - class: 19
+    unit: SuppressedAddress
+    what: >-
+      El registro de supresión guarda la dirección (y notes con el diagnostic del rebote) para
+      siempre por diseño (domain: una dirección tiene un único registro para siempre), pero esa
+      conservación indefinida de un dato personal no está aceptada con su motivo en decisions.yaml;
+      la única mención es la aceptación de la ruta en gaps.yaml (clase 15), que no es el registro de
+      decisiones. Con address marcada personal se abre OBL-PERSONAL-RETENTION-UNDECIDED.
+      Propuesta: decisions.yaml, aceptar OBL-PERSONAL-RETENTION-UNDECIDED con scope
+      persistence.entities.SuppressedAddress y su motivo (interés legítimo: no volver a escribir a
+      quien rebotó o se quejó; borrar el registro reabriría el envío), y decidir si notes se vacía
+      al liberar o con una retención propia.
+    severity: risk
+    state: accepted
+    reason: >-
+      OBL-PERSONAL-RETENTION-UNDECIDED aceptada en decisions.yaml
+      (persistence.SuppressedAddress.retention): conservar la dirección es lo que honra la
+      baja. notes se conserva con el registro; va marcado personal. Decidido por el diseñador.
+
+  - class: 19
+    unit: SuppressedAddress
+    what: >-
+      Reactivar una supresión (suppressAddress o reportEmailBounce sobre un registro released)
+      sobrescribe reason, notes, suppressedAt y releasedAt, y no hay audit.history: se pierde quién
+      liberó la dirección y cuándo se suprimió antes.
+    severity: risk
+    state: accepted
+    reason: >-
+      Aceptado en decisions.yaml, structural 3.9b persistence.audit.authorship (since 0.3.0): se
+      acepta que un rebote que reactiva una dirección tape quién la había liberado; la autoría
+      registra la última escritura, no el historial.
+
+  - class: 19
+    unit: SenderSettings
+    what: >-
+      configureSenderSettings reemplaza senderAddress, senderName y replyToAddress sin historial
+      (no hay audit.history) y authorship solo guarda la última escritura: no se puede responder
+      desde qué remitente o reply-to salió el servicio antes ni quién lo cambió, que es lo que se
+      investiga si alguien redirige las respuestas de los clientes cambiando replyToAddress.
+      Propuesta: persistence.keel.yaml, audit.history: [SenderSettings] con una query
+      getSenderSettingsHistory (output { history: SenderSettings, paginated: true }, permiso
+      sender:read), o aceptarlo en decisions.yaml junto al 3.9b.
+    severity: risk
+    state: accepted
+    reason: >-
+      Sin historial del remitente, aceptado en decisions.yaml (3.9b
+      persistence.audit.authorship): cada mensaje congela el remitente con el que se aceptó,
+      así que desde qué dirección salió cada correo no se pierde. Decidido por el diseñador.
+
+  - class: 5
+    unit: listTemplates
+    what: >-
+      sortable incluye name, un texto que escribe negocio, y DSL 2.32 lo ordena por punto de código:
+      Zeta va antes que alta y Ábaco detrás de zeta. El diseño no dice si ese es el orden que espera
+      la pantalla del back-office (code no tiene el problema: su pattern es minúsculas ASCII).
+      Propuesta: dejar escrito en decisions.yaml (3.8) que name se ordena por punto de código a
+      sabiendas, o quitar name de listTemplates.output.sortable en use-cases.keel.yaml.
+    severity: risk
+    state: accepted
+    reason: >-
+      Aceptado en decisions.yaml (3.8 api.pagination): ?sort=name ordena por punto de código
+      sin colación de idioma; el back-office busca plantillas por code. Decidido por el
+      diseñador.
+
+  - class: 12
+    unit: service
+    what: >-
+      listMessages ofrece ?sort=status y listSuppressedAddresses ?sort=reason, ambos enums, y ni el
+      diseño ni el DSL fijan cómo se ordena un enum: por el texto del valor (failed < queued <
+      sending < sent; complaint < hard-bounce < manual) o por el orden declarado (queued, sending,
+      sent, failed). Un stack que persista el enum como ordinal y otro como texto devuelven páginas
+      distintas para la misma petición.
+      Propuesta: fijar en decisions.yaml 3.8 (y en la description de MessageStatus y
+      SuppressionReason en domain.keel.yaml) que el orden es por el texto del valor, por punto de
+      código, y llevarlo a un escenario de ?sort=status; o quitar status y reason de sortable.
+    severity: gap
+    state: decided
+    reason: >-
+      status y reason salen de sortable: ningún listado ordena por un enum, así que no hay
+      orden de enum que fijar (decisions.yaml 3.8).
+
+  - class: 14
+    unit: EmailMessage
+    what: >-
+      Con sortable [requestedAt, status, templateCode, requestedBy], ?sort=status se ejecuta como
+      ORDER BY status, id (el id es siempre el desempate), y los índices son [status, sendingSince],
+      [status, requestedAt], [templateCode, requestedAt] y [requestedBy, requestedAt]: ninguno
+      sostiene status, templateCode o requestedBy seguidos de id, así que esas páginas ordenan la
+      tabla de mensajes entera, que crece sin cota y conserva las filas para siempre.
+      Propuesta: persistence.keel.yaml, EmailMessage.indexes añadir [status, id], [templateCode, id]
+      y [requestedBy, id], o reducir sortable a requestedAt.
+    severity: risk
+    state: decided
+    reason: >-
+      listMessages.sortable recortado a [requestedAt, templateCode], servidos por
+      [requestedAt] y [templateCode, requestedAt].
+
+  - class: 14
+    unit: SuppressedAddress
+    what: >-
+      listSuppressedAddresses solo devuelve status active y ofrece ?sort=reason, pero el único índice
+      es [status, suppressedAt]: ordenar por reason (+ id) no lo sostiene ningún índice, en una tabla
+      que crece sin cota porque los registros no se borran nunca.
+      Propuesta: persistence.keel.yaml, SuppressedAddress.indexes añadir [status, reason, id], o
+      quitar reason de sortable.
+    severity: risk
+    state: decided
+    reason: >-
+      listSuppressedAddresses.sortable recortado a [suppressedAt], servido por [status,
+      suppressedAt].
+
+  - class: 5
+    unit: listMessages
+    what: >-
+      Los filtros requestedFrom y requestedTo no declaran filter (su semántica, inclusivo y exclusivo
+      sobre requestedAt, vive en la description) y recipient no casa por nombre con ningún campo (la
+      pertenencia a la lista recipients vive en una rule). Con inputs sin enlazar no hay finder
+      generado, así que el orden de sort y sortable, los filtros y la paginación de este listado los
+      escribe el handler a mano: el contrato de ?sort recién declarado no lo sostiene nada
+      estructural. Además listMessages no declara dónde se filtra status ni si hace falta op in.
+      Propuesta: use-cases.keel.yaml, listMessages.input.requestedFrom con filter { field:
+      requestedAt, op: gte } y requestedTo con filter { field: requestedAt, op: lt }; para recipient,
+      dejar escrito en decisions.yaml que la pertenencia a una lista no es expresable en DSL 2.32 y
+      que el finder de este listado es manual.
+    severity: risk
+    state: decided
+    reason: >-
+      requestedFrom/requestedTo declaran filter { field: requestedAt, op: gte / lt }.
+      recipient sigue con consulta escrita por el handler según la rule (la pertenencia a una
+      lista no es expresable con filter), aceptado en decisions.yaml 3.8.
+
+  - class: 15
+    unit: listMessages
+    what: >-
+      El filtro recipient viaja en la query string (GET /messages?recipient=...), así que cada
+      búsqueda de soporte deja una dirección de correo en logs de acceso y proxies; la aceptación de
+      la dirección en la ruta solo nombra suppressAddress, releaseAddress y getSuppressedAddress, y su
+      motivo (el registro de supresión se conserva indefinidamente) no vale para mensajes, cuyos
+      datos personales sí se purgan a los personalDataRetentionMonths.
+      Propuesta: aceptarlo en decisions.yaml con un motivo propio, o mover la búsqueda por
+      destinatario a un POST /messages/search con el filtro en el cuerpo.
+    severity: risk
+    state: accepted
+    reason: >-
+      Aceptado en decisions.yaml (3.8 api.pagination): consulta del back-office interno con
+      logs de operación de acceso restringido; pasar el filtro al cuerpo rompería el contrato.
+      Decidido por el diseñador.
+
+  - class: 3
+    unit: EmailMessage
+    what: >-
+      Las invariantes de estado siguen en prosa aunque DSL 2.31 las expresa como checks que la
+      entidad hace cumplir en cada save: sent requiere sentAt; failed requiere failureReason y
+      failedAt; sending o sent requieren sendingSince; queued prohíbe sendingSince, sentAt, failedAt
+      y failureReason; y en SuppressedAddress, released requiere releasedAt y active lo prohíbe. En
+      prosa solo las guarda el escenario de la operación que las pisa.
+      Propuesta: domain.keel.yaml, EmailMessage.checks y SuppressedAddress.checks con
+      requires/forbids + when sobre status; dejar en invariants solo las que no caben
+      (inmutabilidad, purga, failed sin sendingSince implica recipient-suppressed).
+    severity: risk
+    state: decided
+    reason: >-
+      EmailMessage y SuppressedAddress declaran checks (requires/forbids por estado, requires
+      de sendingSince por failureReason, exactlyOne de la purga); en prosa queda la
+      inmutabilidad, recipients distintas y en minúsculas, y variableValues vacío tras la
+      purga.
+
+  - class: 4
+    unit: configureSenderSettings
+    what: >-
+      Es un PUT que reemplaza los tres campos del remitente (un campo omitido queda vacío) desde un
+      formulario del back-office, sobre una raíz con versión (optimisticLocking all), y no hay
+      api.concurrency: un administrador que guarda un formulario viejo borra en silencio el
+      replyToAddress o el senderName que otro acaba de poner. OBL-API-CONCURRENCY-UNDECIDED no salta
+      porque la ruta no lleva id, así que la entrada 3.12 del catálogo no se preguntó.
+      Propuesta: api.keel.yaml, concurrency { conditionalWrites: required, operations:
+      [configureSenderSettings] } (getSenderSettings da el ETag), o registrar en decisions.yaml la
+      3.12 aceptando el último-escritor-gana con su motivo.
+    severity: risk
+    state: accepted
+    reason: >-
+      Registrada la 3.12 en decisions.yaml: /sender-settings no lleva id y el DSL solo admite
+      If-Match sobre una ruta que nombra su recurso; mover la ruta sería major. Gana la última
+      escritura; el bloqueo optimista (3.9) y la autoría (3.9b) quedan. Decidido por el
+      diseñador.

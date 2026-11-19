@@ -1,6 +1,6 @@
 ---
 service: notifications
-version: 0.2.1
+version: 0.3.0
 basePath: /api/v1
 m2mAuth:
   protocol: client-credentials
@@ -52,6 +52,8 @@ errors:
     http: 409
   - code: MISSING_TEMPLATE_VARIABLES
     http: 422
+  - code: EMPTY_RENDERED_SUBJECT
+    http: 422
   - code: RENDERED_SUBJECT_TOO_LONG
     http: 422
   - code: RECIPIENT_SUPPRESSED
@@ -64,6 +66,8 @@ errors:
     http: 409
   - code: CONCURRENT_MODIFICATION
     http: 409
+  - code: INVARIANT_VIOLATED
+    http: 422
 ---
 
 # Integración con notifications
@@ -138,8 +142,8 @@ entrega**: el desenlace se publica como `EmailSent` o `EmailDeliveryFailed`, o s
 |---|---|---|
 | idempotencyKey | string | requerido; `^[A-Za-z0-9._:-]{8,128}$`. Una por correo que quieres enviar; repítela en los reintentos. |
 | templateCode | string | requerido; `^[a-z][a-z0-9-]{2,47}$`. Código de una plantilla con versión publicada. |
-| recipients | string[] | requerido; 1–20 direcciones. Se normalizan a minúsculas y se deduplican conservando el orden de llegada; todas van en `To` del mismo correo. |
-| variables | `{ name, value }[]` | opcional; ≤50. `value` ≤10000 caracteres. Las que la plantilla no declara se descartan en silencio; las `required` son obligatorias. |
+| recipients | string[] | requerido; 1–20 direcciones. Se normalizan a minúsculas y se deduplican conservando el orden de llegada; todas van en `To` del mismo correo. Dato personal: el servicio no lo escribe en logs ni trazas. |
+| variables | `{ name, value }[]` | opcional; ≤50. `value` ≤10000 caracteres. Las que la plantilla no declara se descartan en silencio; las `required` son obligatorias. Dato personal: no sale en logs, trazas ni en ninguna respuesta. |
 
 ```json
 {
@@ -161,8 +165,8 @@ entrega**: el desenlace se publica como `EmailSent` o `EmailDeliveryFailed`, o s
 | id | uuid | Id del mensaje; es también la parte local del `Message-ID` del correo. |
 | requestedBy | string | Tu cliente máquina. |
 | idempotencyKey | string | La que enviaste. |
-| recipients | string[] | Normalizados. `[]` tras la purga de datos personales (18 meses). |
-| renderedSubject | string \| null | Asunto ya renderizado, ≤300 caracteres: los valores se sustituyen de una sola pasada y cada salto de línea pasa a un espacio. `null` tras la purga. |
+| recipients | string[] | Normalizados; dato personal. `[]` tras la purga de datos personales (18 meses). |
+| renderedSubject | string \| null | Asunto ya renderizado, 1–300 caracteres; dato personal: los valores se sustituyen de una sola pasada y cada salto de línea pasa a un espacio. `null` tras la purga. |
 | sender | `{ address, name, replyToAddress }` | Remitente congelado al aceptar; `name` y `replyToAddress` pueden ser `null`. |
 | templateCode | string | |
 | templateVersionNumber | int | Versión de la plantilla congelada al aceptar. |
@@ -207,7 +211,8 @@ con que coincida `templateCode`. Si cambias el contenido, `409 IDEMPOTENCY_KEY_R
 
 **Orden de evaluación** (si fallan varias a la vez, ves el primer error): forma de la petición y
 variables repetidas → repetición de la clave → remitente configurado → plantilla existente → plantilla
-publicada → variables required → longitud del asunto renderizado → destinatarios suprimidos.
+publicada → variables required → asunto renderizado no vacío → longitud del asunto renderizado →
+destinatarios suprimidos.
 
 | Código | HTTP | Cuándo | Acción recomendada |
 |---|---|---|---|
@@ -219,8 +224,10 @@ publicada → variables required → longitud del asunto renderizado → destina
 | TEMPLATE_NOT_FOUND | 404 | No existe una plantilla con ese `templateCode`. | No reintentar; corrige el código. |
 | TEMPLATE_NOT_PUBLISHED | 409 | La plantilla no tiene versión activa. | No reintentar hasta que negocio la publique. |
 | MISSING_TEMPLATE_VARIABLES | 422 | Falta una variable que la versión activa declara `required`. | Corregir input. |
+| EMPTY_RENDERED_SUBJECT | 422 | El asunto renderizado queda vacío o solo con espacios (p. ej. la plantilla tiene como asunto solo una variable opcional y no la enviaste). | Corregir input: envía un valor para la variable del asunto. |
 | RENDERED_SUBJECT_TOO_LONG | 422 | El asunto renderizado con tus valores pasa de 300 caracteres; no se recorta. | Corregir input: acorta los valores que van en el asunto. |
 | RECIPIENT_SUPPRESSED | 422 | Algún destinatario tiene una supresión activa. | Corregir input: quita la dirección. |
+| INVARIANT_VIOLATED | 422 | La escritura dejaría el mensaje fuera de una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo). | No reintentar; avisa al dueño del servicio. |
 | UNAUTHENTICATED | 401 | Falta el token o no es válido. | Obtener un token y reintentar. |
 | ACCESS_DENIED | 403 | El token no tiene `notification:send` o se emitió para otra audiencia. | No reintentar; revisa scopes y `aud`. |
 
@@ -263,9 +270,9 @@ local (antes de la `@`) del `Message-ID` del correo rebotado.
 
 | Campo | Tipo | Notas |
 |---|---|---|
-| recipient | string | requerido; la dirección que rebotó, uno de los `recipients` del mensaje. |
+| recipient | string | requerido; la dirección que rebotó, uno de los `recipients` del mensaje. Dato personal. |
 | bounceType | `permanent \| transient` | requerido. `permanent` suprime la dirección (motivo `hard-bounce`), aunque una persona la hubiera liberado; `transient` solo se registra en el log. |
-| diagnostic | string | opcional; ≤1000. Se guarda en las notas de la supresión. |
+| diagnostic | string | opcional; ≤1000; dato personal. Las notas de la supresión guardan el id del mensaje, un espacio y el diagnostic; si no cabe en 1000 caracteres se recorta el diagnostic por el final, así que un diagnostic largo nunca impide la supresión. |
 
 ```json
 { "recipient": "luis@example.com", "bounceType": "permanent", "diagnostic": "550 5.1.1 user unknown" }
@@ -279,6 +286,7 @@ local (antes de la `@`) del `Message-ID` del correo rebotado.
 | RECIPIENT_NOT_IN_MESSAGE | 422 | La dirección no está entre los destinatarios del mensaje (también si sus datos ya se purgaron). | No reintentar; descarta el rebote. |
 | SUPPRESSED_ADDRESS_ALREADY_EXISTS | 409 | Otra supresión de la misma dirección se creó a la vez. | Reintentar: el segundo intento encuentra la supresión activa y responde `204`. |
 | CONCURRENT_MODIFICATION | 409 | Otra escritura modificó la supresión a la vez. | Reintentar. |
+| INVARIANT_VIOLATED | 422 | La escritura dejaría la supresión fuera de una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo). | No reintentar; avisa al dueño del servicio. |
 | VALIDATION_ERROR | 400 | Cuerpo mal formado (`bounceType` desconocido, dirección inválida). | Corregir input. |
 | UNAUTHENTICATED | 401 | Falta el token o no es válido. | Obtener un token y reintentar. |
 | ACCESS_DENIED | 403 | El token no tiene `bounce:report` o es de otra audiencia. | No reintentar. |
@@ -408,8 +416,8 @@ Pide el envío de un correo por el canal de eventos. Es la puerta hermana de
 |---|---|---|
 | idempotencyKey | string | requerido; `^[A-Za-z0-9._:-]{8,128}$` |
 | templateCode | string | requerido |
-| recipients | string[] | requerido; 1–20 |
-| variables | `{ name, value }[]` | opcional; ≤50 |
+| recipients | string[] | requerido; 1–20; dato personal |
+| variables | `{ name, value }[]` | opcional; ≤50; dato personal |
 
 ```json
 {

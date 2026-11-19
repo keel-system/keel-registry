@@ -13,7 +13,7 @@ structural:
       cuerpo y no caducar nunca. El servicio es monoinquilino pero tiene varios sistemas llamantes:
       con la clave global, billing y shipping chocarían al usar ambos el id de un pedido, y el correo
       del segundo no saldría nunca. Con requestedBy en la clave, cada llamante tiene su espacio.
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.2'
     scope: use-cases.publishTemplateVersion.idempotency
     chosen: sin clave
@@ -22,7 +22,7 @@ structural:
       Un reintento tras un timeout crea una versión idéntica a la anterior; no envía correo ni publica
       eventos, y el editor la ve en el historial. Coste bajo y visible frente a un contrato más para
       la SPA. Decidido por el diseñador.
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.2'
     scope: use-cases (resto de commands expuestos)
     chosen: sin clave
@@ -33,7 +33,7 @@ structural:
       sobre el estado destino, reportEmailBounce no cambia una supresión active y la purga es
       idempotente por personalDataPurgedAt. retireTemplate repetido responde TEMPLATE_NOT_PUBLISHED:
       error tras éxito aceptado, el editor recarga y ve la plantilla retirada.
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.3'
     scope: use-cases (todas las queries)
     chosen: sin caché
@@ -42,7 +42,7 @@ structural:
       Son lecturas de back-office y de reconciliación M2M de poco volumen. Una supresión o un estado
       de mensaje rancio llevaría a una decisión equivocada, y una plantilla recién publicada tiene que
       verse al momento.
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.9'
     scope: use-cases (concurrencia)
     chosen: bloqueo optimista en todas las raíces, 409 CONCURRENT_MODIFICATION
@@ -52,7 +52,7 @@ structural:
       dos administradores no pueden pisarse el remitente sin saberlo, y dos réplicas del despachador
       no pueden pasar el mismo mensaje a sending: es la guarda que impide el doble envío. Dos
       supresiones que crean el registro a la vez responden SUPPRESSED_ADDRESS_ALREADY_EXISTS (409).
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.4'
     scope: api.endpoints.requestNotification.audience
     chosen: services (operación propia)
@@ -60,7 +60,7 @@ structural:
     reason: >-
       Solo los sistemas llamantes piden envíos; el back-office no envía correos. Es la puerta HTTP
       hermana del canal notificationRequests, con el mismo contrato. Fijado en el encargo.
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.4'
     scope: api.endpoints.findMessageByIdempotencyKey.audience
     chosen: services (operación propia)
@@ -68,22 +68,33 @@ structural:
     reason: >-
       El llamante reconcilia por su propia clave, no por el id interno, y solo ve sus mensajes. El
       back-office consulta por id y con filtros; los dos contratos evolucionan aparte.
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.4'
     scope: api.endpoints.reportEmailBounce.audience
     chosen: services (operación propia)
     discarded: exponerlo al back-office
     reason: El rebote lo notifica el proveedor de correo; la supresión manual tiene su propia operación.
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.8'
     scope: api.pagination
-    chosen: offset, defaultSize 20, maxSize 100; orden total en cada listado
-    discarded: listados sin paginar
+    chosen: offset, defaultSize 20, maxSize 100; orden total en cada listado; ?sort por columnas declaradas en sortable
+    discarded: listados sin paginar; listados sin ?sort (solo el orden por defecto)
     reason: >-
       Mensajes y supresiones crecen sin cota. Órdenes: plantillas por code asc, versiones por
       versionNumber desc, mensajes por requestedAt desc + id, supresiones por suppressedAt desc + id.
-      Fijado en el encargo.
-    since: 0.2.0
+      Fijado en el encargo. Desde la v0.3.0 (DSL 2.32) las pantallas del back-office ordenan por
+      sus columnas: plantillas por code y name; versiones por versionNumber y publishedAt; mensajes
+      por requestedAt, status, templateCode y requestedBy; supresiones por suppressedAt y reason
+      (address es dato personal y no se ofrece). El id queda solo como desempate. status y reason no se
+      ofrecen: un enum no tiene orden de negocio y no hay índice que lo sirva. ?sort=name ordena por
+      punto de código (mayúsculas antes que minúsculas, acentuadas al final), sin colación de idioma:
+      aceptado, porque el back-office busca plantillas por code y name es secundario. El filtro
+      ?recipient= de listMessages lleva una dirección en la URL y por tanto en los logs de acceso:
+      aceptado, porque es una consulta del back-office interno con logs de operación de acceso
+      restringido, y pasarlo al cuerpo (POST /messages/search) rompería el contrato. recipient no
+      lleva filter (casa con un elemento de la lista recipients, que filter no expresa): su consulta
+      la escribe el handler según la rule de listMessages.
+    since: 0.3.0
   - section: '3.1'
     scope: messaging.publishing.reliability
     chosen: outbox
@@ -94,7 +105,7 @@ structural:
       payload es contrato estable aunque hoy no haya consumidores, y el primero que llegue esperará no
       perder eventos. El coste es pequeño: la persistencia ya es relacional y por agregado. Decidido
       por el diseñador frente a su propio encargo.
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.5'
     scope: messaging.subscriptions.NotificationRequested
     chosen: retry 3 exponencial + deadLetter; identidad no resuelta → deadLetter directo
@@ -104,7 +115,7 @@ structural:
       reinyectarse. La guarda contra el doble envío en las reentregas es la idempotencia por
       (requestedBy, idempotencyKey), que viaja en el payload. Un emisor registrado es un serviceClient
       con notification:send, para que el mismo sistema tenga la misma identidad por las dos puertas.
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.7'
     scope: persistence.consistency.transactionalBoundary
     chosen: per-aggregate
@@ -113,13 +124,13 @@ structural:
       Ninguna operación escribe dos agregados, así que no hay confirmación a medias que compensar. Se
       acepta que una petición use el remitente, la plantilla y las supresiones tal como los leyó; la
       recomprobación de la supresión al enviar cubre la carrera que importa.
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.9'
     scope: persistence.consistency.optimisticLocking
     chosen: all
     discarded: none
     reason: Materializa la política de concurrencia decidida en use-cases (409 CONCURRENT_MODIFICATION; guarda queued → sending).
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.9b'
     scope: persistence.audit.timestamps
     chosen: all
@@ -127,7 +138,7 @@ structural:
     reason: >-
       El rastro es para operar e investigar, no para el cliente: el dominio ya expone las fechas de
       negocio (requestedAt, sentAt, suppressedAt, publishedAt).
-    since: 0.2.0
+    since: 0.3.0
   - section: '3.9b'
     scope: persistence.audit.authorship
     chosen: all
@@ -136,8 +147,22 @@ structural:
       El encargo pide auditoría completa: quién hizo la última escritura de cada fila (quién publicó
       una versión, quién liberó una dirección mientras siga liberada). Se acepta que un rebote que
       reactiva una dirección tape quién la había liberado: la autoría registra la última escritura,
-      no el historial. Se queda en el almacén; el contrato solo expone requestedBy.
-    since: 0.2.0
+      no el historial. Se queda en el almacén; el contrato solo expone requestedBy. Desde la v0.3.0
+      también se acepta que el remitente no tenga historial de cambios: cada mensaje congela el
+      remitente con el que se aceptó (EmailMessage.sender), así que desde qué dirección salió cada
+      correo no se pierde; un historial completo sería una evolución minor si negocio lo pide.
+    since: 0.3.0
+  - section: '3.12'
+    scope: api.concurrency.configureSenderSettings
+    chosen: sin escritura condicional; gana la última escritura
+    discarded: If-Match en /sender-settings/{id} (rompe la ruta del back-office)
+    reason: >-
+      El remitente es un recurso único sin id en la ruta, y el DSL solo admite If-Match sobre una
+      ruta que nombra su recurso. Se cambia rara vez y lo tocan pocos administradores; el bloqueo
+      optimista (3.9) ya impide dos escrituras cruzadas dentro del servidor y la autoría (3.9b) deja
+      quién hizo el último cambio. Se acepta que un formulario viejo pise un cambio intermedio.
+      Decidido por el diseñador al migrar a DSL 2.32.
+    since: 0.3.0
 
 decisions:
   - id: CHK-MAIL-SENDER-NO-FALLBACK
@@ -146,7 +171,7 @@ decisions:
       Falla cerrado a propósito: antes que enviar desde una dirección que nadie verificó, no se envía.
       En la práctica nunca llega a enviar sin remitente, porque requestNotification rechaza con
       SENDER_SETTINGS_NOT_CONFIGURED y el mensaje congela el remitente al aceptarlo.
-    since: 0.2.0
+    since: 0.3.0
 
   - id: OBL-GUARD-UNOBSERVABLE
     scope: mail.sendQueuedMessage
@@ -159,7 +184,62 @@ decisions:
       pierde la transición desde queued tampoco publique EmailDeliveryFailed no necesita verificación
       propia: el evento se escribe en el outbox en la misma transacción que la transición, así que
       sin transición no hay evento. Decidido por el diseñador (ampliado en la v0.2.0).
-    since: 0.2.0
+    since: 0.3.0
+
+  - id: CHK-USECASES-SINGLE-NOT-IDENTIFIED
+    scope: use-cases.operations.getTemplate
+    reason: >-
+      La entrada sí identifica la plantilla: templateCode es el campo único code de EmailTemplate
+      (su clave natural), con otro nombre para que todas las operaciones de plantillas y la ruta
+      /templates/{templateCode} lo llamen igual. No hay criterio de elección entre varias: como
+      mucho existe una. Decidido por el diseñador al migrar a DSL 2.32.
+    since: 0.3.0
+
+  - id: CHK-USECASES-SINGLE-NOT-IDENTIFIED
+    scope: use-cases.operations.getTemplateVersion
+    reason: >-
+      La entrada sí identifica la versión: (templateCode, versionNumber) es la clave natural de
+      EmailTemplateVersion (emailTemplate, versionNumber), con la plantilla nombrada por su code
+      único en vez de por su id. Como mucho existe una. Decidido por el diseñador al migrar a DSL 2.32.
+    since: 0.3.0
+
+  - id: CHK-USECASES-SORT-NOT-SORTABLE
+    scope: use-cases.listMessages.output.sortable
+    reason: >-
+      id:asc es solo el desempate que hace total el orden por defecto (requestedAt desc); el
+      generador lo añade siempre como desempate también a todo ?sort=. Ordenar por un uuid no le
+      sirve a ninguna pantalla, así que no se ofrece. Decidido por el diseñador al declarar sortable.
+    since: 0.3.0
+
+  - id: CHK-USECASES-SORT-NOT-SORTABLE
+    scope: use-cases.listSuppressedAddresses.output.sortable
+    reason: >-
+      id:asc es solo el desempate que hace total el orden por defecto (suppressedAt desc); el
+      generador lo añade siempre como desempate también a todo ?sort=. Ordenar por un uuid no le
+      sirve a ninguna pantalla, así que no se ofrece. Decidido por el diseñador al declarar sortable.
+    since: 0.3.0
+
+  - id: OBL-PERSONAL-RETENTION-UNDECIDED
+    scope: persistence.EmailMessage.retention
+    reason: >-
+      La retención existe y es explícita, pero no cabe en el primitivo: purgeMessagePersonalData
+      vacía recipients, renderedSubject y variableValues de los mensajes terminales (sent o failed)
+      cuando requestedAt pasa de personalDataRetentionMonths meses de calendario, y fija
+      personalDataPurgedAt. persistence.retention no sabe acotarse a los terminales (purgar un queued
+      rompería su envío), no admite meses y su anonymize no escribe personalDataPurgedAt, del que
+      dependen los checks y la comparación de repeticiones. La fila y su clave se conservan para
+      siempre: es lo que impide un segundo envío. Decidido por el diseñador al migrar a DSL 2.32.
+    since: 0.3.0
+
+  - id: OBL-PERSONAL-RETENTION-UNDECIDED
+    scope: persistence.SuppressedAddress.retention
+    reason: >-
+      Conservar la dirección es lo que honra la baja: borrarla o anonimizarla a plazo volvería a
+      permitir enviar a quien rebotó o pidió no recibir correo. Interés legítimo; el registro se
+      conserva mientras el servicio exista, también released. address y notes van marcados personal,
+      así que ningún log ni traza del servidor los lleva; los logs de acceso de las rutas
+      /suppressions/{address} sí llevan la dirección, exposición aceptada en gaps.yaml (clase 15). Decidido por el diseñador al migrar a DSL 2.32.
+    since: 0.3.0
 
 falsePositives:
   - id: CHK-DOMAIN-INNER-LIFECYCLE
@@ -170,4 +250,4 @@ falsePositives:
       EmailTemplate y recalculan hasActiveVersion en la misma transacción. La máquina de estados
       está en la versión porque es la versión la que se archiva o reactiva, pero su dueño es la raíz.
       Decidido por el diseñador al aprobar domain.
-    since: 0.2.0
+    since: 0.3.0

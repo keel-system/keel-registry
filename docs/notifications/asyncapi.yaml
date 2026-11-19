@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: notifications
-  version: 0.2.1
+  version: 0.3.0
   description: 'Envía correo transaccional a partir de plantillas que gestiona negocio, a petición de los sistemas
     de la organización por HTTP o por eventos, sin enviar nunca dos veces el mismo correo.
 
@@ -150,7 +150,7 @@ components:
       - stuck-in-sending
       - recipient-suppressed
       description: 'Por qué un mensaje acabó en failed. delivery-rejected: el relay rechazó el mensaje; delivery-error:
-        el intento falló sin respuesta concluyente; stuck-in-sending: el rescate lo cerró tras 15 minutos en sending,
+        el intento falló sin respuesta concluyente; stuck-in-sending: el rescate lo cerró tras sendingTimeoutMinutes en sending,
         sin reenviarlo; recipient-suppressed: al ir a enviarlo, algún destinatario tenía una supresión active, y
         no se intentó.'
     IdempotencyKey:
@@ -249,11 +249,13 @@ components:
             $ref: '#/components/schemas/EmailAddress'
           minItems: 1
           maxItems: 20
+          x-personal: true
         variables:
           type: array
           items:
             $ref: '#/components/schemas/VariableValue'
           maxItems: 50
+          x-personal: true
     KeelEventMetadata:
       type: object
       description: Metadata transversal de la envoltura Keel; la estampa el servicio al emitir.

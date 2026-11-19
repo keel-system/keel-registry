@@ -1,123 +1,263 @@
 reviewedBy: keel-design-review
-reviewedAt: 0.2.0
+reviewedAt: 0.3.0
 findings:
   # ─── domain ────────────────────────────────────────────────────────────────
   - id: REV-DOMAIN-VAGUE-INVARIANT
-    scope: domain.entities.EmailTemplateVersion.invariants
+    scope: domain.entities.EmailMessage.invariants, domain.types.FailureReason
     verdict: fixed
     note: >-
-      Corregido por el diseñador en la v0.2.0: solo U+0020 cuenta como espacio dentro de un marcador (rule de publishTemplateVersion y VariableName), y las versiones anteriores a la v0.2.0 no se pueden reactivar (MALFORMED_TEMPLATE_MARKER en activateTemplateVersion) y, si siguen active, se renderizan dejando literal todo {{ mal formado. Hallazgo original:
-      El invariante nuevo («Toda aparición de {{ en subject, htmlBody o textBody abre un marcador
-      {{name}} bien formado») es verificable junto con la rule de publishTemplateVersion que define
-      «bien formado» ({{ + espacios opcionales + VariableName + espacios opcionales + }}), y es
-      coherente con VariableName («no existe forma de escribir {{ como literal») y con el render de
-      sendQueuedMessage. Quedan dos huecos. (1) «Espacios opcionales» no dice qué cuenta como espacio:
-      ¿solo U+0020, o también tabulador y salto de línea? Un htmlBody con {{\n customerName \n}} es
-      422 en un stack que lea «espacio» y aceptado en uno que use \s; es justo la divergencia entre
-      generadores que el contrato de equivalencia debería impedir. Salida: fijar el conjunto
-      (p. ej. «solo espacios U+0020») en la rule y en la description de VariableName. (2) El invariante
-      se afirma de toda EmailTemplateVersion, pero las versiones publicadas con la v0.1.0 pudieron
-      aceptar {{{name}}} (entonces no había esta regla) y son inmutables, así que una instalación que
-      evoluciona puede tener versiones que lo violan, y activateTemplateVersion puede reactivarlas.
-      Salidas: decir qué pasa con esas versiones (se renderizan como hasta ahora, se rechaza
-      activarlas con MALFORMED_TEMPLATE_MARKER, o una migración las archiva), o aceptar por escrito
-      que el invariante solo rige para versiones publicadas desde la 0.2.0. Las otras tres
-      invariantes de la entidad no cambian y siguen siendo verificables.
+      Releídas las invariantes de las cinco entidades contra la v0.3.0. Las de EmailTemplateVersion
+      (marcadores bien formados, con U+0020 como único espacio y la salvedad de las versiones
+      anteriores a la v0.2.0 que no se reactivan), EmailTemplate, SenderSettings y SuppressedAddress se
+      deciden mirando sus campos. Quedan dos huecos. (1) EmailMessage: «mientras personalDataPurgedAt
+      está vacío, … renderedSubject tiene valor». requestNotification renderiza el asunto sustituyendo
+      una variable opcional sin valor por cadena vacía, y publishTemplateVersion admite un subject que
+      sea solo un marcador ({{orderRef}} con orderRef required false). El asunto renderizado puede ser
+      "" y el DSL trata la cadena vacía como ausente (docs/dsl/domain.md § checks), así que una
+      petición válida rompe la invariante y ninguna operación dice qué pasa: ni hay error declarado ni
+      regla que lo admita. Salidas: declarar un error en requestNotification (p. ej. EMPTY_RENDERED_SUBJECT,
+      422, junto a RENDERED_SUBJECT_TOO_LONG) con su escenario; rechazar al publicar un subject que
+      pueda quedar vacío; o relajar la invariante («renderedSubject no es nulo», admitiendo ""), y
+      decirlo. (2) domain.types.FailureReason define stuck-in-sending como «tras 15 minutos en
+      sending», pero el plazo es el parámetro sendingTimeoutMinutes (default 15, min 1) que usa
+      dispatchQueuedMessages. Con otro valor la description miente. Salida: cambiar «tras 15 minutos»
+      por «tras sendingTimeoutMinutes». (Aparte: con sendingTimeoutMinutes 1, el tope de 1 minuto del
+      relay ya no queda «muy por debajo», como dice sendQueuedMessage. Un mínimo de 2 o más, o una frase
+      que lo diga, lo cerraría.)
+      Cierre v0.3.0 (diseñador): (1) requestNotification declara EMPTY_RENDERED_SUBJECT (422),
+      comprobado antes que la longitud; la invariante pasa a exactlyOne [renderedSubject,
+      personalDataPurgedAt]. (2) FailureReason dice «tras sendingTimeoutMinutes» y el mínimo
+      del parámetro sube a 2.
 
   - id: REV-DOMAIN-ENUM-NO-LIFECYCLE
     scope: domain.entities.SenderSettings.fields.key
     verdict: ok
     note: >-
-      SenderSettings.key es un enum de un solo valor (default) que actúa de clave constante para
-      impedir un segundo remitente; no es un estado. Las entidades con estado (EmailTemplateVersion,
-      EmailMessage, SuppressedAddress) declaran lifecycle; FailureReason y SuppressionReason son
-      clasificaciones, no estados, y bounceType es solo input de reportEmailBounce.
+      SenderSettings.key es un enum de un solo valor (default), clave constante que impide un segundo
+      remitente; no es un estado. EmailTemplateVersion, EmailMessage y SuppressedAddress declaran
+      lifecycle sobre status. FailureReason y SuppressionReason clasifican, no son estados, y
+      bounceType es solo input de reportEmailBounce.
 
   - id: REV-DOMAIN-INVARIANT-IS-TRANSITION
     scope: domain.entities
     verdict: ok
     note: >-
-      Todas las invariantes son de estado: EmailMessage (sent ⇒ sentAt; failed ⇒ failureReason y
-      failedAt; sending|sent ⇒ sendingSince; failed con sendingSince vacío ⇒ recipient-suppressed;
-      queued ⇒ campos de desenlace vacíos; purgado ⇒ datos personales vacíos), SuppressedAddress
-      (released ⇔ releasedAt) y la nueva de EmailTemplateVersion sobre marcadores. Las de
-      inmutabilidad («no cambian tras crear/aceptar») no son aristas de un lifecycle. Los efectos de
-      reactivar viven en las rules de suppressAddress y reportEmailBounce.
+      Ninguna invariante habla de «pasar de X a Y». Todas son de estado (EmailMessage y SuppressedAddress:
+      presencia o ausencia de campos por status; EmailTemplateVersion: marcadores y variables;
+      EmailTemplate: una sola active, versionNumber correlativos) o de inmutabilidad («no cambian tras
+      crear o aceptar»), que no son aristas. La reactivación vive en las rules de suppressAddress y
+      reportEmailBounce, y la del rescate en dispatchQueuedMessages.transitions.
 
   - id: REV-DOMAIN-COMPUTED-NOT-DERIVABLE
     scope: domain.entities.EmailTemplate.fields.hasActiveVersion
     verdict: ok
     note: >-
-      hasActiveVersion se deriva del status de las versiones de la relación versions; las tres
-      operaciones que mueven ese status (publishTemplateVersion, activateTemplateVersion,
-      retireTemplate) la recalculan en la misma transacción y createTemplate la fija a false.
+      hasActiveVersion es el único computed en prosa. Se deriva del status de la relación versions
+      (mismo agregado), y las tres operaciones que mueven ese status (publishTemplateVersion,
+      activateTemplateVersion, retireTemplate) la recalculan en su transacción. createTemplate la fija
+      a false.
+
+  - id: REV-DOMAIN-INVARIANT-PROSE
+    scope: domain.entities.EmailMessage.invariants, domain.entities.SuppressedAddress.invariants
+    verdict: fixed
+    note: >-
+      Ninguna entidad declara checks y once invariantes caben en el vocabulario de la 2.31
+      (docs/dsl/domain.md § checks). Hoy solo se cumplen donde un escenario las pide.
+      SuppressedAddress: «released implica releasedAt» → { requires: releasedAt, when: { field: status,
+      in: [released] } }; «active implica releasedAt vacío» → { forbids: releasedAt, when: { field:
+      status, in: [active] } }. EmailMessage: «sent implica sentAt» → requires sentAt when [sent];
+      «failed implica failureReason y failedAt» → dos requires when [failed]; «sending o sent implica
+      sendingSince» → requires sendingSince when [sending, sent]; «queued implica sendingSince, sentAt,
+      failedAt y failureReason vacíos» → cuatro forbids when [queued]; «failed con sendingSince vacío
+      implica recipient-suppressed», por contraposición → { requires: sendingSince, when: { field:
+      failureReason, in: [delivery-rejected, delivery-error, stuck-in-sending] } } (failureReason es
+      enum, así que vale para when). La lectura de REV-DOMAIN-PARTIAL-WRITER («sendingSince vacío
+      distingue la vía por supresión») necesita también la inversa, que hoy no está escrita:
+      { forbids: sendingSince, when: { field: failureReason, in: [recipient-suppressed] } }. La
+      invariante de purga, en su parte de recipients y renderedSubject, cabe en dos exactlyOne:
+      [recipients, personalDataPurgedAt] y [renderedSubject, personalDataPurgedAt]. when no puede
+      condicionar sobre un timestamp, pero la lista vacía y la cadena vacía cuentan como ausentes. Ojo:
+      el segundo choca con el asunto renderizado vacío de REV-DOMAIN-VAGUE-INVARIANT, que pasaría a ser
+      un 422 INVARIANT_VIOLATED no declarado, así que hay que cerrar antes aquel hueco. Se quedan en
+      prosa, porque no caben: SenderSettings «como mucho uno» (entre filas; lo sostiene naturalKey key);
+      EmailTemplate «una sola active» y «correlativos» (cuentan hijas por estado; lo sostiene el índice
+      parcial de persistence); EmailTemplateVersion, entera (inmutabilidad, análisis léxico de
+      marcadores, marcadores contra variables, unicidad dentro de una lista); EmailMessage,
+      inmutabilidad, distintas/minúsculas de recipients y «purgado implica variableValues vacío»
+      (variableValues puede estar vacío legítimamente antes de la purga, y when no admite
+      personalDataPurgedAt). Opcional, más fuerte que la prosa actual: forbids sentAt unless [sent] y
+      forbids failedAt/failureReason unless [failed], porque hoy nada impide un sent con failureReason.
+      Salidas: añadir domain.entities.EmailMessage.checks y domain.entities.SuppressedAddress.checks con
+      lo de arriba (y retirar o dejar como comentario la prosa equivalente), o aceptar por escrito por
+      qué siguen en prosa.
+      Cierre v0.3.0 (diseñador): EmailMessage y SuppressedAddress declaran checks con los
+      requires/forbids por estado, el requires de sendingSince por failureReason y los dos
+      exactlyOne de la purga; la prosa equivalente se retira. La inversa para
+      recipient-suppressed y los forbids «salvo en» no se añaden: no estaban en la prosa y el
+      cambio era de forma, no de comportamiento.
+
+  - id: REV-DOMAIN-BOUND-SERVER-WRITTEN
+    scope: domain.entities.SuppressedAddress.fields.notes, use-cases.operations.reportEmailBounce
+    verdict: fixed
+    note: >-
+      Recorridos los campos acotados que escribe el servidor con un valor que el cliente no manda tal
+      cual. Sin hallazgo: EmailTemplateVersion.versionNumber (min 1) se calcula como el mayor más uno o
+      1; EmailMessage.renderedSubject (maxLength 300) tiene su error declarado,
+      RENDERED_SUBJECT_TOO_LONG 422, y su escenario; recipients (maxItems 20) solo puede encoger al
+      deduplicar; variableValues (maxItems 50) es un subconjunto filtrado del input con la misma cota;
+      sender.name copia SenderSettings.senderName, con la misma cota de 120. Hallazgo:
+      SuppressedAddress.notes tiene maxLength 1000, y reportEmailBounce lo escribe con «el id del
+      mensaje y el diagnostic», cuando diagnostic admite hasta 1000 caracteres en el input y el uuid
+      ocupa 36 más el separador. Un rebote permanent con un diagnostic de más de unos 960 caracteres
+      rompe la cota: desde la 2.31 eso es 422 INVARIANT_VIOLATED, no declarado y sin escenario. El
+      efecto es justo el que el servicio quiere evitar: la dirección no queda suprimida, y el
+      adaptador del proveedor recibe un 422 que no reintentará. Salidas: (a) bajar
+      reportEmailBounce.input.diagnostic.maxLength a lo que quepa (p. ej. 900) y fijar el formato de
+      notes; (b) decir en la rule que el diagnostic se recorta para que notes no pase de 1000;
+      (c) subir notes.maxLength en domain (2000) y dejar la cota de 1000 en suppressAddress.input.notes;
+      o (d) declarar el error y su escenario. La (b) o la (c) mantienen el rebote siempre aceptado.
+      Cierre v0.3.0 (diseñador), salida (b): la rule de reportEmailBounce recorta el
+      diagnostic por el final para que notes no pase de 1000; el rebote permanent siempre
+      suprime.
 
   - id: REV-DOMAIN-PROMISED-STATE
-    scope: domain.entities.SuppressedAddress
-    verdict: accepted
+    scope: domain.entities.SuppressedAddress, domain.entities.EmailMessage
+    verdict: fixed
     note: >-
-      Las promesas de conservación tienen soporte: «liberarla lo conserva» (status released +
-      releasedAt), «conserva el historial» de retireTemplate (las versiones quedan archived), «conserva
-      la fila y su clave para siempre» de la purga (personalDataPurgedAt). Lo único que la entidad no
-      puede representar es quién liberó una dirección que un rebote reactivó después: la autoría es la
-      de la última escritura. Está aceptado en decisions.yaml (structural 3.9b,
-      persistence.audit.authorship: «Se acepta que un rebote que reactiva una dirección tape quién la
-      había liberado»). Lo nuevo de la v0.2.0 no promete estado.
+      Promesas de conservación con soporte: «liberarla lo conserva» (status released + releasedAt);
+      «conserva el historial» de retireTemplate (versiones archived); «conserva la fila y su clave
+      para siempre» de la purga (personalDataPurgedAt + naturalKey). La autoría que tapa un rebote
+      está aceptada en decisions.yaml (structural 3.9b, persistence.audit.authorship). Hallazgo nuevo
+      de la v0.3.0, de marcado: decisions.yaml (3.8, api.pagination) afirma «address es dato personal
+      y no se ofrece», design.yaml lleva el tag personal-data, y purgeMessagePersonalData habla de
+      «los datos personales» de un mensaje. Pero ningún campo de domain lleva personal: true (DSL 2.28).
+      La clasificación que la prosa promete no existe en la entidad. Por eso tampoco aplica aquí
+      REV-PERSONAL-CLASSIFICATION (el catálogo la activa solo si ya hay algún campo marcado), y no se
+      levanta OBL-PERSONAL-RETENTION-UNDECIDED. Las dos garantías que cuelgan de la marca (ningún log
+      ni traza lleva el valor; lo que vacía una anonimización) no llegan a ningún campo, y gaps.yaml ya
+      anotaba direcciones en logs de acceso. Campos que identifican a una persona o hablan de ella:
+      EmailMessage.recipients, EmailMessage.renderedSubject (lleva valores de variables: nombres,
+      números de factura), EmailMessage.variableValues (hoy solo sensitive, que es otra cosa: decide qué
+      sale en un output, no qué se registra), SuppressedAddress.address y SuppressedAddress.notes (nota
+      libre sobre alguien, y el diagnostic del rebote suele repetir la dirección). Dudosos, a decidir:
+      SenderSettings.senderName/senderAddress/replyToAddress y su copia EmailMessage.sender (normalmente
+      un buzón de la organización). No son personales: requestedBy, idempotencyKey, templateCode y los
+      payloads de EmailSent y EmailDeliveryFailed (solo ids, códigos y fechas). Por los inputs y
+      payloads pasa el mismo dato: requestNotification.recipients/variables,
+      NotificationRequested.payload.recipients/variables, listMessages.recipient,
+      reportEmailBounce.recipient/diagnostic, suppressAddress.address/notes y la address de ruta de
+      getSuppressedAddress y releaseAddress. Salidas: marcar personal: true en esos cinco campos de
+      domain (la marca va en el campo de la entidad) y decidir los dudosos. Eso abrirá
+      OBL-PERSONAL-RETENTION-UNDECIDED en EmailMessage y SuppressedAddress: en la primera, aceptarla
+      citando purgeMessagePersonalData (persistence.retention no expresa «solo terminales» ni meses) o
+      migrar a retention; en la segunda, aceptarla porque conservar la supresión es lo que honra la
+      baja. O bien quitar la afirmación de decisions.yaml y aceptar por escrito que el servicio no
+      clasifica.
+      Cierre v0.3.0 (diseñador): personal en
+      EmailMessage.recipients/renderedSubject/variableValues y
+      SuppressedAddress.address/notes, y en los inputs y payloads que los llevan. El remitente
+      no: es un buzón de la organización. OBL-PERSONAL-RETENTION-UNDECIDED aceptada en
+      decisions.yaml para las dos raíces (purga propia en EmailMessage; conservación que honra
+      la baja en SuppressedAddress).
+
+  - id: REV-PERSONAL-CLASSIFICATION
+    scope: domain.entities.SenderSettings, domain.types.SenderSnapshot, decisions.yaml (OBL-PERSONAL-RETENTION-UNDECIDED SuppressedAddress)
+    verdict: fixed
+    note: >-
+      He recorrido todos los campos de domain, los inputs de use-cases y los payloads de messaging.
+      Están marcados personal todos los que identifican a una persona o hablan de ella:
+      EmailMessage.recipients, renderedSubject (lleva valores de variables) y variableValues
+      (personal además de sensitive); SuppressedAddress.address y notes (nota libre; el diagnostic
+      del rebote suele repetir la dirección); los inputs requestNotification.recipients/variables,
+      listMessages.recipient, reportEmailBounce.recipient/diagnostic, suppressAddress.address/notes,
+      releaseAddress.address y getSuppressedAddress.address, y el payload de NotificationRequested
+      (recipients/variables). No son personales, y está bien que no lleven la marca: requestedBy (un
+      sistema); idempotencyKey (su pattern ^[A-Za-z0-9._:-]{8,128}$ excluye la @, así que no puede
+      llevar una dirección; un id de cliente ajeno es seudónimo para este servicio); templateCode, los
+      contenidos de EmailTemplate y EmailTemplateVersion (son de la plantilla, no de un destinatario);
+      configureSenderSettings y los payloads de EmailSent y EmailDeliveryFailed (ids, códigos y
+      fechas). Ningún sortable incluye un campo personal. Quedan dos hallazgos, ninguno de campo sin
+      marcar. (1) No marcar SenderSettings.senderAddress, senderName, replyToAddress y su copia
+      EmailMessage.sender (SenderSnapshot) es una decisión legítima, pero no está escrita en el
+      diseño: solo consta en la nota de cierre de REV-DOMAIN-PROMISED-STATE de este review.yaml, que
+      no es el diseño. senderName admite cualquier texto de 120 caracteres («Ana García, Atención al
+      cliente»), y quien lea el YAML no sabrá si se olvidó o se decidió. Salida: añadir a
+      domain.entities.SenderSettings.description (y a domain.types.SenderSnapshot.description) una
+      frase como «Es un buzón de la organización, no de una persona: no es dato personal y no lleva
+      personal; senderName no debe nombrar a un empleado». (2) La aceptación de
+      OBL-PERSONAL-RETENTION-UNDECIDED para SuppressedAddress en decisions.yaml justifica conservar el
+      dato con «address y notes van marcados personal, así que ningún log ni traza los lleva». La
+      marca no cubre los logs de acceso ni los proxies, y la address viaja en la ruta de
+      suppressAddress, releaseAddress y getSuppressedAddress (PUT/POST/GET /suppressions/{address}),
+      exposición aceptada en gaps.yaml (clase 15). La razón promete algo que el diseño ya sabe que no
+      se cumple. Salidas: matizar el reason en decisions.yaml («ningún log ni traza del servidor;
+      los logs de acceso de las rutas /suppressions/{address} sí, aceptado en gaps.yaml») o sacar la
+      address de la ruta (en el cuerpo, con una consulta por POST). Al margen, sin hallazgo: las
+      columnas de autoría (persistence.audit.authorship all) guardan la identidad de empleados del
+      back-office, pero no son campos de domain y las pone la infraestructura, así que la marca no
+      les alcanza.
+      Cierre v0.3.0 (diseñador): SenderSettings y SenderSnapshot dicen en su description que son un
+      buzón de la organización y no dato personal; el reason de la aceptación de SuppressedAddress
+      reconoce los logs de acceso de /suppressions/{address}, aceptados en gaps.yaml (clase 15).
 
   - id: REV-DOMAIN-PARTIAL-WRITER
     scope: domain.entities.SuppressedAddress, domain.entities.EmailMessage, domain.entities.EmailTemplateVersion
     verdict: ok
     note: >-
-      SuppressedAddress → active (suppressAddress, reportEmailBounce): las dos escriben reason,
-      suppressedAt, releasedAt vacío y notes (la del rebote con el id del mensaje y el diagnostic).
-      EmailMessage → failed (rescate de dispatchQueuedMessages; supresión, rechazo y error de
-      sendQueuedMessage): todas fijan failureReason propio y failedAt; sendingSince vacío distingue la
-      vía por supresión, como dice su invariante. La regla nueva de la carrera no añade vía: la
-      ejecución que pierde no escribe nada. EmailTemplateVersion → archived (publish, activate,
-      retire): ningún campo opcional que una vía rellene y otra no.
+      SuppressedAddress → active: suppressAddress y reportEmailBounce escriben las dos reason,
+      suppressedAt, releasedAt vacío y notes (la manual, la del input o vacío; la del rebote, el id del
+      mensaje y el diagnostic). EmailMessage → failed: el rescate de dispatchQueuedMessages y la
+      supresión, el rechazo y el error de sendQueuedMessage fijan las cuatro su failureReason y
+      failedAt; sendingSince vacío distingue la vía por supresión, según su invariante (la inversa
+      convendría escribirla como check: ver REV-DOMAIN-INVARIANT-PROSE). EmailTemplateVersion →
+      archived (publish, activate, retire) y → active (publish, activate): no tienen campos opcionales
+      que una vía rellene y otra no. La v0.3.0 no añade vías.
 
   # ─── use-cases ─────────────────────────────────────────────────────────────
   - id: REV-USECASES-INTERNAL-REPEAT
     scope: use-cases.operations.publishTemplateVersion
     verdict: accepted
     note: >-
-      publishTemplateVersion no tiene idempotency y un reintento tras timeout crea una versión
-      idéntica: aceptado en decisions.yaml (structural 3.2, publishTemplateVersion.idempotency: «Coste
-      bajo y visible»). El error nuevo MALFORMED_TEMPLATE_MARKER es de validación del input y no cambia
-      eso: un reintento de una publicación rechazada vuelve a ser 422. El resto de commands expuestos
-      (createTemplate choca con TEMPLATE_ALREADY_EXISTS, no-op en activate/suppress/release, error tras
-      éxito en retireTemplate) está aceptado en la entrada 3.2 «resto de commands expuestos».
+      Commands sin idempotency: configureSenderSettings, createTemplate, publishTemplateVersion,
+      activateTemplateVersion, retireTemplate, dispatchQueuedMessages, sendQueuedMessage,
+      suppressAddress, releaseAddress, reportEmailBounce y purgeMessagePersonalData. El único que
+      duplica efecto por dentro es publishTemplateVersion: un reintento tras timeout crea una versión
+      idéntica. Está aceptado en decisions.yaml (structural 3.2, publishTemplateVersion.idempotency,
+      since 0.3.0: «Coste bajo y visible»). El resto lo frena una clave natural o es no-op sobre el
+      estado destino, y está aceptado en la entrada 3.2 «resto de commands expuestos». Los dos
+      internos se guardan por transición (sendQueuedMessage, queued → sending) y por
+      personalDataPurgedAt (la purga).
 
   - id: REV-USECASES-GUARD-ORDER
-    scope: use-cases.operations.publishTemplateVersion.rules, use-cases.operations.requestNotification.rules
+    scope: use-cases.operations.publishTemplateVersion.rules, use-cases.operations.activateTemplateVersion.rules, use-cases.operations.requestNotification.rules
     verdict: ok
     note: >-
-      publishTemplateVersion: TEMPLATE_NOT_FOUND (lectura de la plantilla) → DUPLICATE_TEMPLATE_VARIABLES
-      (solo input) → MALFORMED_TEMPLATE_MARKER (solo input: análisis léxico de los tres textos) →
-      UNDECLARED_TEMPLATE_VARIABLES (necesita los marcadores ya extraídos y el conjunto de variables).
-      Cada guarda depende de datos disponibles cuando le toca, y la nueva va en el sitio natural: no se
-      puede saber qué nombre usa un marcador sin haber comprobado antes que lo es. requestNotification
-      (forma y variables repetidas → repetición → remitente, plantilla, variables, supresiones) no
-      cambia: la comparación de contenido usa la versión congelada del mensaje existente, y sobre un
-      mensaje purgado solo el templateCode, datos que ya están en la fila.
+      publishTemplateVersion: TEMPLATE_NOT_FOUND → DUPLICATE_TEMPLATE_VARIABLES →
+      MALFORMED_TEMPLATE_MARKER → UNDECLARED_TEMPLATE_VARIABLES; cada guarda tiene sus datos cuando le
+      toca. activateTemplateVersion: plantilla → versión → no-op si ya está active → marcadores; el
+      no-op va antes de MALFORMED, lo cual es coherente, porque una versión active heredada no se
+      rechaza al reactivarla. requestNotification: forma y variables repetidas → repetición (sobre la
+      versión congelada del existente, o solo templateCode si está purgado) → remitente, plantilla,
+      variables, asunto y supresiones. La v0.3.0 solo añade sortable, que no introduce guardas.
 
   # ─── security ──────────────────────────────────────────────────────────────
   - id: REV-SEC-M2M-AUDIENCE
     scope: security.authentication.serviceAuth
     verdict: ok
     note: >-
-      serviceAuth declara validateAudience true con audience notifications: un token emitido para
-      otro servicio del mismo servidor de autenticación no vale aquí.
+      serviceAuth declara validateAudience true y audience notifications: un token emitido para otro
+      servicio del mismo servidor de autenticación no vale aquí.
 
   - id: REV-SEC-RESOURCE-SCOPE
     scope: security
     verdict: ok
     note: >-
-      Servicio monoinquilino; la prosa no da por hecho alcance por recurso para los roles de
-      back-office, y la restricción de template-editor («no lee correos enviados») está expresada con
-      permisos (solo template:read/write). El único «solo lo suyo» (findMessageByIdempotencyKey) sale de
-      callerIdentity (requestedBy desde serviceClient) y entra en la clave de búsqueda. mail-provider
-      reporta rebotes de cualquier mensaje, que es lo esperado.
+      Monoinquilino y declarado así en la cabecera de la capa. Los roles de back-office son globales y
+      la prosa no les supone alcance por recurso. «template-editor no lee correos enviados» se expresa
+      con permisos (solo template:read/write). El único «solo lo suyo», findMessageByIdempotencyKey,
+      sale de callerIdentity (requestedBy desde serviceClient) y entra en la clave de búsqueda. Los
+      nuevos ?sort (por ejemplo por requestedBy en listMessages) solo los ven quienes tienen
+      message:read, que ya leían esos campos.
 
   # ─── messaging ─────────────────────────────────────────────────────────────
   - id: REV-MSG-MISSING-CHANNEL
@@ -125,71 +265,79 @@ findings:
     verdict: ok
     note: >-
       EmailSent y EmailDeliveryFailed declaran channel notificationEvents y la suscripción
-      NotificationRequested declara notificationRequests; los dos son nombres lógicos sin tecnología.
+      NotificationRequested declara notificationRequests: dos canales lógicos, sin tecnología.
 
   - id: REV-MSG-IDENTITY-FROM-FIELD
     scope: messaging.subscriptions.NotificationRequested.identity
     verdict: accepted
     note: >-
-      identity.from con location field (metadata.source). Releída la asunción: trustedPublishers dice
-      que el broker autentica a los emisores, que el permiso real es la ACL del canal y acepta por
-      escrito los dos efectos de un emisor que escriba el nombre de otro (correos en su nombre y
-      ocupación de sus idempotencyKey). El trabajo pedido no se puede retirar (sale un correo), que es
-      la razón de releerla, y el propio texto lo pondera. El diseño no contempla hoy ningún emisor de
-      fuera de la organización, que es la señal de revisión que deja escrita. Sigue vigente.
+      identity.from con location field (metadata.source). El propio diseño lo explica en
+      identity.trustedPublishers: el broker autentica a los emisores, el permiso real es la ACL del
+      canal, y acepta por escrito los dos efectos de un emisor que escriba el nombre de otro (pedir
+      correos en su nombre y ocupar sus idempotencyKey). Deja como señal de revisión que publique un
+      sistema de fuera de la organización. La v0.3.0 no toca messaging y ningún serviceClient nuevo
+      cruza esa señal.
 
   # ─── persistence ───────────────────────────────────────────────────────────
   - id: REV-PERSIST-MISSING-INDEX
-    scope: persistence.entities
-    verdict: ok
+    scope: persistence.entities.SuppressedAddress.indexes
+    verdict: fixed
     note: >-
-      listMessages: [requestedAt], [status, requestedAt], [templateCode, requestedAt],
-      [requestedBy, requestedAt] y [recipients] multivalor. findMessageByIdempotencyKey: naturalKey
-      (requestedBy, idempotencyKey). Rescate: [status, sendingSince]. Despacho: [status, requestedAt].
-      Purga: [personalDataPurgedAt, requestedAt]. listTemplateVersions: naturalKey
-      (emailTemplate, versionNumber). listSuppressedAddresses: [status, suppressedAt]. Supresión al
-      enviar: naturalKey address. listTemplates filtra hasActiveVersion sobre una tabla pequeña ordenada
-      por code único. La v0.2.0 no añade consultas.
+      Releído con los sortable de la v0.3.0. Servidos: listMessages ordena por requestedAt
+      ([requestedAt]), status ([status, requestedAt]), templateCode ([templateCode, requestedAt]) y
+      requestedBy ([requestedBy, requestedAt]), y filtra por recipient ([recipients] multivalor);
+      findMessageByIdempotencyKey usa la naturalKey; el rescate, [status, sendingSince]; el despacho,
+      [status, requestedAt]; la purga, [personalDataPurgedAt, requestedAt]. listTemplates (code o name)
+      y listTemplateVersions (versionNumber o publishedAt dentro de una plantilla) recorren tablas o
+      subconjuntos pequeños. Falta uno: listSuppressedAddresses lista solo las active (su description)
+      y ahora ordena por reason, pero el único índice es [status, suppressedAt]. La tabla crece sin
+      cota con cada hard-bounce, y con paginación offset un ?sort=reason ordena todas las active en
+      cada página. Salidas: añadir [status, reason] a persistence.entities.SuppressedAddress.indexes, o
+      quitar reason de sortable, o aceptarlo por volumen esperado. Residual, sin hallazgo: los filtros
+      combinados con un ?sort distinto (status=failed&sort=templateCode) no tienen índice compuesto, y
+      es razonable no cubrir todas las combinaciones.
+      Cierre v0.3.0 (diseñador): sortable recortado a lo que tiene índice.
+      listSuppressedAddresses solo ordena por suppressedAt ([status, suppressedAt]);
+      listMessages por requestedAt y templateCode ([templateCode, requestedAt]).
 
   # ─── mail ──────────────────────────────────────────────────────────────────
   - id: REV-MAIL-SENTBY-NO-GUARD
     scope: mail.sentBy.sendQueuedMessage
     verdict: ok
     note: >-
-      sendQueuedMessage, única operación en sentBy, declara queued → sending confirmada antes de
-      entregar al relay, con bloqueo optimista (persistence.consistency.optimisticLocking all). La rule
-      nueva cierra la carrera que quedaba: las dos salidas de queued (failed por supresión y sending)
-      compiten por la misma transición condicionada a queued; la perdedora termina MESSAGE_NOT_QUEUED
-      sin enviar ni publicar, y como EmailDeliveryFailed sale por outbox en la misma transacción, perder
-      la transición también impide el evento. El when de MESSAGE_NOT_QUEUED («ya no está en queued»)
-      cubre a la perdedora. La verificación observable de la guarda está aceptada en decisions.yaml
-      (OBL-GUARD-UNOBSERVABLE).
+      sendQueuedMessage, única operación en sentBy, declara queued → sending, confirmada antes de
+      entregar al relay, con bloqueo optimista (persistence.consistency.optimisticLocking all). Las dos
+      salidas de queued compiten por la misma transición condicionada: la perdedora termina
+      MESSAGE_NOT_QUEUED sin enviar ni publicar, y EmailDeliveryFailed sale por outbox en la misma
+      transacción. Que la guarda solo se verifique por infra/check-idempotency.sh está aceptado en
+      decisions.yaml (OBL-GUARD-UNOBSERVABLE, since 0.3.0).
 
   - id: REV-MAIL-TEMPLATE-ERRORS
     scope: use-cases.operations.requestNotification
     verdict: ok
     note: >-
-      requestNotification declara TEMPLATE_NOT_FOUND, TEMPLATE_NOT_PUBLISHED y
-      MISSING_TEMPLATE_VARIABLES; una opcional sin valor se sustituye por cadena vacía (rules de
-      requestNotification y sendQueuedMessage). Con MALFORMED_TEMPLATE_MARKER en la publicación, ningún
-      marcador de una versión nueva puede quedar sin resolver al renderizar (salvo las versiones
-      heredadas, ver REV-DOMAIN-VAGUE-INVARIANT).
+      requestNotification declara TEMPLATE_NOT_FOUND (404), TEMPLATE_NOT_PUBLISHED (409) y
+      MISSING_TEMPLATE_VARIABLES (422); una opcional sin valor se sustituye por cadena vacía (rules de
+      requestNotification y sendQueuedMessage). MALFORMED_TEMPLATE_MARKER en la publicación impide
+      marcadores irresolubles en versiones nuevas, y las heredadas los dejan literales y escapados. El
+      asunto vacío que resulta de esa sustitución es otro hueco, recogido en REV-DOMAIN-VAGUE-INVARIANT.
 
   - id: REV-MAIL-ASYNC-OUTCOME
     scope: use-cases.operations.sendQueuedMessage
     verdict: ok
     note: >-
-      requestNotification responde 202 y todo envío que falla después tiene desenlace: failed con
-      failureReason (delivery-rejected, delivery-error, stuck-in-sending, recipient-suppressed) y
-      failedAt, EmailDeliveryFailed por outbox (decisión 3.1) y reconciliación por
-      findMessageByIdempotencyKey para los llamantes con notification:read.
+      requestNotification responde 202. Todo envío que falla después acaba en failed con failureReason
+      (delivery-rejected, delivery-error, stuck-in-sending, recipient-suppressed) y failedAt, publica
+      EmailDeliveryFailed por outbox (decisión 3.1), y los llamantes con notification:read pueden
+      reconciliar con findMessageByIdempotencyKey. Por la puerta de eventos, un 404 en esa consulta
+      significa no aceptado (description de NotificationRequested).
 
   - id: REV-MAIL-BOUNCE-CHANNEL
     scope: use-cases.operations.reportEmailBounce
     verdict: ok
     note: >-
-      El canal del rebote está declarado: reportEmailBounce es la puerta (POST
-      /messages/{messageId}/bounces, scope bounce:report del serviceClient mail-provider), el webhook
-      del proveedor llega por un adaptador de despliegue, y el Message-ID lleva como parte local el id
-      del EmailMessage (rule de sendQueuedMessage) para asociarlo. complaint es solo manual
-      (suppressAddress).
+      La puerta del rebote está declarada: reportEmailBounce (POST /messages/{messageId}/bounces, scope
+      bounce:report del serviceClient mail-provider), con el webhook traducido por un adaptador de
+      despliegue. El Message-ID lleva como parte local el id del EmailMessage para asociarlo. complaint
+      solo entra a mano (suppressAddress). La cota de notes que puede romper un rebote está en
+      REV-DOMAIN-BOUND-SERVER-WRITTEN.

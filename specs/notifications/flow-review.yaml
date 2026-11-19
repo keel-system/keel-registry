@@ -1,28 +1,33 @@
 # Careo de flujos de notifications (agente keel-flow-review, contexto limpio).
-# Pasada 1 de la v0.2.0, completa: todos los FL-* careados contra el diseño de esta versión.
-# Pasada 2 de la v0.2.0, acotada a FL-TPL-010, FL-NTF-010, FL-DSP-030 y FL-OBX-002 (los que
-# keel validate dio por recarear); lo careado del resto se conserva de la pasada 1.
-# Pasada 3 de la v0.2.0, acotada a FL-DSP-030; el resto se conserva de las pasadas 1 y 2.
-reviewedAt: 0.2.0
-passes: 3
-scenariosSha256: 1448b4cdce35f2646f582e455ef939464ca4d37c514edf06814d112f6fb41a11
-conventionsSha256: e70485504b1eca9eab3d33f63615fbc4068d57f92dd1c95c602aae3450256cd3
+# Pasada 1 de la v0.3.0, completa: todos los FL-* careados contra el diseño de esta versión
+# (DSL 2.32: output.sortable, EMPTY_RENDERED_SUBJECT, recorte de notes por rebote, checks,
+# marcas personal, filter en requestedFrom/requestedTo, sendingTimeoutMinutes con min 2).
+# Pasada 2 de la v0.3.0, completa (FL-BNC-001 se cerró en el YAML): todos los FL-* careados de
+# nuevo contra el diseño actual. Sin hallazgos nuevos. Los tres de la pasada 1 (FL-TPL-010 →
+# scenario, FL-BNC-001 → design, FL-NTF-040 → scenario) salen del archivo al ser pasada completa;
+# su corrección se comprobó en esta pasada: FL-TPL-010 afirma ?sort en el Then 5 con solo las versiones 1 y 2,
+# reportEmailBounce fija notes = id + espacio + diagnostic recortado, y FL-NTF-040 solo afirma lo
+# observable (el «en lote» está en «Lo que no tiene escenario»).
+reviewedAt: 0.3.0
+passes: 2
+scenariosSha256: a0f9094cbb62b57f809fca39099712e9b40dc0f1c4d6a252d765efbb31477752
+conventionsSha256: 64e9f70a989672c51483528771875184df874e561e5947a16808682a570fefed
 flows:
   - { id: FL-SND-001, sha256: 4381a74f2c0e880f35bfc7a93b382fe587e322006805682b8a84364a6ecb3472 }
   - { id: FL-SND-002, sha256: 57fd4ba58e38fbf7c76c235d68ed33ed7c5a38634e2956381a6eb559bd853f1d }
   - { id: FL-SND-003, sha256: 9263d054ce7f188075fa74088664034b370166463cc6edc3005c816dc1bbe696 }
   - { id: FL-TPL-001, sha256: 3323aee525507dd6c87a8b1172785debdd849d58d368f9c784456ebc04707958 }
-  - { id: FL-TPL-010, sha256: 4e0b2c894caeb4707c4d87711614d9a97f6a1b381e74f9c57f22a5a6fcfe620a }
+  - { id: FL-TPL-010, sha256: 36bf43c4b11a8b8c0dc0938372010f2608231ec4f29cbad2ee0dba24417f6c8b }
   - { id: FL-TPL-011, sha256: 8f5a1469f8052fa6f1869a1679cbca0096a788ce9e6dcd8153590c6025403a9a }
   - { id: FL-TPL-020, sha256: 8ce8eec4206cd2e3e52499690dfe47fd559a769fea8e6118ef2edb5b304f08a3 }
-  - { id: FL-TPL-030, sha256: b79546de1e36981a8f23a87c8158d4f60ce850416c761fbc8e5831ec00af79c2 }
+  - { id: FL-TPL-030, sha256: 4ec5f37ce60aa8b97e693b551b8e3dc82f1e1d0f6ca4031443ff9b321c513c56 }
   - { id: FL-NTF-001, sha256: 6e2e4c7bdce837d9beb7afb4478b11032656d456c3356ba2f8635bebed282cd8 }
   - { id: FL-NTF-002, sha256: 307c09b53dd7f355b80bef81c387cfc9ea8407dbd85b7353ca32602b1caf9d55 }
   - { id: FL-NTF-003, sha256: 2a796dec7d06ac01b186e25814ff474f3f6f1c13e43bcd7b6c00636afb28092e }
-  - { id: FL-NTF-010, sha256: 6e638dd38cf0a9f9f23049bb6a2a7cb0c73b7862bebfe2aea46b86e8a09d8c6e }
+  - { id: FL-NTF-010, sha256: 32d402f17c17ab484b0f539e45b740d30d9a06da4d4a3a0acaec97c9b5b95b12 }
   - { id: FL-NTF-020, sha256: 7fe523ff4fd4dd4facf4c5a4823a806410e794452c0ebf1f535b76164a26a27e }
   - { id: FL-NTF-030, sha256: 41b74af47ec550737d699c7acbfeb243158c496d81e78c554d0949f6f27b743b }
-  - { id: FL-NTF-040, sha256: d483808c5da5c62e43b8ab7b1f0d439309433191ea80391024153122e2f67926 }
+  - { id: FL-NTF-040, sha256: bea5c01569ff169bb601c66281150457314a18f90f6567477c24244d687a619f }
   - { id: FL-EVT-001, sha256: 3d0e448532bf0bc48614a6c5057c75e2dd8495d76533408098aaddd20a04fa7d }
   - { id: FL-EVT-002, sha256: 533a988bed09f33d73ba989f3fec3dd7e5357e817a531bfa3166df1a5e16289f }
   - { id: FL-EVT-003, sha256: ad83eb9eae9652ce6d763945a33d2ea25ffbeceeeeffec79c52e220ddd6f2ef8 }
@@ -37,31 +42,15 @@ flows:
   - { id: FL-RSC-002, sha256: 491abc9d1f8a632d70c46c7d85d70d86a3488f75f6feea1f7530b07c21ddb6bb }
   - { id: FL-OBX-001, sha256: ae4135caa2ef83800339a1fa60fc5cccd2289ec0e81bd40a0823b243bda2dd4d }
   - { id: FL-OBX-002, sha256: 7ed2f1e8506ae5bd3a2b0224b0634798b7404b682c7e394ea65e94cccd97044e }
-  - { id: FL-BNC-001, sha256: d3e8c405a967d4f9aaa7bc0ab7f7b89a5a781c79d2c7f803be2aec356cefaaa9 }
+  - { id: FL-BNC-001, sha256: 738d89bb15518c92f66f087db7cb058865f9467f7df22f0b1a73c7ac9728a12a }
   - { id: FL-BNC-002, sha256: 7799281a7ad89575d45c4f2c0fc2fd27d82b06f104c5c105e03622c121c69980 }
   - { id: FL-SUP-001, sha256: 6710dc8bfac35c82490ebf012acbfb964e9bfc12ce2379715de2e64bfbec3b87 }
   - { id: FL-SUP-002, sha256: 7241c4360ea0ad644c26ae3939f0aa45edbd413f983831c62a598af938a63f10 }
-  - { id: FL-SUP-003, sha256: 7a244fb9f0faf189e7d62e20ff0487a5d684b0a3078f1366be6ca2763cd32e23 }
+  - { id: FL-SUP-003, sha256: 8df0c2367e58145c7448edd1ee874f5add79b9d077ccdf242d62f71a06799758 }
   - { id: FL-MSG-001, sha256: 15fc946f372279433ccd4d98908e7d5dec500c75f7295f3286d6924c8fd4080c }
-  - { id: FL-MSG-002, sha256: f85c2621e2720381da57ebe26e99f1f7162d3145ebd07abb28d4ccf771e3f51d }
+  - { id: FL-MSG-002, sha256: 70c2117d96602ed0b4a860b0cdc7966485e0177bcc2d5847645d717c565150df }
   - { id: FL-PRG-001, sha256: 295982d2dbd2db10effed58e3d483afcb4ef21ee8dfbd0764b50f18a81bfcd5c }
   - { id: FL-SEC-001, sha256: 5d81f368604cf158e438a6f0d8b6238f92fdb68360f30d5d46d4279f1532ccf9 }
   - { id: FL-SEC-002, sha256: cfe9b45a767e6a2361d479836de17ac19edbd353fbba040cd925529e93366015 }
   - { id: FL-SEC-003, sha256: 1bc93b8fee9c58def046f778ad41df666d8e153391affbab26f9bbea2dd45fe1 }
-findings:
-  - flow: FL-OBX-002
-    step: "Given"
-    kind: unreachable-given
-    artifact: validation-scenarios.Preparaciones
-    evidence: >-
-      El Given pide «m1 ya sent con su EmailSent pendiente de salir» y no nombra ninguna
-      preparación. Las convenciones dicen: «Cada flujo arranca desde el estado vacío y ejecuta por
-      la API las preparaciones que su Given nombra». Desde el estado vacío no existe m1. Para que
-      exista hace falta remitente (si no, requestNotification responde SENDER_SETTINGS_NOT_CONFIGURED),
-      una plantilla con versión active y una petición aceptada que el despacho haya enviado. Los
-      demás flujos que parten de un mensaje enviado (FL-BNC-001, FL-PRG-001) nombran P-TPL y R1. Este
-      no nombra nada, así que su estado de partida no se puede construir tal como está escrito.
-    proposal: >-
-      Escribir el Given como en FL-OBX-001: «P-TPL; el canal de eventos indisponible; billing pide
-      R1 → m1 y, tras un ciclo del despacho, m1 está sent con su EmailSent pendiente de salir».
-    resolution: scenario
+findings: []

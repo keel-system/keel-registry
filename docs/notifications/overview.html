@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.2.1 -->
+<!-- keel:version 0.3.0 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -188,9 +188,9 @@
 const KEEL = {
   "service": {
     "name": "notifications",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "description": "Envía correo transaccional a partir de plantillas que gestiona negocio, a petición de los sistemas de la organización por HTTP o por eventos, sin enviar nunca dos veces el mismo correo.",
-    "generatedAt": "2026-10-20"
+    "generatedAt": "2026-11-19"
   },
   "links": [
     {
@@ -1053,7 +1053,7 @@ const KEEL = {
         ]
       },
       "rules": [
-        "Orden de evaluación: (1) forma de la petición y variables repetidas; (2) comprobar la repetición; (3) remitente, plantilla, variables, longitud del asunto renderizado y supresiones.",
+        "Orden de evaluación: (1) forma de la petición y variables repetidas; (2) comprobar la repetición; (3) remitente, plantilla, variables, asunto renderizado (vacío, después longitud) y supresiones.",
         "Los destinatarios se normalizan a minúsculas y se deduplican antes de cualquier comparación; recipients conserva el orden de llegada y, ante duplicados, la primera aparición.",
         "La comprobación de supresiones se hace para todos los destinatarios a la vez, no una consulta por destinatario.",
         "Mismo contenido significa mismo templateCode, mismo conjunto de destinatarios normalizados y mismo conjunto de pares (name, value) de las variables declaradas por la versión congelada, sin importar el orden.",
@@ -1104,6 +1104,11 @@ const KEEL = {
         {
           "code": "RENDERED_SUBJECT_TOO_LONG",
           "when": "El asunto renderizado pasa de 300 caracteres; no se recorta y no se acepta el mensaje.",
+          "http": 422
+        },
+        {
+          "code": "EMPTY_RENDERED_SUBJECT",
+          "when": "El asunto renderizado queda vacío o solo con espacios (p. ej. un subject que es solo el marcador de una variable opcional que no llega); no se acepta un correo sin asunto.",
           "http": 422
         },
         {
@@ -1641,7 +1646,7 @@ const KEEL = {
         "recipient se normaliza a minúsculas.",
         "Con bounceType transient no cambia ningún estado persistente; solo se registra en el log.",
         "Con bounceType permanent, si no existe registro se crea active con reason hard-bounce; si existe released se reactiva con reason hard-bounce aunque lo hubiera liberado una persona; si ya está active no cambia nada.",
-        "Al crear o reactivar por rebote, suppressedAt es ahora, releasedAt queda vacío y notes se reemplaza por el id del mensaje y el diagnostic.",
+        "Al crear o reactivar por rebote, suppressedAt es ahora, releasedAt queda vacío y notes se reemplaza por el id del mensaje, un espacio y el diagnostic; si no cabe en 1000 caracteres, se recorta el diagnostic por el final, de modo que el id siempre queda: un diagnostic largo nunca impide la supresión.",
         "El proveedor real llega a través de un adaptador de despliegue que traduce su webhook a este contrato; el messageId es la parte local del Message-ID del correo rebotado.",
         "El rebote no cambia el estado del mensaje."
       ],
@@ -1874,7 +1879,7 @@ const KEEL = {
     "entities": [
       {
         "name": "SenderSettings",
-        "description": "Remitente verificado del servicio. Existe como mucho una; mientras no exista no se acepta ninguna petición de envío.",
+        "description": "Remitente verificado del servicio. Existe como mucho una; mientras no exista no se acepta ninguna petición de envío. Es un buzón de la organización, no de una persona: no es dato personal y no lleva personal; senderName no debe nombrar a un empleado.",
         "persisted": true,
         "fields": [
           {
@@ -2132,14 +2137,18 @@ const KEEL = {
             "type": "EmailAddress",
             "list": true,
             "description": "Destinatarios deduplicados y en minúsculas. Se vacía al purgar.",
-            "flags": []
+            "flags": [
+              "personal"
+            ]
           },
           {
             "name": "renderedSubject",
             "type": "string",
             "list": false,
             "description": "Asunto renderizado al aceptar. Se vacía al purgar.",
-            "flags": []
+            "flags": [
+              "personal"
+            ]
           },
           {
             "name": "variableValues",
@@ -2147,7 +2156,8 @@ const KEEL = {
             "list": true,
             "description": "Solo las variables declaradas. Se vacía al purgar.",
             "flags": [
-              "sensible"
+              "sensible",
+              "personal"
             ]
           },
           {
@@ -2257,14 +2267,20 @@ const KEEL = {
           }
         },
         "invariants": [
-          "Mientras personalDataPurgedAt está vacío, recipients tiene entre 1 y 20 direcciones distintas, en minúsculas, y renderedSubject tiene valor.",
-          "status sent implica sentAt con valor.",
-          "status failed implica failureReason y failedAt con valor.",
-          "status sending o sent implica sendingSince con valor.",
-          "status failed con sendingSince vacío implica failureReason recipient-suppressed.",
-          "status queued implica sendingSince, sentAt, failedAt y failureReason vacíos.",
+          "check: exactamente uno de [recipients, personalDataPurgedAt]",
+          "check: exactamente uno de [renderedSubject, personalDataPurgedAt]",
+          "check: sentAt presente cuando status en [sent]",
+          "check: failureReason presente cuando status en [failed]",
+          "check: failedAt presente cuando status en [failed]",
+          "check: sendingSince presente cuando status en [sending, sent]",
+          "check: sendingSince ausente cuando status en [queued]",
+          "check: sentAt ausente cuando status en [queued]",
+          "check: failedAt ausente cuando status en [queued]",
+          "check: failureReason ausente cuando status en [queued]",
+          "check: sendingSince presente cuando failureReason en [delivery-rejected, delivery-error, stuck-in-sending]",
+          "Mientras personalDataPurgedAt está vacío, recipients tiene entre 1 y 20 direcciones distintas y en minúsculas.",
           "sender, templateCode, templateVersionNumber, templateVersionId, requestedBy e idempotencyKey no cambian tras aceptar el mensaje.",
-          "Con personalDataPurgedAt con valor, recipients, renderedSubject y variableValues están vacíos."
+          "Con personalDataPurgedAt con valor, variableValues está vacío."
         ]
       },
       {
@@ -2289,7 +2305,8 @@ const KEEL = {
             "description": null,
             "flags": [
               "requerido",
-              "único"
+              "único",
+              "personal"
             ]
           },
           {
@@ -2306,7 +2323,9 @@ const KEEL = {
             "type": "string",
             "list": false,
             "description": null,
-            "flags": []
+            "flags": [
+              "personal"
+            ]
           },
           {
             "name": "status",
@@ -2347,8 +2366,8 @@ const KEEL = {
           }
         },
         "invariants": [
-          "status released implica releasedAt con valor.",
-          "status active implica releasedAt vacío."
+          "check: releasedAt presente cuando status en [released]",
+          "check: releasedAt ausente cuando status en [active]"
         ]
       }
     ],
@@ -2421,7 +2440,7 @@ const KEEL = {
         "name": "SenderSnapshot",
         "kind": "value object",
         "detail": "address: EmailAddress, name: string, replyToAddress: EmailAddress",
-        "description": "Remitente congelado en el mensaje al aceptarlo; el envío nunca vuelve a leer la configuración viva."
+        "description": "Remitente congelado en el mensaje al aceptarlo; el envío nunca vuelve a leer la configuración viva. Es un buzón de la organización, no dato personal (ver SenderSettings)."
       },
       {
         "name": "TemplateVersionStatus",
@@ -2439,7 +2458,7 @@ const KEEL = {
         "name": "FailureReason",
         "kind": "enum",
         "detail": "delivery-rejected | delivery-error | stuck-in-sending | recipient-suppressed",
-        "description": "Por qué un mensaje acabó en failed. delivery-rejected: el relay rechazó el mensaje; delivery-error: el intento falló sin respuesta concluyente; stuck-in-sending: el rescate lo cerró tras 15 minutos en sending, sin reenviarlo; recipient-suppressed: al ir a enviarlo, algún destinatario tenía una supresión active, y no se intentó."
+        "description": "Por qué un mensaje acabó en failed. delivery-rejected: el relay rechazó el mensaje; delivery-error: el intento falló sin respuesta concluyente; stuck-in-sending: el rescate lo cerró tras sendingTimeoutMinutes en sending, sin reenviarlo; recipient-suppressed: al ir a enviarlo, algún destinatario tenía una supresión active, y no se intentó."
       },
       {
         "name": "SuppressionReason",

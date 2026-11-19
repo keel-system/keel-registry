@@ -1,7 +1,7 @@
 # notifications — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/notifications v0.2.1. Contrato de validación para la fase de generación.
+> specs/notifications v0.3.0. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -75,6 +75,11 @@
   sin valor se sustituye por cadena vacía.
 - **Destinatarios**: `recipients` y el `To` conservan el orden de llegada, en minúsculas y con la
   primera aparición de cada duplicado.
+- **Orden pedido por el cliente** (declarado en el YAML, `output.sortable`): `?sort=<campo>,asc|desc`
+  solo sobre las columnas de cada listado —`listTemplates`: `code`, `name`; `listTemplateVersions`:
+  `versionNumber`, `publishedAt`; `listMessages`: `requestedAt`, `templateCode`;
+  `listSuppressedAddresses`: `suppressedAt`—. Cualquier otro campo, o otra dirección, es `400`. El
+  `id` ascendente desempata siempre. Sin `?sort=` rige el orden por defecto de cada listado.
 
 ### Preparaciones
 
@@ -244,6 +249,8 @@ resto igual.
 5. `listTemplateVersions` (`GET /api/v1/templates/invoice-issued/versions`) responde `200` con
    `items` = [versión 2 (`active`), versión 1 (`archived`)] en ese orden, cada una **sin** `htmlBody`
    ni `textBody`; `totalElements: 2`.
+   Con `?sort=versionNumber,asc` → `items` = [versión 1, versión 2]; con `?sort=status` o
+   `?sort=subject` → `400`.
 
 **When** (3): `editor` publica con `subject: "Factura {{invoiceNumber}} {{ dueDate }}"` sin declarar
 `dueDate`.
@@ -337,6 +344,9 @@ resto igual.
 5. `?size=500`: `size: 100` en el sobre.
 6. Tras publicar una versión en `b-receipt`, `?hasActiveVersion=false` devuelve `items: []`,
    `totalElements: 0`, `totalPages: 0`.
+7. `?sort=code,desc` → `items` = [`c-reminder`, `b-receipt`, `a-welcome`].
+8. `?sort=hasActiveVersion`, `?sort=description` o `?sort=code,sideways` → `400`: solo se ordena por
+   `code` o `name`, ascendente o descendente.
 
 ## Envíos servidor a servidor
 
@@ -400,8 +410,10 @@ en el buzón).
 
 ### FL-NTF-010: rechazos de la petición, su precedencia y que no salga correo
 
-**Given**: P-TPL; además `editor` crea `draft-tpl` sin publicar, y `operator` suprime
-`blocked@example.com` (`PUT /api/v1/suppressions/blocked@example.com` con
+**Given**: P-TPL; además `editor` crea `draft-tpl` sin publicar; crea `topic-only` y publica su
+versión 1 con `{ "subject": "{{topic}}", "htmlBody": "<p>Aviso</p>", "textBody": "Aviso",
+"variables": [ { "name": "topic", "description": "Tema", "required": false } ] }`; y `operator`
+suprime `blocked@example.com` (`PUT /api/v1/suppressions/blocked@example.com` con
 `{ "reason": "manual" }`).
 **When**: `billing` envía variantes de R1, cada una con su propia `idempotencyKey`.
 **Then**:
@@ -412,7 +424,9 @@ en el buzón).
 5. Dos valores para `amount` → `422 DUPLICATE_TEMPLATE_VARIABLES`.
 6. `invoiceNumber` de 293 caracteres (el asunto renderizado `"Factura " + invoiceNumber` suma 301)
    → `422 RENDERED_SUBJECT_TOO_LONG`.
-7. Para cada una de las seis, `findMessageByIdempotencyKey` responde `404` y, tras un ciclo del
+7. `templateCode: "topic-only"` sin variables → `422 EMPTY_RENDERED_SUBJECT`; con
+   `variables: [ { "name": "topic", "value": "   " } ]` (solo espacios) → `422 EMPTY_RENDERED_SUBJECT`.
+8. Para cada una de las siete, `findMessageByIdempotencyKey` responde `404` y, tras un ciclo del
    despacho, el buzón no recibe ningún correo.
 
 **Orden de evaluación** (`requestNotification`):
@@ -423,15 +437,19 @@ en el buzón).
 4. La plantilla existe → `TEMPLATE_NOT_FOUND` (`404`).
 5. Tiene versión active → `TEMPLATE_NOT_PUBLISHED` (`409`).
 6. Variables required presentes → `MISSING_TEMPLATE_VARIABLES` (`422`).
-7. El asunto renderizado cabe en 300 caracteres → `RENDERED_SUBJECT_TOO_LONG` (`422`).
-8. Ningún destinatario suprimido → `RECIPIENT_SUPPRESSED` (`422`).
+7. El asunto renderizado no queda vacío → `EMPTY_RENDERED_SUBJECT` (`422`).
+8. El asunto renderizado cabe en 300 caracteres → `RENDERED_SUBJECT_TOO_LONG` (`422`).
+9. Ningún destinatario suprimido → `RECIPIENT_SUPPRESSED` (`422`).
 
 **Casos borde**:
 - `templateCode: "no-existe"` **y** sin `amount` **y** destinatario suprimido → `404 TEMPLATE_NOT_FOUND`.
 - `templateCode: "draft-tpl"` con variables repetidas → `422 DUPLICATE_TEMPLATE_VARIABLES` (la 1 precede a todo).
-- Sin `amount` **y** destinatario suprimido → `422 MISSING_TEMPLATE_VARIABLES` (la 6 precede a la 8).
-- `invoiceNumber` de 293 caracteres **y** destinatario suprimido → `422 RENDERED_SUBJECT_TOO_LONG` (la 7
-  precede a la 8).
+- Sin `amount` **y** destinatario suprimido → `422 MISSING_TEMPLATE_VARIABLES` (la 6 precede a la 9).
+- `templateCode: "topic-only"` sin variables **y** destinatario suprimido → `422 EMPTY_RENDERED_SUBJECT`
+  (la 7 precede a la 9).
+- `templateCode: "topic-only"` con `topic: "Hola"` → `202` con `renderedSubject: "Hola"`.
+- `invoiceNumber` de 293 caracteres **y** destinatario suprimido → `422 RENDERED_SUBJECT_TOO_LONG` (la 8
+  precede a la 9).
 - `invoiceNumber` de 292 caracteres → `202`: el asunto de 300 caracteres justos se acepta sin recortar.
 - `recipients: []` o 21 destinatarios → `400 VALIDATION_ERROR`; `idempotencyKey: "abc"` (menos de 8)
   → `400 VALIDATION_ERROR`; dirección mal formada → `400 VALIDATION_ERROR`.
@@ -469,8 +487,9 @@ en el buzón).
 **When**: `billing` pide una notificación con 1 destinatario y otra con 20 destinatarios distintos.
 **Then**:
 1. Las dos responden `202`.
-2. El trabajo de la operación con 20 destinatarios **no crece** respecto al de 1: la comprobación de
-   supresión se hace en lote, no una consulta por destinatario. Cómo se mide es del generador.
+2. Tras suprimir `operator` la dirección que va en la posición 20, la misma petición de 20
+   destinatarios con otra `idempotencyKey` → `422 RECIPIENT_SUPPRESSED`: se comprueban todos, también
+   el último.
 
 ## Eventos entrantes
 
@@ -681,6 +700,14 @@ y `mail-provider` vuelve a reportar el rebote permanente.
 6. El registro vuelve a `active` con el mismo `id`, `reason: "hard-bounce"`, `releasedAt: null` y un
    `suppressedAt` posterior: el rebote reactiva aunque la hubiera liberado una persona.
 
+**When** (5): `mail-provider` reporta un rebote permanente de `ana@example.com` en `m1` con un
+`diagnostic` de 1000 caracteres (`"550 "` seguido de 996 `x`).
+**Then**:
+7. Status `204`: un diagnostic largo no impide la supresión.
+8. `getSuppressedAddress` de `ana@example.com` → `200`, `status: "active"`, `reason: "hard-bounce"`, y
+   `notes` contiene `m1` y empieza el diagnostic por `"550 "`, con **como mucho 1000** caracteres: lo
+   que no cabe se recorta por el final.
+
 **Casos borde**:
 - `reportEmailBounce` sobre un id inexistente → `404 MESSAGE_NOT_FOUND`.
 - `recipient: "otra@example.com"` (no está en `m1`) → `422 RECIPIENT_NOT_IN_MESSAGE`.
@@ -746,6 +773,9 @@ y `mail-provider` vuelve a reportar el rebote permanente.
 1. `items` en orden `suppressedAt` descendente = [`c`, `b`, `a`], `totalElements: 3`.
 2. `?size=2` → [`c`, `b`], `totalPages: 2`; `?size=2&page=1` → [`a`].
 3. `?page=4` → `items: []`, `totalElements: 3`; `?size=500` → `size: 100`.
+4. `?sort=suppressedAt,asc` → [`a`, `b`, `c`].
+5. `?sort=address` o `?sort=reason` → `400`: la dirección es un dato personal y el motivo no se
+   ofrece para ordenar.
 
 ## Consulta de correos
 
@@ -776,6 +806,8 @@ y `mail-provider` vuelve a reportar el rebote permanente.
 1. `?size=2` → 2 elementos, `totalElements: 3`, `totalPages: 2`; `?size=2&page=1` → el más antiguo.
 2. `?page=9` → `items: []`; `?size=500` → `size: 100`.
 3. `?templateCode=no-such-tpl` → `items: []`, `totalElements: 0`, `totalPages: 0`.
+4. `?sort=requestedAt,asc` → los tres, del más antiguo al más reciente.
+5. `?sort=status`, `?sort=requestedBy` o `?sort=recipients` → `400`.
 
 ## Purga de datos personales
 
@@ -861,5 +893,16 @@ depende del reloj del despacho.
   almacén. Lo mismo vale para el render literal de un `{{` mal formado de esas versiones.
 - **La ejecución programada de la purga**: su condición de entrada es el paso del tiempo. Se verifica
   por el disparo manual con `personalDataRetentionMonths: 0` (FL-PRG-001).
+- **Que los datos personales no salgan en logs ni trazas** (`personal` en `recipients`,
+  `renderedSubject`, `variableValues`, `address`, `notes` y sus inputs y payloads): no es observable
+  por la API. Se verifica en el proyecto generado, sobre su inventario de datos personales y la
+  configuración de logging.
+- **Los `checks` de `EmailMessage` y `SuppressedAddress`**: ninguna operación declarada los rompe (es lo
+  que garantizan las transiciones y reglas de cada una), así que no hay petición que provoque
+  `INVARIANT_VIOLATED`. Se verifican en las pruebas de la entidad del proyecto generado.
+- **Que la comprobación de supresiones sea en lote** (una consulta para todos los destinatarios, no
+  una por destinatario): el número de consultas no es observable por la API. FL-NTF-040 cubre que se
+  comprueban todos; el coste se verifica en el proyecto generado, contando las consultas en una
+  prueba de integración.
 - **La aceptación tardía del relay tras el rescate** (el correo sale con el mensaje ya `failed`): no se
   puede provocar en caja negra sin controlar el reloj del relay; es un desajuste aceptado en el diseño.
