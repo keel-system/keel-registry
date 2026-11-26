@@ -1,6 +1,6 @@
 # notifications — Documento de diseño
 
-> specs/notifications v0.3.0. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/notifications v0.3.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -29,6 +29,161 @@ Fuera de alcance, a propósito: adjuntos, localización por idioma, envíos prog
 seguimiento de aperturas y clics, canal automático de quejas y multitenancy.
 
 ## 2. Modelo de dominio
+
+Los diagramas salen de `keel describe specs/notifications --diagram`, tal cual: derivan del YAML y no pueden contradecirlo.
+
+### Dominio
+
+```mermaid
+classDiagram
+  direction LR
+  namespace SenderSettingsAggregate {
+    class SenderSettings {
+      <<raíz>>
+      id: uuid · id, generado
+      key: enum · clave natural, único, default default
+      senderAddress: EmailAddress · requerido
+      senderName: string
+      replyToAddress: EmailAddress
+    }
+  }
+  namespace EmailTemplateAggregate {
+    class EmailTemplate {
+      <<raíz>>
+      id: uuid · id, generado
+      code: TemplateCode · clave natural, único, requerido
+      name: string · requerido
+      description: string
+      hasActiveVersion: boolean · calculado
+    }
+    class EmailTemplateVersion {
+      id: uuid · id, generado
+      versionNumber: int · clave natural, requerido, generado
+      subject: string · requerido
+      htmlBody: text · requerido
+      textBody: text · requerido
+      variables: TemplateVariable[]
+      status: TemplateVersionStatus · default active
+      publishedAt: timestamp · generado
+    }
+  }
+  namespace EmailMessageAggregate {
+    class EmailMessage {
+      <<raíz>>
+      id: uuid · id, generado
+      requestedBy: string · clave natural, requerido
+      idempotencyKey: IdempotencyKey · clave natural, requerido
+      recipients: EmailAddress[] · personal
+      renderedSubject: string · personal
+      variableValues: VariableValue[] · personal, sensible
+      sender: SenderSnapshot · requerido
+      templateCode: TemplateCode · requerido
+      templateVersionNumber: int · requerido
+      templateVersionId: uuid · requerido
+      status: MessageStatus · default queued
+      requestedAt: timestamp · generado
+      sendingSince: timestamp
+      sentAt: timestamp
+      failedAt: timestamp
+      failureReason: FailureReason
+      personalDataPurgedAt: timestamp
+    }
+  }
+  namespace SuppressedAddressAggregate {
+    class SuppressedAddress {
+      <<raíz>>
+      id: uuid · id, generado
+      address: EmailAddress · clave natural, único, requerido, personal
+      reason: SuppressionReason · requerido
+      notes: string · personal
+      status: SuppressionStatus · default active
+      suppressedAt: timestamp · requerido
+      releasedAt: timestamp
+    }
+  }
+  class TemplateVariable {
+    <<value object>>
+    name: VariableName · requerido
+    description: string · requerido
+    required: boolean · requerido
+  }
+  class VariableValue {
+    <<value object>>
+    name: VariableName · requerido
+    value: string · requerido
+  }
+  class SenderSnapshot {
+    <<value object>>
+    address: EmailAddress · requerido
+    name: string
+    replyToAddress: EmailAddress
+  }
+  class TemplateVersionStatus {
+    <<enumeration>>
+    active
+    archived
+  }
+  class MessageStatus {
+    <<enumeration>>
+    queued
+    sending
+    sent
+    failed
+  }
+  class FailureReason {
+    <<enumeration>>
+    delivery-rejected
+    delivery-error
+    stuck-in-sending
+    recipient-suppressed
+  }
+  class SuppressionReason {
+    <<enumeration>>
+    hard-bounce
+    complaint
+    manual
+  }
+  class SuppressionStatus {
+    <<enumeration>>
+    active
+    released
+  }
+  EmailTemplate "1" *-- "*" EmailTemplateVersion : versions
+  EmailTemplateVersion "*" --> "1" EmailTemplate : emailTemplate
+  note for EmailMessage "checks: exactlyOne recipients, personalDataPurgedAt | exactlyOne renderedSubject, personalDataPurgedAt | requires sentAt · when field=status in=sent | requires failureReason · when field=status in=failed | requires failedAt · when field=status in=failed | requires sendingSince · when field=status in=sending,sent | forbids sendingSince · when field=status in=queued | forbids sentAt · when field=status in=queued | forbids failedAt · when field=status in=queued | forbids failureReason · when field=status in=queued | requires sendingSince · when field=failureReason in=delivery-rejected,delivery-error,stuck-in-sending"
+  note for SuppressedAddress "checks: requires releasedAt · when field=status in=released | forbids releasedAt · when field=status in=active"
+```
+
+### Ciclo de vida de EmailTemplateVersion (status)
+
+```mermaid
+stateDiagram-v2
+  [*] --> active
+  active --> archived : publishTemplateVersion, activateTemplateVersion, retireTemplate
+  archived --> active : activateTemplateVersion
+```
+
+### Ciclo de vida de EmailMessage (status)
+
+```mermaid
+stateDiagram-v2
+  [*] --> queued
+  queued --> sending : sendQueuedMessage
+  queued --> failed : sendQueuedMessage
+  sending --> sent : sendQueuedMessage
+  sending --> failed : dispatchQueuedMessages, sendQueuedMessage
+  sent --> [*]
+  failed --> [*]
+```
+
+### Ciclo de vida de SuppressedAddress (status)
+
+```mermaid
+stateDiagram-v2
+  [*] --> active
+  active --> released : releaseAddress
+  released --> active : suppressAddress, reportEmailBounce
+```
 
 **Value types**
 
@@ -131,7 +286,8 @@ direccionan por clave natural.
 **Envío** — `requestNotification` acepta la petición (`202`, no promete la entrega) y la deja
 `queued`. `dispatchQueuedMessages` corre cada minuto: primero rescata los mensajes atascados en
 `sending` más de `sendingTimeoutMinutes` (15, mínimo 2) y los da por fallidos **sin reenviarlos**; después
-envía hasta 200 `queued` por antigüedad. `sendQueuedMessage` (interna) es **el único emisor**: su
+envía hasta 200 `queued` por antigüedad, despachando `sendQueuedMessage` con cada uno
+(`dispatches`, declarado desde la v0.3.1). `sendQueuedMessage` (interna) es **el único emisor**: su
 guarda es la transición `queued → sending`, que se confirma antes de hablar con el relay.
 
 **Consulta** — `getMessage` y `listMessages` (filtros por llamante, estado, plantilla, destinatario

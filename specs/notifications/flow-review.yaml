@@ -1,17 +1,14 @@
 # Careo de flujos de notifications (agente keel-flow-review, contexto limpio).
-# Pasada 1 de la v0.3.0, completa: todos los FL-* careados contra el diseño de esta versión
-# (DSL 2.32: output.sortable, EMPTY_RENDERED_SUBJECT, recorte de notes por rebote, checks,
-# marcas personal, filter en requestedFrom/requestedTo, sendingTimeoutMinutes con min 2).
-# Pasada 2 de la v0.3.0, completa (FL-BNC-001 se cerró en el YAML): todos los FL-* careados de
-# nuevo contra el diseño actual. Sin hallazgos nuevos. Los tres de la pasada 1 (FL-TPL-010 →
-# scenario, FL-BNC-001 → design, FL-NTF-040 → scenario) salen del archivo al ser pasada completa;
-# su corrección se comprobó en esta pasada: FL-TPL-010 afirma ?sort en el Then 5 con solo las versiones 1 y 2,
-# reportEmailBounce fija notes = id + espacio + diagnostic recortado, y FL-NTF-040 solo afirma lo
-# observable (el «en lote» está en «Lo que no tiene escenario»).
-reviewedAt: 0.3.0
-passes: 2
-scenariosSha256: a0f9094cbb62b57f809fca39099712e9b40dc0f1c4d6a252d765efbb31477752
-conventionsSha256: 64e9f70a989672c51483528771875184df874e561e5947a16808682a570fefed
+# v0.3.1 (patch: DSL declarado 2.33 y escenarios alineados con la convención de Paginación: página
+# vacía o fuera de rango con items [], totalElements 0 y totalPages 0). Ningún YAML de capa cambió.
+# Pasada 3, COMPLETA: la pidió keel validate porque cambió conventionsSha256. Todos los FL-*
+# careados contra el diseño actual, con la lista cerrada de 2.33 (incluida unfixed-given).
+# FL-TPL-030.4, FL-SUP-003.3 y FL-MSG-002.2 (los realineados) se deducen de la convención y de
+# docs/dsl/api.md § página vacía; también FL-TPL-030.6, FL-SUP-001.5 y FL-MSG-002.3.
+reviewedAt: 0.3.1
+passes: 3
+scenariosSha256: 4fd9a8dfcdea3942faa4c3d191693c6f37259325938a7f273e2dc7e4e4d43a3a
+conventionsSha256: 60650f2a86b28aa981a238f5fe93ef752a24d13ffea024fd94e78bf82162079f
 flows:
   - { id: FL-SND-001, sha256: 4381a74f2c0e880f35bfc7a93b382fe587e322006805682b8a84364a6ecb3472 }
   - { id: FL-SND-002, sha256: 57fd4ba58e38fbf7c76c235d68ed33ed7c5a38634e2956381a6eb559bd853f1d }
@@ -20,7 +17,7 @@ flows:
   - { id: FL-TPL-010, sha256: 36bf43c4b11a8b8c0dc0938372010f2608231ec4f29cbad2ee0dba24417f6c8b }
   - { id: FL-TPL-011, sha256: 8f5a1469f8052fa6f1869a1679cbca0096a788ce9e6dcd8153590c6025403a9a }
   - { id: FL-TPL-020, sha256: 8ce8eec4206cd2e3e52499690dfe47fd559a769fea8e6118ef2edb5b304f08a3 }
-  - { id: FL-TPL-030, sha256: 4ec5f37ce60aa8b97e693b551b8e3dc82f1e1d0f6ca4031443ff9b321c513c56 }
+  - { id: FL-TPL-030, sha256: e6171f108097b26e9e43be6fc53660ae8abb0dba256f0668f5c11b75ba0b1b9f }
   - { id: FL-NTF-001, sha256: 6e2e4c7bdce837d9beb7afb4478b11032656d456c3356ba2f8635bebed282cd8 }
   - { id: FL-NTF-002, sha256: 307c09b53dd7f355b80bef81c387cfc9ea8407dbd85b7353ca32602b1caf9d55 }
   - { id: FL-NTF-003, sha256: 2a796dec7d06ac01b186e25814ff474f3f6f1c13e43bcd7b6c00636afb28092e }
@@ -46,11 +43,44 @@ flows:
   - { id: FL-BNC-002, sha256: 7799281a7ad89575d45c4f2c0fc2fd27d82b06f104c5c105e03622c121c69980 }
   - { id: FL-SUP-001, sha256: 6710dc8bfac35c82490ebf012acbfb964e9bfc12ce2379715de2e64bfbec3b87 }
   - { id: FL-SUP-002, sha256: 7241c4360ea0ad644c26ae3939f0aa45edbd413f983831c62a598af938a63f10 }
-  - { id: FL-SUP-003, sha256: 8df0c2367e58145c7448edd1ee874f5add79b9d077ccdf242d62f71a06799758 }
+  - { id: FL-SUP-003, sha256: d26a75b77580c5eb1af2c0cd077e304ac0acc566d3167f672a464c47d7f8b727 }
   - { id: FL-MSG-001, sha256: 15fc946f372279433ccd4d98908e7d5dec500c75f7295f3286d6924c8fd4080c }
-  - { id: FL-MSG-002, sha256: 70c2117d96602ed0b4a860b0cdc7966485e0177bcc2d5847645d717c565150df }
+  - { id: FL-MSG-002, sha256: 507bbfc2c8cf41414be1e5e4d962cb15ba9035c0ede9cc66d83496f75ed1e5d6 }
   - { id: FL-PRG-001, sha256: 295982d2dbd2db10effed58e3d483afcb4ef21ee8dfbd0764b50f18a81bfcd5c }
   - { id: FL-SEC-001, sha256: 5d81f368604cf158e438a6f0d8b6238f92fdb68360f30d5d46d4279f1532ccf9 }
   - { id: FL-SEC-002, sha256: cfe9b45a767e6a2361d479836de17ac19edbd353fbba040cd925529e93366015 }
   - { id: FL-SEC-003, sha256: 1bc93b8fee9c58def046f778ad41df666d8e153391affbab26f9bbea2dd45fe1 }
-findings: []
+findings:
+  - flow: FL-SEC-001
+    step: "Given / Then 1"
+    kind: unfixed-given
+    resolution: scenario
+    sealAfter: af71d50be86ad0a70c1417223a787b222e3f8c43621d26a1c73f0299fc49e343
+    artifact: security.cors
+    evidence: >-
+      El Given dice «la SPA de back-office corre en un origen web distinto» y el Then 1 afirma
+      «Respuesta de preflight aceptada». security.cors no declara orígenes (docs/dsl/security.md
+      § CORS: «Los orígenes permitidos no se declaran aquí», son configuración de despliegue), así
+      que el preflight solo se acepta si el origen está en la lista configurada. El Given no lo
+      fija: un origen distinto y no configurado recibe el preflight rechazado. FL-SEC-002 sí lo
+      fija («la SPA en un origen web permitido»), lo que confirma que la condición importa.
+    proposal: >-
+      En el escenario: decir en el Given «la SPA corre en un origen web distinto y permitido (en la
+      lista de orígenes configurada del despliegue de pruebas)», como FL-SEC-002. Opcionalmente,
+      añadir un caso borde con un origen no permitido cuyo preflight se rechaza.
+  - flow: FL-NTF-010
+    step: "Then 8"
+    kind: count
+    resolution: scenario
+    sealAfter: 32f0e86e72c6e40327fe6d39573a134371563209c9f4cc93c2afa9063e6df719
+    artifact: validation-scenarios.md FL-NTF-010
+    evidence: >-
+      El Then 8 dice «Para cada una de las siete, findMessageByIdempotencyKey responde 404 y [...]
+      el buzón no recibe ningún correo». Los Then 1–7 lanzan ocho peticiones rechazadas: el Then 7
+      tiene dos variantes («topic-only sin variables → 422 EMPTY_RENDERED_SUBJECT; con variables:
+      [ { name: topic, value: "   " } ] → 422 EMPTY_RENDERED_SUBJECT»), cada una con su propia
+      idempotencyKey según el When. Quien traduzca el escenario puede comprobar siete claves y
+      dejar sin verificar la variante de solo espacios.
+    proposal: >-
+      En el escenario: «Para cada una de las ocho peticiones rechazadas» (o «para cada petición de
+      los pasos 1 a 7»).

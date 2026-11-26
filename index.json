@@ -3,7 +3,7 @@
   "generatedBy": {
     "keelCore": "0.7.0",
     "dsl": [
-      "2.32"
+      "2.33"
     ]
   },
   "designs": [
@@ -79,7 +79,7 @@
         "fresh": 9,
         "stale": 0,
         "unstamped": 0,
-        "missing": 0,
+        "missing": 1,
         "orphan": 0,
         "notApplicable": 0
       },
@@ -122,8 +122,8 @@
       "variant": null,
       "service": {
         "name": "notifications",
-        "version": "0.3.0",
-        "dsl": "2.32",
+        "version": "0.3.1",
+        "dsl": "2.33",
         "domain": null,
         "basedOn": null,
         "description": "Envía correo transaccional a partir de plantillas que gestiona negocio, a petición de los sistemas de la organización por HTTP o por eventos, sin enviar nunca dos veces el mismo correo."
@@ -184,7 +184,7 @@
         "errors": 0
       },
       "derivatives": {
-        "fresh": 9,
+        "fresh": 10,
         "stale": 0,
         "unstamped": 0,
         "missing": 0,
@@ -214,6 +214,7 @@
         "specs/notifications/gaps.yaml",
         "specs/notifications/validation-scenarios.md",
         "docs/notifications/DESIGN.md",
+        "docs/notifications/MANUAL.md",
         "docs/notifications/openapi.yaml",
         "docs/notifications/openapi.html",
         "docs/notifications/asyncapi.yaml",
@@ -287,15 +288,15 @@
         "persistedEntities": 4
       },
       "status": {
-        "ok": true,
+        "ok": false,
         "pending": 0,
-        "errors": 0
+        "errors": 1
       },
       "derivatives": {
         "fresh": 9,
         "stale": 0,
         "unstamped": 0,
-        "missing": 0,
+        "missing": 1,
         "orphan": 0,
         "notApplicable": 0
       },
@@ -403,7 +404,7 @@
         "fresh": 9,
         "stale": 0,
         "unstamped": 0,
-        "missing": 0,
+        "missing": 1,
         "orphan": 0,
         "notApplicable": 0
       },

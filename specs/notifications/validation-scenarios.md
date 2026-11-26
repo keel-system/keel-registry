@@ -1,7 +1,7 @@
 # notifications — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/notifications v0.3.0. Contrato de validación para la fase de generación.
+> specs/notifications v0.3.1. Contrato de validación para la fase de generación.
 
 ## Convenciones de determinación
 
@@ -50,7 +50,8 @@
   por HTTP y por evento), permanente y propia de cada llamante. Ninguna otra operación usa clave.
 - **Paginación** (sobre canónico): `{ items, page, size, totalElements, totalPages }`, `page` base 0,
   `size` 20 por defecto, tope 100 (un `size` mayor se recorta a 100). Página vacía o fuera de rango:
-  `items: []` y, si no hay ningún elemento, `totalElements: 0` y `totalPages: 0`.
+  `items: []`, `totalElements: 0` y `totalPages: 0`, con el `page` y el `size` pedidos, aunque haya
+  elementos en otras páginas.
 - **Correo**: se observa en el **buzón de pruebas** (el relay SMTP de pruebas captura lo que acepta).
   Un correo esperado se afirma por: `From` (dirección y nombre), `To` (lista exacta, todos los
   destinatarios), `Reply-To` (presente o ausente), `Subject`, cuerpo `multipart/alternative` con una
@@ -340,7 +341,8 @@ resto igual.
 2. `?hasActiveVersion=false`: `items` = [`b-receipt`], `totalElements: 1`.
 3. `?size=2`: `items` = [`a-welcome`, `b-receipt`], `totalPages: 2`; `?size=2&page=1`: `items` =
    [`c-reminder`].
-4. `?page=5`: `items: []`, `page: 5`, `size: 20`, `totalElements: 3`, `totalPages: 1`.
+4. `?page=5`: `items: []`, `page: 5`, `size: 20`, `totalElements: 0`, `totalPages: 0` (fuera de rango,
+   aunque haya tres plantillas).
 5. `?size=500`: `size: 100` en el sobre.
 6. Tras publicar una versión en `b-receipt`, `?hasActiveVersion=false` devuelve `items: []`,
    `totalElements: 0`, `totalPages: 0`.
@@ -426,8 +428,8 @@ suprime `blocked@example.com` (`PUT /api/v1/suppressions/blocked@example.com` co
    → `422 RENDERED_SUBJECT_TOO_LONG`.
 7. `templateCode: "topic-only"` sin variables → `422 EMPTY_RENDERED_SUBJECT`; con
    `variables: [ { "name": "topic", "value": "   " } ]` (solo espacios) → `422 EMPTY_RENDERED_SUBJECT`.
-8. Para cada una de las siete, `findMessageByIdempotencyKey` responde `404` y, tras un ciclo del
-   despacho, el buzón no recibe ningún correo.
+8. Para cada una de las ocho peticiones rechazadas de los pasos 1 a 7, `findMessageByIdempotencyKey`
+   responde `404` y, tras un ciclo del despacho, el buzón no recibe ningún correo.
 
 **Orden de evaluación** (`requestNotification`):
 1. Forma de la petición → `400 VALIDATION_ERROR`; variables repetidas → `DUPLICATE_TEMPLATE_VARIABLES` (`422`).
@@ -772,7 +774,8 @@ y `mail-provider` vuelve a reportar el rebote permanente.
 **Then**:
 1. `items` en orden `suppressedAt` descendente = [`c`, `b`, `a`], `totalElements: 3`.
 2. `?size=2` → [`c`, `b`], `totalPages: 2`; `?size=2&page=1` → [`a`].
-3. `?page=4` → `items: []`, `totalElements: 3`; `?size=500` → `size: 100`.
+3. `?page=4` → `items: []`, `page: 4`, `totalElements: 0`, `totalPages: 0` (fuera de rango); `?size=500`
+   → `size: 100`.
 4. `?sort=suppressedAt,asc` → [`a`, `b`, `c`].
 5. `?sort=address` o `?sort=reason` → `400`: la dirección es un dato personal y el motivo no se
    ofrece para ordenar.
@@ -804,7 +807,8 @@ y `mail-provider` vuelve a reportar el rebote permanente.
 **When**: `listMessages` con paginación.
 **Then**:
 1. `?size=2` → 2 elementos, `totalElements: 3`, `totalPages: 2`; `?size=2&page=1` → el más antiguo.
-2. `?page=9` → `items: []`; `?size=500` → `size: 100`.
+2. `?page=9` → `items: []`, `page: 9`, `totalElements: 0`, `totalPages: 0` (fuera de rango); `?size=500`
+   → `size: 100`.
 3. `?templateCode=no-such-tpl` → `items: []`, `totalElements: 0`, `totalPages: 0`.
 4. `?sort=requestedAt,asc` → los tres, del más antiguo al más reciente.
 5. `?sort=status`, `?sort=requestedBy` o `?sort=recipients` → `400`.
@@ -845,7 +849,8 @@ depende del reloj del despacho.
 
 ### FL-SEC-001: CORS — preflight
 
-**Given**: la SPA de back-office corre en un origen web distinto.
+**Given**: la SPA de back-office corre en un origen web distinto y permitido (en la lista de orígenes
+configurada del despliegue de pruebas).
 **When**: `OPTIONS /api/v1/templates` sin credencial, con `Access-Control-Request-Method: POST` y
 `Access-Control-Request-Headers: Authorization, Content-Type`.
 **Then**:
