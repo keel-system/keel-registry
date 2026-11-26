@@ -1,6 +1,6 @@
 ---
 name: keel-handoff
-description: Genera el documento de diseño reutilizable (DESIGN.md) de un servicio a partir de sus artefactos Keel validados. Usar cuando otro equipo necesite entender y construir sobre el diseño sin leer el código ni hablar con quien lo diseñó.
+description: Genera el documento de diseño reutilizable (DESIGN.md) y el manual de uso por actor (MANUAL.md) de un servicio a partir de sus artefactos Keel validados. Usar cuando otro equipo necesite entender y construir sobre el diseño sin leer el código ni hablar con quien lo diseñó.
 ---
 
 # /keel-handoff — documento de diseño para reutilizar
@@ -48,7 +48,7 @@ No es decorativo: `keel describe <servicio>` compara ese sello con el manifiesto
 Secciones:
 
 1. **Propósito y alcance** — qué problema resuelve el servicio, a quién sirve y qué queda fuera, en uno o dos párrafos (desde `service.description` y el `domain`).
-2. **Modelo de dominio** — las entidades con sus campos relevantes; los value types con su significado (`SKU`, `Money`…) frente a repetir constraints; los `aggregates` (raíz + entidades internas) y por qué agrupan lo que cambia junto; los `lifecycle` con sus transiciones válidas. Marca los campos `computed`, `generated` y `sensitive`.
+2. **Modelo de dominio** — las entidades con sus campos relevantes; los value types con su significado (`SKU`, `Money`…) frente a repetir constraints; los `aggregates` (raíz + entidades internas) y por qué agrupan lo que cambia junto; los `lifecycle` con sus transiciones válidas. Marca los campos `computed`, `generated` y `sensitive`. Abre la sección con los diagramas que imprime `keel describe specs/<servicio> --diagram`, pegados **tal cual** (bloques ```` ```mermaid ```` con sus notas y hallazgos debajo): GitHub y GitLab los pintan, y como salen del YAML no pueden contradecirlo. No los redactes ni los retoques; si no dicen lo que el diseño quiere decir, se corrige el YAML y se vuelven a imprimir.
 3. **Invariantes y reglas clave** — las reglas declarativas verificables del dominio y de los casos de uso que cualquiera que reutilice el diseño debe respetar.
 4. **Qué hace** — las operaciones en lenguaje de negocio (nombre por intención: `retireProduct`, no `updateStatus`), qué dispara cada una (endpoint, subscription, schedule, `internal`), qué idempotencia/caché aplica. Las operaciones con `audience: services`/`both` se documentan **aparte, como superficie servidor-a-servidor**: son contrato propio con otro equipo acoplado detrás, y quien reutilice el diseño necesita ver de un vistazo qué prometió a máquinas y qué a usuarios.
 5. **Fronteras e integraciones** — con qué conversa el servicio y por qué canal. Si hay capa `dependencies`, **abre con ella**: de qué otros servidores depende, a qué versión de su contrato, qué dato necesita de cada uno y qué caso de uso lo usa, y —lo que de verdad importa a quien reutiliza el diseño— **si ese dato se pide al decidir o se mantiene replicado, y por qué**, más qué hace el servicio cuando le falta (`onMiss`). Esa elección es rationale de primera clase: condiciona lo que el servicio puede prometer con el proveedor caído, y quien derive este diseño para otro contexto de despliegue puede necesitar la contraria. Después, los canales que la sostienen: eventos publicados/consumidos (`messaging`), llamadas HTTP a terceros con su resiliencia (`http-clients`), modelo de almacenamiento y frontera transaccional (`persistence`), buckets de archivos y sus políticas de content-type/tamaño/visibilidad (`storage`), y el modelo de acceso (`security`: roles, permisos, mínimo privilegio).
@@ -83,6 +83,16 @@ Los artefactos son **declarativos**: guardan el *qué*, no el *por qué*. El rat
 
    Pregunta con `AskUserQuestion` cuando haya opciones claras, en texto libre cuando no. **Nunca inventes el rationale**: si el humano no lo aporta, deja la entrada marcada como `> rationale pendiente` para completar después.
 3. **Regeneración segura.** Al re-ejecutar sobre un `DESIGN.md` existente, refresca el sello de versión y **re-deriva las secciones mecánicas** (1-5 y las subsecciones mecánicas de la 7) pero **preserva la sección "Decisiones de diseño" y la subsección `### Supuestos y limitaciones`** ya redactadas (esta última se localiza por su encabezado literal): solo pregunta por decisiones o supuestos nuevos (elecciones notables que aparecieron desde la última vez) o por los que quedaron `pendiente`. A diferencia de `INTEGRATION.md`, que se sobrescribe entero, aquí el conocimiento humano capturado no se pierde en la regeneración.
+
+## El manual de uso por actor (`MANUAL.md`)
+
+Junto a `DESIGN.md`, si el diseño tiene capa `api`, escribe `docs/<service.name>/MANUAL.md` con la salida de
+`keel describe specs/<servicio> --manual`, **tal cual y entera**: se sobrescribe en cada regeneración y no se edita.
+Organiza por actor lo que los demás derivados organizan por capa —quién puede hacer qué, sobre qué recursos, en qué
+estado deja la entidad y qué errores le pueden salir—, y lo calcula la CLI a partir de las reglas de acceso, los
+`roleGrants`, `ownership`, `scoping` y las transiciones, así que no puede contradecir al diseño. Si su sección
+`## Hallazgos` no está vacía, llévala al usuario antes de cerrar: es una operación que ningún actor alcanza o una que
+nada dispara, y se corrige en el YAML, no en el manual.
 
 ## Índice del repositorio (`README.md`)
 
