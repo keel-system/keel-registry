@@ -134,6 +134,22 @@ findings:
     el invariante de titularidad. En el fallo de la pasarela y en el notReceived del barrido el cobro ya existe
     con su paymentMethodId, como pide la doctrina. Queda el orden entre esa precondición y la repetición del cobro,
     recogido en REV-USECASES-GUARD-ORDER.'
+- id: REV-PAYMENTS-RECONCILE-INFLIGHT-NOTFOUND
+  scope: use-cases.operations.sweepPendingPayments
+  verdict: ok
+  note: 'Dicho por separado para cada estado. payments.keel.yaml declara capture.inFlight capturing, void.inFlight
+    canceling y refund.inFlight refunding, con reconciliation.sweep sweepPendingPayments. En el barrido, la rule
+    «Un cobro en pending que la pasarela no conoce se da por fallido con failureReason notReceived» se limita a
+    pending, y la siguiente cubre los estados en vuelo: «si la pasarela dice que una acción en vuelo fue rechazada,
+    o que nunca la recibió, el cobro vuelve al estado del que salió (cancelOrigin en una anulación; una devolución
+    pasa a failed) y se publica PaymentActionRejected», con el vaciado de cancelOrigin y awaitingSince. Las
+    transitions lo respaldan (capturing→authorized, canceling→authorized|actionRequired, refunding→captured), y
+    markFailed no admite capturing ni refunding, así que no hay lectura que dé por fallido un cobro ya
+    autorizado o capturado. Lo decidieron dos entradas de gaps.yaml (class 1 Refund y class 18 capture, state
+    decided) y lo comprueba FL-REC-002 (pasos 4 y 5: anulación y devolución que la pasarela no recibió). Matiz
+    sin consecuencia de diseño: la rule habla de la acción que la pasarela «nunca recibió» y no del cobro entero
+    desconocido; en un estado en vuelo el cobro tiene gatewayPaymentId y ya existió allí, así que la única
+    lectura que deja el texto es la vuelta al origen.'
 - id: REV-PERSONAL-CLASSIFICATION
   scope: domain.entities.PaymentMethod.fields.gatewayMethodRef
   verdict: fixed

@@ -1,6 +1,6 @@
 # payment — Documento de diseño
 
-> specs/payment v0.1.4. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/payment v0.1.5. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -19,6 +19,137 @@ los métodos de pago asíncronos, las disputas, los cobros recurrentes programad
 captura parcial (ver § 7).
 
 ## 2. Modelo de dominio
+
+### Dominio
+
+```mermaid
+classDiagram
+  direction LR
+  namespace PaymentAggregate {
+    class Payment {
+      <<raíz>>
+      id: uuid · id, generado
+      chargeRequestId: RequestReference · clave natural, único, requerido
+      customerRef: CustomerRef · requerido, personal
+      amount: Amount · requerido
+      currency: CurrencyCode · requerido
+      status: PaymentStatus · default pending
+      gatewayPaymentId: string
+      awaitingSince: timestamp
+      failureReason: FailureReason
+      customerAction: json
+      actionRequiredSince: timestamp
+      cancelOrigin: enum
+      paymentMethodId: uuid
+      refundedAmount: decimal · calculado
+      createdAt: timestamp · generado
+      updatedAt: timestamp · generado
+    }
+    class Refund {
+      id: uuid · id, generado
+      refundRequestId: RequestReference · clave natural, único, requerido
+      amount: Amount · requerido
+      reason: string · personal
+      status: RefundStatus · default pending
+      createdAt: timestamp · generado
+      updatedAt: timestamp · generado
+    }
+  }
+  namespace WalletAggregate {
+    class Wallet {
+      <<raíz>>
+      id: uuid · id, generado
+      customerRef: CustomerRef · clave natural, único, requerido, personal
+    }
+    class PaymentMethod {
+      id: uuid · id, generado
+      gatewayMethodRef: string · requerido, personal, sensible
+      card: CardDetails · requerido, personal
+      isDefault: boolean · default false
+      status: PaymentMethodStatus · default active
+      expired: boolean · calculado
+    }
+  }
+  class PaymentStatus {
+    <<enumeration>>
+    pending
+    actionRequired
+    authorized
+    capturing
+    canceling
+    captured
+    refunding
+    refunded
+    canceled
+    failed
+  }
+  class FailureReason {
+    <<enumeration>>
+    declined
+    insufficientFunds
+    expiredCard
+    authenticationFailed
+    fraudSuspected
+    invalidPaymentMethod
+    notReceived
+    processingError
+  }
+  class RefundStatus {
+    <<enumeration>>
+    pending
+    succeeded
+    failed
+  }
+  class PaymentMethodStatus {
+    <<enumeration>>
+    active
+    removed
+  }
+  class CardDetails {
+    <<value object>>
+    brand: string · requerido
+    last4: string · requerido
+    expMonth: int · requerido
+    expYear: int · requerido
+  }
+  Payment "1" *-- "*" Refund : refunds
+  Refund "*" --> "1" Payment : payment
+  Wallet "1" *-- "*" PaymentMethod : paymentMethods
+  PaymentMethod "*" --> "1" Wallet : wallet
+  note for Payment "checks: requires awaitingSince · when field=status in=pending,actionRequired,capturing,canceling,refunding | forbids awaitingSince · unless field=status in=pending,actionRequired,capturing,canceling,refunding | requires cancelOrigin · when field=status in=canceling | forbids cancelOrigin · unless field=status in=canceling | requires failureReason · when field=status in=failed | forbids failureReason · unless field=status in=failed | requires customerAction · when field=status in=actionRequired | requires customerAction · when field=cancelOrigin in=actionRequired | forbids customerAction · unless field=status in=actionRequired,canceling | forbids customerAction · when field=cancelOrigin in=authorized | requires actionRequiredSince · when field=status in=actionRequired | requires actionRequiredSince · when field=cancelOrigin in=actionRequired | forbids actionRequiredSince · unless field=status in=actionRequired,canceling | forbids actionRequiredSince · when field=cancelOrigin in=authorized | field refundedAmount · op lte · than amount | field refundedAmount · op eq · than amount · when field=status in=refunded | field refundedAmount · op ne · than amount · unless field=status in=refunded"
+  note for PaymentMethod "checks: field isDefault · op eq · value false · when field=status in=removed"
+```
+
+### Ciclo de vida de Payment (status)
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending
+  pending --> authorized : markAuthorized
+  pending --> actionRequired : markActionRequired
+  pending --> failed : markFailed
+  pending --> canceled : markCanceled
+  actionRequired --> authorized : markAuthorized
+  actionRequired --> failed : markFailed
+  actionRequired --> canceling : cancelPayment, sweepPendingPayments
+  actionRequired --> canceled : markCanceled
+  authorized --> capturing : capturePayment
+  authorized --> canceling : cancelPayment
+  authorized --> canceled : markCanceled
+  capturing --> captured : markCaptured
+  capturing --> authorized : capturePayment, sweepPendingPayments
+  capturing --> canceled : markCanceled
+  canceling --> canceled : markCanceled
+  canceling --> authorized : cancelPayment, sweepPendingPayments
+  canceling --> actionRequired : cancelPayment, sweepPendingPayments
+  canceling --> failed : markFailed
+  captured --> refunding : refundPayment
+  refunding --> captured : refundPayment, markRefunded, sweepPendingPayments
+  refunding --> refunded : markRefunded
+  refunded --> [*]
+  canceled --> [*]
+  failed --> [*]
+```
 
 **Value types**
 
@@ -71,7 +202,8 @@ cobro entra o sale de `refunding`.
 **`Wallet`** — `customerRef` (único, **personal**).
 
 **`PaymentMethod`** — `gatewayMethodRef` (**sensitive** y **personal**: nunca sale del servicio ni
-llega a un log), `card` (**personal**),
+llega a un log), `card` (**personal**; resumen `CardDetails` que informa la pasarela al guardar —
+`payments.savePaymentMethod.cardDetails`—, porque el input solo trae el token),
 `isDefault`, `status` (`active` → `removed`, terminal), `expired` (**computed**: caducidad anterior
 al mes en curso, UTC).
 

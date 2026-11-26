@@ -231,8 +231,8 @@
       "variant": null,
       "service": {
         "name": "payment",
-        "version": "0.1.4",
-        "dsl": "2.32",
+        "version": "0.1.5",
+        "dsl": "2.33",
         "domain": "commerce",
         "basedOn": null,
         "description": "Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente."
@@ -288,15 +288,15 @@
         "persistedEntities": 4
       },
       "status": {
-        "ok": false,
+        "ok": true,
         "pending": 0,
-        "errors": 1
+        "errors": 0
       },
       "derivatives": {
-        "fresh": 9,
+        "fresh": 10,
         "stale": 0,
         "unstamped": 0,
-        "missing": 1,
+        "missing": 0,
         "orphan": 0,
         "notApplicable": 0
       },
@@ -323,6 +323,7 @@
         "specs/payment/gaps.yaml",
         "specs/payment/validation-scenarios.md",
         "docs/payment/DESIGN.md",
+        "docs/payment/MANUAL.md",
         "docs/payment/openapi.yaml",
         "docs/payment/openapi.html",
         "docs/payment/asyncapi.yaml",

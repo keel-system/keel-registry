@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.4 -->
+<!-- keel:version 0.1.5 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -132,6 +132,7 @@
   .gaps ul { margin: 6px 0 0; }
   footer { margin-top: 44px; color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 12px; }
   [hidden] { display: none !important; }
+  pre.mermaid { overflow-x: auto; margin: 0 0 8px; padding: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -188,10 +189,10 @@
 const KEEL = {
   "service": {
     "name": "payment",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "description": "Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente.",
     "domain": "commerce",
-    "generatedAt": "2026-11-19"
+    "generatedAt": "2026-11-26"
   },
   "links": [
     {
@@ -228,6 +229,11 @@ const KEEL = {
       "label": "Documento de diseño",
       "href": "DESIGN.md",
       "description": "Características y decisiones con su porqué."
+    },
+    {
+      "label": "Manual por actor",
+      "href": "MANUAL.md",
+      "description": "Quién puede hacer qué, por actor (keel describe --manual)."
     }
   ],
   "gaps": [],
@@ -1918,6 +1924,18 @@ const KEEL = {
     "subscriptions": []
   },
   "domain": {
+    "diagrams": {
+      "domain": "classDiagram\n  direction LR\n  namespace PaymentAggregate {\n    class Payment {\n      <<raíz>>\n      id: uuid · id, generado\n      chargeRequestId: RequestReference · clave natural, único, requerido\n      customerRef: CustomerRef · requerido, personal\n      amount: Amount · requerido\n      currency: CurrencyCode · requerido\n      status: PaymentStatus · default pending\n      gatewayPaymentId: string\n      awaitingSince: timestamp\n      failureReason: FailureReason\n      customerAction: json\n      actionRequiredSince: timestamp\n      cancelOrigin: enum\n      paymentMethodId: uuid\n      refundedAmount: decimal · calculado\n      createdAt: timestamp · generado\n      updatedAt: timestamp · generado\n    }\n    class Refund {\n      id: uuid · id, generado\n      refundRequestId: RequestReference · clave natural, único, requerido\n      amount: Amount · requerido\n      reason: string · personal\n      status: RefundStatus · default pending\n      createdAt: timestamp · generado\n      updatedAt: timestamp · generado\n    }\n  }\n  namespace WalletAggregate {\n    class Wallet {\n      <<raíz>>\n      id: uuid · id, generado\n      customerRef: CustomerRef · clave natural, único, requerido, personal\n    }\n    class PaymentMethod {\n      id: uuid · id, generado\n      gatewayMethodRef: string · requerido, personal, sensible\n      card: CardDetails · requerido, personal\n      isDefault: boolean · default false\n      status: PaymentMethodStatus · default active\n      expired: boolean · calculado\n    }\n  }\n  class PaymentStatus {\n    <<enumeration>>\n    pending\n    actionRequired\n    authorized\n    capturing\n    canceling\n    captured\n    refunding\n    refunded\n    canceled\n    failed\n  }\n  class FailureReason {\n    <<enumeration>>\n    declined\n    insufficientFunds\n    expiredCard\n    authenticationFailed\n    fraudSuspected\n    invalidPaymentMethod\n    notReceived\n    processingError\n  }\n  class RefundStatus {\n    <<enumeration>>\n    pending\n    succeeded\n    failed\n  }\n  class PaymentMethodStatus {\n    <<enumeration>>\n    active\n    removed\n  }\n  class CardDetails {\n    <<value object>>\n    brand: string · requerido\n    last4: string · requerido\n    expMonth: int · requerido\n    expYear: int · requerido\n  }\n  Payment \"1\" *-- \"*\" Refund : refunds\n  Refund \"*\" --> \"1\" Payment : payment\n  Wallet \"1\" *-- \"*\" PaymentMethod : paymentMethods\n  PaymentMethod \"*\" --> \"1\" Wallet : wallet\n  note for Payment \"checks: requires awaitingSince · when field=status in=pending,actionRequired,capturing,canceling,refunding | forbids awaitingSince · unless field=status in=pending,actionRequired,capturing,canceling,refunding | requires cancelOrigin · when field=status in=canceling | forbids cancelOrigin · unless field=status in=canceling | requires failureReason · when field=status in=failed | forbids failureReason · unless field=status in=failed | requires customerAction · when field=status in=actionRequired | requires customerAction · when field=cancelOrigin in=actionRequired | forbids customerAction · unless field=status in=actionRequired,canceling | forbids customerAction · when field=cancelOrigin in=authorized | requires actionRequiredSince · when field=status in=actionRequired | requires actionRequiredSince · when field=cancelOrigin in=actionRequired | forbids actionRequiredSince · unless field=status in=actionRequired,canceling | forbids actionRequiredSince · when field=cancelOrigin in=authorized | field refundedAmount · op lte · than amount | field refundedAmount · op eq · than amount · when field=status in=refunded | field refundedAmount · op ne · than amount · unless field=status in=refunded\"\n  note for PaymentMethod \"checks: field isDefault · op eq · value false · when field=status in=removed\"",
+      "notes": [],
+      "lifecycles": [
+        {
+          "entity": "Payment",
+          "field": "status",
+          "diagram": "stateDiagram-v2\n  [*] --> pending\n  pending --> authorized : markAuthorized\n  pending --> actionRequired : markActionRequired\n  pending --> failed : markFailed\n  pending --> canceled : markCanceled\n  actionRequired --> authorized : markAuthorized\n  actionRequired --> failed : markFailed\n  actionRequired --> canceling : cancelPayment, sweepPendingPayments\n  actionRequired --> canceled : markCanceled\n  authorized --> capturing : capturePayment\n  authorized --> canceling : cancelPayment\n  authorized --> canceled : markCanceled\n  capturing --> captured : markCaptured\n  capturing --> authorized : capturePayment, sweepPendingPayments\n  capturing --> canceled : markCanceled\n  canceling --> canceled : markCanceled\n  canceling --> authorized : cancelPayment, sweepPendingPayments\n  canceling --> actionRequired : cancelPayment, sweepPendingPayments\n  canceling --> failed : markFailed\n  captured --> refunding : refundPayment\n  refunding --> captured : refundPayment, markRefunded, sweepPendingPayments\n  refunding --> refunded : markRefunded\n  refunded --> [*]\n  canceled --> [*]\n  failed --> [*]",
+          "findings": []
+        }
+      ]
+    },
     "entities": [
       {
         "name": "Payment",
@@ -2687,9 +2705,32 @@ const KEEL = {
 
   // -- dominio --------------------------------------------------------------
   var dom = KEEL.domain;
-  if (dom && (has(dom.entities) || has(dom.aggregates) || has(dom.types))) {
+  if (dom && (dom.diagrams || has(dom.entities) || has(dom.aggregates) || has(dom.types))) {
     document.getElementById('domain-wrap').hidden = false;
     var dh = document.getElementById('domain');
+    if (dom.diagrams && (dom.diagrams.domain || has(dom.diagrams.lifecycles))) {
+      // El texto Mermaid es la salida de `keel describe --diagram`, copiada sin tocar. Sin red se queda como texto,
+      // que también se lee; con red lo pinta Mermaid, fijado por versión como los visores (nunca `latest`).
+      var charts = [];
+      var chart = function (title, source, notes) {
+        var pre = txt('pre', source, 'mermaid');
+        charts.push(pre);
+        dh.appendChild(section(title, el('div', {}, [pre, has(notes) ? ul(notes) : null])));
+      };
+      dh.appendChild(txt('h3', 'Diagramas'));
+      if (dom.diagrams.domain) chart('Dominio', dom.diagrams.domain, dom.diagrams.notes);
+      (dom.diagrams.lifecycles || []).forEach(function (l) {
+        chart('Ciclo de vida de ' + l.entity + ' (' + l.field + ')', l.diagram, l.findings);
+      });
+      var mjs = document.createElement('script');
+      mjs.src = 'https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js';
+      mjs.onload = function () {
+        var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        window.mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'neutral', securityLevel: 'strict' });
+        window.mermaid.run({ nodes: charts });
+      };
+      document.head.appendChild(mjs);
+    }
     if (has(dom.aggregates)) {
       dh.appendChild(txt('h3', 'Agregados'));
       dh.appendChild(table(['Agregado', 'Raíz', 'Entidades internas', 'Descripción'],
