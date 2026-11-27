@@ -1,7 +1,7 @@
 # payment — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/payment v0.2.1. Contrato de validación para la fase de generación.
+> specs/payment v0.2.2. Contrato de validación para la fase de generación.
 
 > **Un único diseño, cualquier pasarela.** Estos escenarios no nombran ninguna pasarela y tienen que
 > pasar igual con todas las que el generador ofrezca. Hablan de la **pasarela de prueba**: el doble
@@ -94,7 +94,7 @@
 | savePaymentMethod | FL-MTH-001, FL-MTH-002, FL-MTH-003, FL-MTH-004 | **servidores (M2M)** |
 | listPaymentMethods | FL-MTH-001, FL-MTH-002, FL-MTH-003 | **servidores (M2M)** |
 | setDefaultPaymentMethod | FL-MTH-003 | **servidores (M2M)** |
-| removePaymentMethod | FL-MTH-003, FL-CHG-004 | **servidores (M2M)** |
+| removePaymentMethod | FL-MTH-001, FL-MTH-003, FL-CHG-004 | **servidores (M2M)** |
 | markAuthorized | FL-CHG-001, FL-CHG-003, FL-REC-001 | interna; desenlace de la pasarela |
 | markActionRequired | FL-CHG-003, FL-STL-004 | interna; desenlace de la pasarela |
 | markCaptured | FL-STL-001, FL-STL-009, FL-REC-002 | interna; desenlace de la pasarela |
@@ -111,7 +111,7 @@ La misma matriz leída por **mecanismo**:
 |---|---|---|
 | Guarda del doble cargo (`naturalKey` sobre `chargeRequestId`) | FL-CHG-001 | FL-CHG-004 (repetición y conflicto) · FL-CHG-005 (a la vez) |
 | Guarda de la doble devolución (`naturalKey` sobre `refundRequestId`) | FL-STL-005 | FL-STL-005 (repetición) · FL-STL-006 (clave de una devolución fallida) · FL-STL-010 (a la vez) · FL-REC-002 (repetición tras un importe ajustado) |
-| Idempotencia de `savePaymentMethod` (`Idempotency-Key`) | FL-MTH-001 | FL-MTH-002 (a la vez) |
+| Idempotencia de `savePaymentMethod` (`Idempotency-Key`) | FL-MTH-001 | FL-MTH-002 (a la vez) · FL-MTH-001 (repetición tras retirar el medio) |
 | Estados en vuelo | FL-STL-001 | FL-STL-007 (dos acciones a la vez) · FL-STL-009 (el aviso adelanta a la respuesta) · FL-REC-002 |
 | Vuelta al origen de una anulación (`cancelOrigin`) | FL-STL-003 | FL-STL-004 (desde `actionRequired`) · FL-REC-002 |
 | Aviso de la pasarela | FL-CHG-003 | FL-STL-008 (firma alterada) |
@@ -157,6 +157,18 @@ La misma matriz leída por **mecanismo**:
 
 **Then**:
 7. Status `400` con `IDEMPOTENCY_KEY_REQUIRED`, y la pasarela no recibe nada.
+
+**When**: `removePaymentMethod` retira `<m1>` —
+`DELETE /api/v1/payment-methods/<m1>?customerRef=cus-1`— y, dentro de las 24 h de la clave, se
+repite la petición del primer `When` con la misma `Idempotency-Key: k-m1` y el mismo cuerpo.
+
+**Then**:
+8. Status `201` con el medio **tal como está ahora**: `{ id: <m1>, card: { brand: "visa", last4:
+   "4242", expMonth: 12, expYear: 2030 }, isDefault: false, status: "removed", expired: false,
+   walletId: <w1> }`. La repetición se reconstruye desde el id guardado; que el medio se retirara
+   después no la vuelve un error.
+9. La pasarela no recibe otro guardado, y `listPaymentMethods` de `cus-1` responde `200` con una
+   lista vacía: la repetición no vuelve a guardar el medio.
 
 **Casos borde**:
 - `customerRef` vacío o sin `paymentToken` → `400` (validación de forma).
@@ -854,7 +866,9 @@ informa que la completó por **7.00**; se envejece la marca y pasa un ciclo.
 **Then**:
 10. `ch-314` pasa a `refunded` con `refundedAmount: 10.00`, y la devolución `rf-023` queda en
    `succeeded` con `amount: 6.00` y `requestedAmount: 6.00`: el importe informado supera lo que quedaba por devolver, así que
-   se registra lo que quedaba. Lo devuelto nunca supera lo cobrado, y el cobro no se queda en
+   se registra lo que quedaba. Los 7.00 son lo que la pasarela devolvió en **esta** devolución, no
+   el total devuelto sobre el cobro: si la pasarela solo diera el total (11.00), el importe de esta
+   devolución sería 11.00 menos los 4.00 ya devueltos, y el resultado es el mismo. Lo devuelto nunca supera lo cobrado, y el cobro no se queda en
    `refunding` ni el barrido vuelve a consultarlo.
 11. `paymentEvents` recibe **exactamente un** `PaymentRefunded` con `data` `{ paymentId,
    chargeRequestId: "ch-314", customerRef: "cus-1", refundRequestId: "rf-023", refundAmount: 6.00,

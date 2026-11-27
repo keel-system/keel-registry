@@ -1,6 +1,6 @@
 # Manual de uso por actor de payment
 
-> specs/payment v0.2.1. Generado con `keel describe payment --manual`: no se edita, se cambia el diseño y se vuelve a generar.
+> specs/payment v0.2.2. Generado con `keel describe payment --manual`: no se edita, se cambia el diseño y se vuelve a generar.
 
 ## Actores
 
@@ -257,6 +257,7 @@ Registra que la pasarela completó la devolución en curso del cobro.
 - Tipo: command · no se llama por HTTP
 - Cambia de estado: Payment: refunding → captured; Payment: refunding → refunded
 - Regla: La devolución en pending del cobro pasa a succeeded con el importe que informa la pasarela (que manda si difiere del pedido), y se vacía awaitingSince.
+- Regla: amount es lo devuelto en esta devolución. Si la pasarela solo informa el total devuelto sobre el cobro, el importe de esta devolución es ese total menos refundedAmount antes de registrarla.
 - Regla: Si el importe informado supera lo que quedaba por devolver (amount menos refundedAmount antes de esta devolución), la devolución se registra por lo que quedaba: lo devuelto nunca supera lo cobrado.
 - Regla: El cobro pasa a refunded si refundedAmount llega a amount; si no, vuelve a captured.
 - Regla: Si el cobro ya no está en refunding, no hace nada y no es un error.
@@ -294,6 +295,7 @@ Guarda en el Wallet del titular el medio de pago que representa un token de la p
 - Tipo: command · `POST /api/v1/payment-methods`
 - Regla: El tope de 10 medios active se comprueba antes de llamar a la pasarela.
 - Regla: Solo un guardado con éxito queda registrado bajo la Idempotency-Key. Si la operación termina en error (tope alcanzado, la pasarela rechaza, exige autenticar o no contesta), la clave queda libre: una petición posterior con la misma clave vuelve a ejecutarse, con el mismo paymentToken o con otro, y no recibe IDEMPOTENCY_KEY_IN_PROGRESS ni IDEMPOTENCY_KEY_REUSED.
+- Regla: La repetición de un guardado registrado bajo la misma Idempotency-Key responde 201 con el medio tal como está ahora, aunque se haya retirado después (status removed, isDefault false): no guarda otro medio ni llama a la pasarela.
 - Regla: Si el titular no tiene Wallet, se crea con este primer medio.
 - Regla: El medio se guarda solo si la pasarela lo acepta; guarda su referencia opaca y el resumen de la tarjeta.
 - Regla: Si la pasarela acepta el medio pero su resumen de tarjeta no trae brand, last4, expMonth o expYear (o alguno no cumple sus cotas), aquí no se guarda nada y se responde PAYMENT_METHOD_REJECTED: un medio sin ese resumen no se puede mostrar al titular ni saber si caducó. El medio puede quedar guardado en la pasarela sin registro aquí, uno por intento, como tras un timeout; nunca se cobra.

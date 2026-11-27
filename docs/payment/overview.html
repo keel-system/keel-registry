@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.2.1 -->
+<!-- keel:version 0.2.2 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -189,7 +189,7 @@
 const KEEL = {
   "service": {
     "name": "payment",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente.",
     "domain": "commerce",
     "generatedAt": "2026-11-27"
@@ -1242,7 +1242,7 @@ const KEEL = {
             "type": "decimal",
             "required": true,
             "list": false,
-            "description": "Importe devuelto (mismas cotas que Amount)."
+            "description": "Importe que la pasarela devolvió en esta devolución, no el acumulado que lleve devuelto sobre el cobro (mismas cotas que Amount)."
           }
         ]
       },
@@ -1251,6 +1251,7 @@ const KEEL = {
       },
       "rules": [
         "La devolución en pending del cobro pasa a succeeded con el importe que informa la pasarela (que manda si difiere del pedido), y se vacía awaitingSince.",
+        "amount es lo devuelto en esta devolución. Si la pasarela solo informa el total devuelto sobre el cobro, el importe de esta devolución es ese total menos refundedAmount antes de registrarla.",
         "Si el importe informado supera lo que quedaba por devolver (amount menos refundedAmount antes de esta devolución), la devolución se registra por lo que quedaba: lo devuelto nunca supera lo cobrado.",
         "El cobro pasa a refunded si refundedAmount llega a amount; si no, vuelve a captured.",
         "Si el cobro ya no está en refunding, no hace nada y no es un error."
@@ -1358,6 +1359,7 @@ const KEEL = {
       "rules": [
         "El tope de 10 medios active se comprueba antes de llamar a la pasarela.",
         "Solo un guardado con éxito queda registrado bajo la Idempotency-Key. Si la operación termina en error (tope alcanzado, la pasarela rechaza, exige autenticar o no contesta), la clave queda libre: una petición posterior con la misma clave vuelve a ejecutarse, con el mismo paymentToken o con otro, y no recibe IDEMPOTENCY_KEY_IN_PROGRESS ni IDEMPOTENCY_KEY_REUSED.",
+        "La repetición de un guardado registrado bajo la misma Idempotency-Key responde 201 con el medio tal como está ahora, aunque se haya retirado después (status removed, isDefault false): no guarda otro medio ni llama a la pasarela.",
         "Si el titular no tiene Wallet, se crea con este primer medio.",
         "El medio se guarda solo si la pasarela lo acepta; guarda su referencia opaca y el resumen de la tarjeta.",
         "Si la pasarela acepta el medio pero su resumen de tarjeta no trae brand, last4, expMonth o expYear (o alguno no cumple sus cotas), aquí no se guarda nada y se responde PAYMENT_METHOD_REJECTED: un medio sin ese resumen no se puede mostrar al titular ni saber si caducó. El medio puede quedar guardado en la pasarela sin registro aquí, uno por intento, como tras un timeout; nunca se cobra.",

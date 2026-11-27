@@ -1,6 +1,6 @@
 ---
 service: payment
-version: 0.2.1
+version: 0.2.2
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -404,7 +404,7 @@ Anula un cobro `authorized` o uno que espera el 3DS (`actionRequired`).
 |---|---|
 | Endpoint | `POST /api/v1/payment-methods` |
 | Acceso | `service` — scope `payment-method:write` |
-| Idempotencia | sí — header `Idempotency-Key` **obligatorio**, recordado 24 h. La misma clave y el mismo cuerpo devuelven el medio ya guardado. Solo cuenta un guardado con éxito: si la petición terminó en error, la clave queda libre y puedes reintentar con ella, con el mismo token o con otro. |
+| Idempotencia | sí — header `Idempotency-Key` **obligatorio**, recordado 24 h. La misma clave y el mismo cuerpo devuelven el medio ya guardado, tal como esté ahora: si se retiró después, `201` con `status: "removed"` e `isDefault: false`, sin guardar otro. Solo cuenta un guardado con éxito: si la petición terminó en error, la clave queda libre y puedes reintentar con ella, con el mismo token o con otro. |
 | Éxito | `201` con el medio, sin `Location` (no hay lectura de un medio por id) |
 
 **Request**
@@ -636,7 +636,7 @@ La pasarela completó una devolución. Emitido por `markRefunded`.
 | chargeRequestId | string | requerido |
 | customerRef | string | requerido |
 | refundRequestId | string | requerido |
-| refundAmount | decimal | requerido; importe devuelto según la pasarela (el `amount` de la devolución tras completarse, sin pasar de lo que quedaba por devolver), no el pedido |
+| refundAmount | decimal | requerido; importe devuelto según la pasarela (el `amount` de esa devolución tras completarse, sin pasar de lo que quedaba por devolver), no el pedido ni el total devuelto sobre el cobro |
 | refundedAmount | decimal | requerido; total devuelto del cobro tras ella |
 | currency | string | requerido |
 | status | enum | requerido; `refunded` si se devolvió entero, `captured` si queda saldo |

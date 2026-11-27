@@ -1,6 +1,6 @@
 # payment — Documento de diseño
 
-> specs/payment v0.2.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/payment v0.2.2. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -228,7 +228,8 @@ El resto siguen en prosa.
 - *(checks)* `refundedAmount` nunca supera el importe, y un cobro está `refunded` si y solo si se
   devolvió entero. Lo devuelto más lo que está en curso tampoco lo supera, y hay como mucho una
   devolución en curso por cobro. Si la pasarela informa una devolución por más de lo que quedaba, se
-  registra lo que quedaba.
+  registra lo que quedaba. El importe informado es el de **esa** devolución; si la pasarela solo da
+  el total devuelto sobre el cobro, se le resta lo ya devuelto.
 - Los decimales de cualquier importe no superan los de su moneda (JPY 0, EUR 2, KWD 3). Nunca se
   redondea.
 - Un Wallet tiene como mucho 10 medios `active` y uno solo por defecto; *(check)* un medio retirado
@@ -270,7 +271,7 @@ Toda la superficie es **servidor-a-servidor** (`defaultAudience: services`), baj
 
 | Operación | Endpoint | Qué hace |
 |---|---|---|
-| `savePaymentMethod` | `POST /payment-methods` → `201` | Guarda el medio de un token, solo si la pasarela da el resumen completo de la tarjeta; el primero queda por defecto. Exige `Idempotency-Key` (24 h); un error no la consume. |
+| `savePaymentMethod` | `POST /payment-methods` → `201` | Guarda el medio de un token, solo si la pasarela da el resumen completo de la tarjeta; el primero queda por defecto. Exige `Idempotency-Key` (24 h); un error no la consume, y la repetición responde el medio como esté, aunque se haya retirado. |
 | `listPaymentMethods` | `GET /payment-methods?customerRef=` | Los medios `active`, el preferente primero. Sin paginar (≤ 10). |
 | `setDefaultPaymentMethod` | `POST /payment-methods/{id}/default` | Marca el preferente. |
 | `removePaymentMethod` | `DELETE /payment-methods/{id}?customerRef=` → `204` | Lo retira; no se vuelve a cobrar. |
@@ -281,7 +282,8 @@ medio no existe, está retirado o es de otro titular, sin distinguir cuál.
 **Desenlaces** (`internal`, los aplica el servicio al conocerlos por la respuesta, el aviso o el
 barrido): `markAuthorized`, `markActionRequired`, `markCaptured`, `markFailed`, `markCanceled`,
 `markRefunded`. Si un desenlace llega repetido o tarde, no hace nada. `markRefunded` registra el
-importe que informa la pasarela, sin pasar de lo que quedaba por devolver.
+importe que la pasarela informa para esa devolución, no el total devuelto sobre el cobro, y nunca más
+de lo que quedaba por devolver.
 
 **Reconciliación** — `sweepPendingPayments`, cada 5 minutos: consulta a la pasarela, hasta 100 por
 pasada y los más antiguos primero, los cobros que llevan más de 15 minutos esperando sin respuesta.
@@ -350,6 +352,18 @@ Fuente: `specs/payment/decisions.yaml` (estructurales y aceptadas) y `specs/paym
   pasarela que no contestó, reintentar con la misma clave vuelve a ejecutar, que es lo que prometen
   `GATEWAY_UNAVAILABLE` y `PAYMENT_METHOD_AUTHENTICATION_REQUIRED`. *Descartado*: reproducir el error
   durante 24 h, que congela un 503 transitorio sin proteger nada, porque nada se guardó.
+  Desde v0.2.2, repetir un guardado cuyo medio se retiró después responde `201` con el medio **como
+  está ahora** (`removed`, no preferente), sin guardar otro ni llamar a la pasarela. La repetición se
+  reconstruye desde el id guardado, y el medio sigue existiendo, porque retirar es una transición y
+  no un borrado. *Descartado*: un `409 IDEMPOTENT_RESOURCE_GONE`, que añadía un código al contrato
+  público para un caso que el consumidor no tiene que tratar aparte, y olvidar la clave para guardar
+  de nuevo, que rompía la garantía de que un reintento no crea un segundo medio. Fue un hallazgo de la
+  generación .NET, que respondía `500`.
+- `markRefunded`: desde v0.2.2, su `amount` es **el importe de esa devolución**, no el total devuelto
+  sobre el cobro. Si la pasarela solo informa el total, el adaptador le resta lo ya devuelto. Es la
+  lectura con la que ya estaban escritos los escenarios, y deja al spec libre de cómo informe cada
+  pasarela. *Descartado*: el total de la pasarela, que obligaba a reescribir el escenario y el código
+  ya generado. También fue un hallazgo de la generación .NET.
 
 **Lo que puede llegar rancio (§3.3)** — **sin caché** en ninguna lectura. El estado del cobro cambia
 por vías asíncronas y se consulta precisamente para saber si se resolvió.
@@ -476,7 +490,8 @@ cuando hace falta multi-aplicación, cobro por evento o captura parcial.
 `specs/payment/validation-scenarios.md`: 32 flujos que cubren las 18 operaciones, todos los códigos
 de error y todos los estados. Incluyen las carreras de idempotencia, el outbox con el canal caído y
 con el relay rendido, el rescate del barrido (que no vuelve a consultar un cobro cuya marca acaba de
-renovar), el reintento de un guardado fallido con la misma clave, el resumen de tarjeta incompleto, la
+renovar), el reintento de un guardado fallido con la misma clave, la repetición de un guardado cuyo
+medio ya se retiró, el resumen de tarjeta incompleto, la
 devolución informada por más de lo que quedaba, la repetición de una devolución cuyo importe ajustó la
 pasarela, la misma devolución a la vez, el clúster de dos réplicas y la autorización por scope. Sin escenario, con su motivo:
 los `checks` como `422`, los campos `personal` fuera de los logs y el historial (verificación

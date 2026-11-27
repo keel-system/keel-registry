@@ -191,6 +191,72 @@
               }
             }
           ]
+        },
+        {
+          "name": "FL-MTH-001 · F — Retirar el medio guardado (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods/{{paymentMethodId}}?customerRef=cus-1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-MTH-001 · G — Repetir con la misma clave tras retirar el medio (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m1"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-1\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('el medio vuelve como está ahora', () => { const b = pm.response.json(); pm.expect(b.status).to.eql('removed'); pm.expect(b.isDefault).to.eql(false); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -3106,7 +3172,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.2.1"
+      "value": "0.2.2"
     },
     {
       "key": "paymentToken",
