@@ -1,6 +1,6 @@
 # Manual de uso por actor de payment
 
-> specs/payment v0.2.2. Generado con `keel describe payment --manual`: no se edita, se cambia el diseño y se vuelve a generar.
+> specs/payment v0.2.3. Generado con `keel describe payment --manual`: no se edita, se cambia el diseño y se vuelve a generar.
 
 ## Actores
 
@@ -257,7 +257,7 @@ Registra que la pasarela completó la devolución en curso del cobro.
 - Tipo: command · no se llama por HTTP
 - Cambia de estado: Payment: refunding → captured; Payment: refunding → refunded
 - Regla: La devolución en pending del cobro pasa a succeeded con el importe que informa la pasarela (que manda si difiere del pedido), y se vacía awaitingSince.
-- Regla: amount es lo devuelto en esta devolución. Si la pasarela solo informa el total devuelto sobre el cobro, el importe de esta devolución es ese total menos refundedAmount antes de registrarla.
+- Regla: amount llega siempre como lo devuelto en esta devolución, nunca como el acumulado devuelto sobre el cobro: si la pasarela solo informa el acumulado, convertirlo es de quien traduce su respuesta o su aviso a este desenlace (el importe del propio objeto devolución de la pasarela), no de esta operación, que no recibe nada que le diga cuál de los dos es.
 - Regla: Si el importe informado supera lo que quedaba por devolver (amount menos refundedAmount antes de esta devolución), la devolución se registra por lo que quedaba: lo devuelto nunca supera lo cobrado.
 - Regla: El cobro pasa a refunded si refundedAmount llega a amount; si no, vuelve a captured.
 - Regla: Si el cobro ya no está en refunding, no hace nada y no es un error.

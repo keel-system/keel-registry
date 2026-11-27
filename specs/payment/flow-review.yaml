@@ -35,4 +35,30 @@ flows:
   - { id: FL-OBX-001, sha256: 6e147814164eceb5ac12dbd9013bbc20b960a29d4a70512542c1b329b2fb2efb }
   - { id: FL-OBX-002, sha256: 936a5d8dd9f89146a05fb46ca17f1beeb9d06ab6a0660d2e303d87d2df168a67 }
   - { id: FL-SEC-001, sha256: ebde0d22207f2f7ab30dcf65c92d79b61592ef66bdefe24b4b6ffcc1f63fe2fc }
-findings: []
+findings:
+  - flow: FL-STL-005
+    step: "Then 3, Then 5"
+    kind: unobservable
+    artifact: payments.refund.reference
+    evidence: >-
+      La v0.2.3 declara refund.reference: refundRequestId, así que cada devolución llega a la pasarela con su
+      propia clave (<chargeRequestId>:refund:<refundRequestId>, docs/dsl/payments.md § refund). El flujo, en su
+      versión de la v0.2.2, encadena rf-001 y rf-002 sobre el mismo cobro pero no afirma con qué clave llega cada
+      una, que es justo lo que OBL-PAYMENTS-REFUND-REFERENCE protege.
+    proposal: >-
+      Decir en el Given que la pasarela de prueba registra la clave de cada devolución, y afirmar
+      ch-001:refund:rf-001 en el Then 3 y ch-001:refund:rf-002, distinta de la anterior, en el Then 5.
+    resolution: scenario
+    sealAfter: e540c2db671af0e4d24b52b972f1255f6e514790ca19401fd9d9221f57c8cdb0
+  - flow: FL-REC-002
+    step: "Then 10"
+    kind: other
+    artifact: use-cases.markRefunded.rules
+    evidence: >-
+      El Then 10 de la v0.2.2 dice que, si la pasarela solo diera el total devuelto, el importe de la devolución
+      sería ese total menos lo ya devuelto, como si lo calculara la operación. La v0.2.3 reescribe la regla:
+      markRefunded recibe siempre el importe de esta devolución, y convertir un acumulado le toca a quien traduce
+      la respuesta de la pasarela (el desenlace refunded solo recibe un importe; docs/dsl/payments.md § outcomes).
+    proposal: Reescribir esa frase del Then 10 en los términos de la regla nueva; los valores afirmados no cambian.
+    resolution: scenario
+    sealAfter: 9ac268ef41e8a97b8b3579c749d87a4fb19982a9ad2b1d2ed0ca4d2efc07488a

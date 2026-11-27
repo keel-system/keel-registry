@@ -1,6 +1,6 @@
 # payment — Documento de diseño
 
-> specs/payment v0.2.2. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/payment v0.2.3. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -262,7 +262,7 @@ Toda la superficie es **servidor-a-servidor** (`defaultAudience: services`), baj
 | `requestCharge` | `POST /payments` → `201` | Autoriza un cobro con un token (cliente presente) o con un medio guardado (cliente ausente). Responde el cobro en `authorized`, `actionRequired`, `failed` o `pending`. Idempotente por `chargeRequestId`. |
 | `capturePayment` | `POST /payments/{id}/capture` | Captura el importe entero. Idempotente por estado. |
 | `cancelPayment` | `POST /payments/{id}/cancel` | Anula un cobro autorizado o que espera el 3DS. Idempotente por estado. |
-| `refundPayment` | `POST /payments/{id}/refunds` | Devuelve una parte o todo lo que queda. Idempotente por `refundRequestId`, comparando contra el importe pedido. |
+| `refundPayment` | `POST /payments/{id}/refunds` | Devuelve una parte o todo lo que queda. Idempotente por `refundRequestId`, comparando contra el importe pedido; cada devolución llega a la pasarela con su propia clave. |
 | `getPayment` | `GET /payments/{id}` | El cobro con sus devoluciones. |
 | `getPaymentByChargeRequest` | `GET /payments/by-charge-request/{chargeRequestId}` | Lo mismo, por la clave del consumidor. |
 | `listPaymentsByCustomer` | `GET /payments?customerRef=` | Paginado 20/100, del más reciente al más antiguo. |
@@ -296,8 +296,11 @@ preguntando sin techo, y cada cobro se procesa aislado.
 
 - **Pasarela de pago** (capa `payments`): `authorize-capture`, capacidades `partial-refund`,
   `customer-action` y `off-session`. Cuantas menos capacidades, más pasarelas sirven el diseño: por
-  eso no se pide `partial-capture`. El contrato concreto, la firma de los avisos y la traducción de
-  códigos los pone el generador.
+  eso no se pide `partial-capture`. Cada devolución declara su referencia (`refund.reference:
+  refundRequestId`), y la clave de idempotencia que viaja a la pasarela es
+  `<chargeRequestId>:refund:<refundRequestId>`. Así un reintento de la misma devolución repite la clave
+  y otra devolución del mismo cobro usa la suya. El contrato concreto, la firma de los avisos y la
+  traducción de códigos los pone el generador.
 - **Eventos** (`messaging`, canal `paymentEvents`, **outbox**): `PaymentAuthorized`,
   `PaymentActionRequired` (con `customerAction`), `PaymentCaptured`, `PaymentFailed`,
   `PaymentCanceled` (con `requested`), `PaymentRefunded` y `PaymentActionRejected`. Cada uno lleva el
@@ -347,6 +350,12 @@ Fuente: `specs/payment/decisions.yaml` (estructurales y aceptadas) y `specs/paym
   versión del cobro, la que pierde también relee y responde como repetición: el bloqueo optimista
   (§3.9) no puede convertir el propio reintento del consumidor en un `CONCURRENT_MODIFICATION`
   (hallazgo de la generación .NET, v0.1.5).
+  Desde v0.2.3 la misma clave de negocio identifica la devolución **ante la pasarela**
+  (`refund.reference`): la clave que viaja es `<chargeRequestId>:refund:<refundRequestId>`. Con
+  devoluciones parciales, un cobro tiene varias. Si llevaran la clave del cobro, la segunda chocaría
+  con la de la primera, y la pasarela la rechazaría o devolvería la respuesta guardada **sin devolver
+  nada**. *Descartado*: dejar que cada generador derive la clave, que es la obligación
+  `OBL-PAYMENTS-REFUND-REFERENCE` del DSL 2.33 y no se puede aceptar.
 - `savePaymentMethod`: **`Idempotency-Key` obligatoria, 24 h**, porque el token es de un solo uso.
   Solo un guardado con éxito queda bajo la clave (v0.1.1): tras un rechazo, un 3DS pendiente o una
   pasarela que no contestó, reintentar con la misma clave vuelve a ejecutar, que es lo que prometen
@@ -363,7 +372,11 @@ Fuente: `specs/payment/decisions.yaml` (estructurales y aceptadas) y `specs/paym
   sobre el cobro. Si la pasarela solo informa el total, el adaptador le resta lo ya devuelto. Es la
   lectura con la que ya estaban escritos los escenarios, y deja al spec libre de cómo informe cada
   pasarela. *Descartado*: el total de la pasarela, que obligaba a reescribir el escenario y el código
-  ya generado. También fue un hallazgo de la generación .NET.
+  ya generado. También fue un hallazgo de la generación .NET. En v0.2.3 la regla de la operación pasó a
+  decir lo mismo (hallazgo de la generación Go): la conversión es de quien traduce la respuesta de la
+  pasarela, porque el desenlace `refunded` solo recibe un importe y la operación no tiene forma de
+  saber si es acumulado. *Descartado*: que la conversión la haga el caso de uso, que exigiría un campo
+  en el desenlace que el DSL no admite.
 
 **Lo que puede llegar rancio (§3.3)** — **sin caché** en ninguna lectura. El estado del cobro cambia
 por vías asíncronas y se consulta precisamente para saber si se resolvió.

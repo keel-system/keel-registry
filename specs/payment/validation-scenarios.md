@@ -1,7 +1,7 @@
 # payment — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/payment v0.2.2. Contrato de validación para la fase de generación.
+> specs/payment v0.2.3. Contrato de validación para la fase de generación.
 
 > **Un único diseño, cualquier pasarela.** Estos escenarios no nombran ninguna pasarela y tienen que
 > pasar igual con todas las que el generador ofrezca. Hablan de la **pasarela de prueba**: el doble
@@ -570,7 +570,8 @@ anulación de `ch-081`.
 ### FL-STL-005: devoluciones parciales hasta devolverlo todo
 
 **Given**: el cobro `<p1>` (`ch-001`, 25.90 EUR) capturado, creado en este flujo como en FL-STL-001.
-La operación la hace la **credencial de máquina del cliente `backoffice`**.
+La operación la hace la **credencial de máquina del cliente `backoffice`**. La pasarela de prueba
+registra la clave de idempotencia con la que recibe cada devolución.
 
 **When**: `refundPayment` — `POST /api/v1/payments/<p1>/refunds`
 ```json
@@ -590,7 +591,7 @@ La operación la hace la **credencial de máquina del cliente `backoffice`**.
 
 **Then**:
 3. Las dos responden `200` con el cobro tal cual: la pasarela recibió **una** devolución para
-   `rf-001` y `paymentEvents` no recibe otro `PaymentRefunded`.
+   `rf-001`, con la clave `ch-001:refund:rf-001`, y `paymentEvents` no recibe otro `PaymentRefunded`.
 
 **When**: `refundPayment` con `{ "refundRequestId": "rf-001", "amount": 5.00 }`.
 
@@ -602,7 +603,9 @@ La operación la hace la **credencial de máquina del cliente `backoffice`**.
 **Then**:
 5. Status `200` con el cobro en `status: "refunded"`, `refundedAmount: 25.90` y `refunds` con dos
    elementos en orden: `rf-001` (10.00) y `rf-002` (15.90, también su `requestedAmount`: el omitido se resuelve a lo que
-   quedaba), los dos `succeeded`.
+   quedaba), los dos `succeeded`. La pasarela recibe la devolución `rf-002` con su propia clave,
+   `ch-001:refund:rf-002`, y no con la de `rf-001`. Con la misma clave, la pasarela habría rechazado
+   la segunda devolución o habría devuelto la respuesta guardada de la primera sin devolver nada.
 6. `paymentEvents` recibe **exactamente un** `PaymentRefunded` con `data` `{ paymentId: <p1>,
    chargeRequestId: "ch-001", customerRef: "cus-1", refundRequestId: "rf-002", refundAmount: 15.90,
    refundedAmount: 25.90, currency: "EUR", status: "refunded" }`.
@@ -867,8 +870,9 @@ informa que la completó por **7.00**; se envejece la marca y pasa un ciclo.
 10. `ch-314` pasa a `refunded` con `refundedAmount: 10.00`, y la devolución `rf-023` queda en
    `succeeded` con `amount: 6.00` y `requestedAmount: 6.00`: el importe informado supera lo que quedaba por devolver, así que
    se registra lo que quedaba. Los 7.00 son lo que la pasarela devolvió en **esta** devolución, no
-   el total devuelto sobre el cobro: si la pasarela solo diera el total (11.00), el importe de esta
-   devolución sería 11.00 menos los 4.00 ya devueltos, y el resultado es el mismo. Lo devuelto nunca supera lo cobrado, y el cobro no se queda en
+   el total devuelto sobre el cobro: `markRefunded` recibe siempre el importe de la devolución, y si
+   una pasarela real solo da el total (11.00), convertirlo (11.00 menos los 4.00 ya devueltos) es de
+   quien traduce su respuesta, no de la operación. Lo devuelto nunca supera lo cobrado, y el cobro no se queda en
    `refunding` ni el barrido vuelve a consultarlo.
 11. `paymentEvents` recibe **exactamente un** `PaymentRefunded` con `data` `{ paymentId,
    chargeRequestId: "ch-314", customerRef: "cus-1", refundRequestId: "rf-023", refundAmount: 6.00,

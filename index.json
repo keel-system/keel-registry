@@ -231,7 +231,7 @@
       "variant": null,
       "service": {
         "name": "payment",
-        "version": "0.2.2",
+        "version": "0.2.3",
         "dsl": "2.33",
         "domain": "commerce",
         "basedOn": null,

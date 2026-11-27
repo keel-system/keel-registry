@@ -5,7 +5,7 @@ keel: "2.33"
 
 service:
   name: payment
-  version: 0.2.2
+  version: 0.2.3
   # keel validate trata cualquier description que empiece por "TODO" como placeholder pendiente.
   description: Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente.
   domain: commerce

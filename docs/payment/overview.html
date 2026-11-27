@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.2.2 -->
+<!-- keel:version 0.2.3 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -189,7 +189,7 @@
 const KEEL = {
   "service": {
     "name": "payment",
-    "version": "0.2.2",
+    "version": "0.2.3",
     "description": "Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente.",
     "domain": "commerce",
     "generatedAt": "2026-11-27"
@@ -1251,7 +1251,7 @@ const KEEL = {
       },
       "rules": [
         "La devolución en pending del cobro pasa a succeeded con el importe que informa la pasarela (que manda si difiere del pedido), y se vacía awaitingSince.",
-        "amount es lo devuelto en esta devolución. Si la pasarela solo informa el total devuelto sobre el cobro, el importe de esta devolución es ese total menos refundedAmount antes de registrarla.",
+        "amount llega siempre como lo devuelto en esta devolución, nunca como el acumulado devuelto sobre el cobro: si la pasarela solo informa el acumulado, convertirlo es de quien traduce su respuesta o su aviso a este desenlace (el importe del propio objeto devolución de la pasarela), no de esta operación, que no recibe nada que le diga cuál de los dos es.",
         "Si el importe informado supera lo que quedaba por devolver (amount menos refundedAmount antes de esta devolución), la devolución se registra por lo que quedaba: lo devuelto nunca supera lo cobrado.",
         "El cobro pasa a refunded si refundedAmount llega a amount; si no, vuelve a captured.",
         "Si el cobro ya no está en refunding, no hace nada y no es un error."
