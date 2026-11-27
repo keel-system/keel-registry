@@ -74,7 +74,7 @@ publishing:
         chargeRequestId: { type: RequestReference, required: true }
         customerRef:     { type: CustomerRef, required: true, personal: true }
         refundRequestId: { type: RequestReference, required: true }
-        refundAmount:    { type: Amount, required: true, description: "Importe de esta devolución." }
+        refundAmount:    { type: Amount, required: true, description: "Importe devuelto según la pasarela (el amount de la devolución tras completarse, recortado a lo que quedaba), no el pedido." }
         refundedAmount:  { type: decimal, required: true, description: "Total devuelto del cobro tras esta devolución." }
         currency:        { type: CurrencyCode, required: true }
         status:          { type: PaymentStatus, required: true }

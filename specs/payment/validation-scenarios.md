@@ -1,7 +1,7 @@
 # payment — Escenarios de validación
 
 > Escenarios de aceptación ejecutables (Given/When/Then) derivados de
-> specs/payment v0.1.5. Contrato de validación para la fase de generación.
+> specs/payment v0.2.1. Contrato de validación para la fase de generación.
 
 > **Un único diseño, cualquier pasarela.** Estos escenarios no nombran ninguna pasarela y tienen que
 > pasar igual con todas las que el generador ofrezca. Hablan de la **pasarela de prueba**: el doble
@@ -37,8 +37,9 @@
   `awaitingSince`, `failureReason`, `customerAction`, `actionRequiredSince`, `cancelOrigin`,
   `paymentMethodId`,
   `refundedAmount`, `createdAt`, `updatedAt` y `refunds`. Cada elemento de `refunds` lleva
-  exactamente `id`, `refundRequestId`, `amount`, `reason`, `status`, `createdAt`, `updatedAt` y
-  `paymentId`, y la lista va de la devolución más antigua a la más reciente (`createdAt` y, a
+  exactamente `id`, `refundRequestId`, `amount`, `requestedAmount`, `reason`, `status`, `createdAt`,
+  `updatedAt` y `paymentId` (`requestedAmount` es igual a `amount` salvo que la pasarela haya
+  informado otro importe al completarla), y la lista va de la devolución más antigua a la más reciente (`createdAt` y, a
   igualdad, `id`). Los escenarios dan los **valores** de esos campos; un campo que un escenario no
   menciona tiene el valor que le corresponde al estado según las invariantes de `Payment`:
   `awaitingSince` no nulo solo en `pending`, `actionRequired`, `capturing`, `canceling` y
@@ -69,8 +70,9 @@
   Las tarjetas que guarda son `visa` acabada en `4242`, caducidad `12/2030`, salvo que el escenario
   diga otra. El arnés puede pedirle, antes del `When`, que **rechace** la siguiente operación (con un
   motivo), que **exija autenticación**, que **no conteste** (registrando o no lo que recibió), que
-  **avise** de un desenlace de un cobro que ya conoce o que **dé otro importe** al completar una
-  devolución. Un aviso de la pasarela va firmado como lo firma ella; el servidor nunca toma el
+  **avise** de un desenlace de un cobro que ya conoce, que **dé otro importe** al completar una
+  devolución o que acepte un medio con un **resumen de tarjeta incompleto** (sin alguno de `brand`,
+  `last4`, `expMonth` o `expYear`). Un aviso de la pasarela va firmado como lo firma ella; el servidor nunca toma el
   desenlace de su contenido: se lo pregunta.
 - **El barrido**: `sweepPendingPayments` corre cada 5 minutos. Los escenarios que dependen de él no
   esperan el umbral ni lo bajan: **envejecen el reloj de esa fila**: `awaitingSince` más allá de
@@ -85,7 +87,7 @@
 | requestCharge | FL-CHG-001, FL-CHG-002, FL-CHG-003, FL-CHG-004, FL-CHG-005, FL-CHG-006, FL-CHG-007, FL-OBX-001 | **servidores (M2M)** |
 | capturePayment | FL-STL-001, FL-STL-002, FL-STL-007, FL-STL-009 | **servidores (M2M)** |
 | cancelPayment | FL-STL-003, FL-STL-004, FL-STL-007 | **servidores (M2M)** |
-| refundPayment | FL-STL-005, FL-STL-006 | **servidores (M2M)** |
+| refundPayment | FL-STL-005, FL-STL-006, FL-STL-010, FL-REC-002 | **servidores (M2M)** |
 | getPayment | FL-CHG-001, FL-CHG-003, FL-QRY-002 | **servidores (M2M)** |
 | getPaymentByChargeRequest | FL-CHG-001, FL-QRY-002 | **servidores (M2M)** |
 | listPaymentsByCustomer | FL-CHG-005, FL-QRY-001 | **servidores (M2M)** |
@@ -108,7 +110,7 @@ La misma matriz leída por **mecanismo**:
 | Mecanismo | Camino feliz | Camino caro |
 |---|---|---|
 | Guarda del doble cargo (`naturalKey` sobre `chargeRequestId`) | FL-CHG-001 | FL-CHG-004 (repetición y conflicto) · FL-CHG-005 (a la vez) |
-| Guarda de la doble devolución (`naturalKey` sobre `refundRequestId`) | FL-STL-005 | FL-STL-005 (repetición) · FL-STL-006 (clave de una devolución fallida) |
+| Guarda de la doble devolución (`naturalKey` sobre `refundRequestId`) | FL-STL-005 | FL-STL-005 (repetición) · FL-STL-006 (clave de una devolución fallida) · FL-STL-010 (a la vez) · FL-REC-002 (repetición tras un importe ajustado) |
 | Idempotencia de `savePaymentMethod` (`Idempotency-Key`) | FL-MTH-001 | FL-MTH-002 (a la vez) |
 | Estados en vuelo | FL-STL-001 | FL-STL-007 (dos acciones a la vez) · FL-STL-009 (el aviso adelanta a la respuesta) · FL-REC-002 |
 | Vuelta al origen de una anulación (`cancelOrigin`) | FL-STL-003 | FL-STL-004 (desde `actionRequired`) · FL-REC-002 |
@@ -229,21 +231,24 @@ prueba configurada para rechazar el medio.
 **When**: `savePaymentMethod` para `cus-4` (sin medios) en cada caso, cada uno con su clave:
 - la pasarela de prueba rechaza el medio;
 - la pasarela de prueba exige autenticar al cliente para guardarlo;
-- la pasarela de prueba no contesta.
+- la pasarela de prueba no contesta;
+- la pasarela de prueba acepta el medio pero su resumen de tarjeta no trae `last4`.
 
 **Then**:
 2. Rechazo: status `422` con `PAYMENT_METHOD_REJECTED`.
 3. Autenticación: status `422` con `PAYMENT_METHOD_AUTHENTICATION_REQUIRED`.
 4. Sin respuesta: status `503` con `GATEWAY_UNAVAILABLE`.
-5. `listPaymentMethods` de `cus-4` responde `[]` en los tres casos.
+5. Resumen incompleto: status `422` con `PAYMENT_METHOD_REJECTED`; un medio sin resumen de tarjeta
+   no se guarda aquí aunque la pasarela lo haya aceptado.
+6. `listPaymentMethods` de `cus-4` responde `[]` en los cuatro casos.
 
 **When**: la pasarela de prueba vuelve a aceptar medios, y se repite el guardado de `cus-4` con **la
 misma** `Idempotency-Key` del caso sin respuesta y un `paymentToken` nuevo.
 
 **Then**:
-6. Status `201` con el medio guardado, y la pasarela recibe un guardado nuevo: el `503` no consumió
+7. Status `201` con el medio guardado, y la pasarela recibe un guardado nuevo: el `503` no consumió
    la clave, así que no hay `IDEMPOTENCY_KEY_IN_PROGRESS` ni `IDEMPOTENCY_KEY_REUSED`.
-7. `listPaymentMethods` de `cus-4` devuelve **exactamente un** medio.
+8. `listPaymentMethods` de `cus-4` devuelve **exactamente un** medio.
 
 **Orden de evaluación** (`savePaymentMethod`):
 1. Cabecera `Idempotency-Key` presente → `IDEMPOTENCY_KEY_REQUIRED` (`400`).
@@ -251,8 +256,8 @@ misma** `Idempotency-Key` del caso sin respuesta y un `paymentToken` nuevo.
    mismo cuerpo → la respuesta original; otro cuerpo → `IDEMPOTENCY_KEY_REUSED` (`409`); en curso →
    `IDEMPOTENCY_KEY_IN_PROGRESS` (`409`).
 3. Tope de 10 medios `active` → `PAYMENT_METHOD_LIMIT_REACHED` (`422`).
-4. La pasarela → `PAYMENT_METHOD_AUTHENTICATION_REQUIRED` (`422`), `PAYMENT_METHOD_REJECTED` (`422`)
-   o `GATEWAY_UNAVAILABLE` (`503`).
+4. La pasarela → `PAYMENT_METHOD_AUTHENTICATION_REQUIRED` (`422`), `PAYMENT_METHOD_REJECTED` (`422`,
+   también si acepta el medio con un resumen de tarjeta incompleto) o `GATEWAY_UNAVAILABLE` (`503`).
 5. Escritura del Wallet → `CONCURRENT_MODIFICATION` (`409`) si otra escritura lo cambió a la vez.
 
 ## Cobros
@@ -402,7 +407,8 @@ en `authorized` y `paymentMethodId: <m1>`.
 - con `currency: "ZZZ"`;
 - con `amount: 10.555`;
 - con `currency: "JPY"` y `amount: 10.5`;
-- con `paymentMethodId: <m1>` y `customerRef: "cus-2"`;
+- con `paymentMethodId: <m1>` y `customerRef: "cus-2"` (en este caso y en los dos siguientes, el
+  `paymentMethodId` sustituye al token: van sin `paymentToken`);
 - con `paymentMethodId: <m9>`;
 - con un `paymentMethodId` que no existe;
 - con `currency: "KWD"` y `amount: 1.234`;
@@ -562,7 +568,7 @@ La operación la hace la **credencial de máquina del cliente `backoffice`**.
 **Then**:
 1. Status `200` con el cobro en `status: "captured"`, `refundedAmount: 10.00`,
    `awaitingSince: null` y `refunds` con un elemento `{ id: <r1>, refundRequestId: "rf-001",
-   amount: 10.00, reason: "Línea devuelta", status: "succeeded", createdAt, updatedAt,
+   amount: 10.00, requestedAmount: 10.00, reason: "Línea devuelta", status: "succeeded", createdAt, updatedAt,
    paymentId: <p1> }`.
 2. `paymentEvents` recibe **exactamente un** `PaymentRefunded` con `data` `{ paymentId: <p1>,
    chargeRequestId: "ch-001", customerRef: "cus-1", refundRequestId: "rf-001", refundAmount: 10.00,
@@ -583,7 +589,8 @@ La operación la hace la **credencial de máquina del cliente `backoffice`**.
 
 **Then**:
 5. Status `200` con el cobro en `status: "refunded"`, `refundedAmount: 25.90` y `refunds` con dos
-   elementos en orden: `rf-001` (10.00) y `rf-002` (15.90), los dos `succeeded`.
+   elementos en orden: `rf-001` (10.00) y `rf-002` (15.90, también su `requestedAmount`: el omitido se resuelve a lo que
+   quedaba), los dos `succeeded`.
 6. `paymentEvents` recibe **exactamente un** `PaymentRefunded` con `data` `{ paymentId: <p1>,
    chargeRequestId: "ch-001", customerRef: "cus-1", refundRequestId: "rf-002", refundAmount: 15.90,
    refundedAmount: 25.90, currency: "EUR", status: "refunded" }`.
@@ -619,8 +626,9 @@ pasarela de prueba rechaza, y un cobro `ch-092` autorizado.
 7. Se repite `rf-013`: status `200` con el cobro tal cual y la pasarela no recibe otra devolución:
    una devolución fallida no se reintenta con la misma clave.
 
-**When**: `refundPayment` sobre `ch-092` (autorizado), sobre un id que no existe, y sobre `ch-090`
-con la **credencial de máquina del cliente `checkout`**.
+**When**: `refundPayment` sobre `ch-092` (autorizado) con `rf-014`, sobre un id que no existe con
+`rf-015`, y sobre `ch-090` con `rf-016` y la **credencial de máquina del cliente `checkout`**; las
+tres con `amount: 1.00` y claves que el flujo no ha usado.
 
 **Then**:
 8. `ch-092`: status `409` con `PAYMENT_NOT_REFUNDABLE`.
@@ -629,12 +637,14 @@ con la **credencial de máquina del cliente `checkout`**.
 
 **Orden de evaluación** (`refundPayment`):
 1. El cobro existe → `PAYMENT_NOT_FOUND` (`404`).
-2. Repetición: el `refundRequestId` ya existe sobre este cobro con el mismo `amount` o sin él → el
-   cobro tal cual (`200`); con otro importe o sobre otro cobro → `REFUND_REQUEST_CONFLICT` (`409`).
+2. Repetición: el `refundRequestId` ya existe sobre este cobro y la petición trae un `amount` igual a
+   su `requestedAmount` o lo omite → el cobro tal cual (`200`); con otro importe o sobre otro cobro →
+   `REFUND_REQUEST_CONFLICT` (`409`). Se compara con lo pedido, no con lo que informó la pasarela.
 3. Está en `captured` → `PAYMENT_NOT_REFUNDABLE` (`409`).
 4. Decimales según la moneda del cobro → `AMOUNT_SCALE_INVALID` (`400`).
 5. No supera lo que queda por devolver → `REFUND_AMOUNT_EXCEEDED` (`422`).
-6. Paso a `refunding` → `CONCURRENT_MODIFICATION` (`409`).
+6. Paso a `refunding` → `CONCURRENT_MODIFICATION` (`409`), salvo que al releer el cobro ya tenga una
+   devolución con ese `refundRequestId`: entonces vuelve a aplicarse el paso 2 (FL-STL-010).
 7. La pasarela: rechazo → `REFUND_REJECTED` (`422`), con la devolución `failed` y el cobro en
    `captured` confirmados.
 
@@ -682,6 +692,32 @@ de la pasarela.
    relee y responde el cobro tal como está, sin `409`.
 2. `paymentEvents` recibe **exactamente un** `PaymentCaptured` para `ch-120`.
 
+### FL-STL-010: la misma devolución a la vez
+
+**Given**: un cobro `ch-130` capturado por 20.00 EUR y otro, `ch-131`, también capturado por
+20.00 EUR, preparados con `checkout` como cualquier `Given`. Las **devoluciones** las hace la
+credencial de máquina del cliente `backoffice`.
+
+**When**: a la vez, dos `refundPayment` idénticos sobre `ch-130` con
+`{ "refundRequestId": "rf-030", "amount": 8.00 }`.
+
+**Then**:
+1. Las dos responden `200` con el mismo cobro (el mismo `id`; la que pierde puede verlo aún en
+   `refunding` o ya en `captured`). La que pierde, choque con la clave natural o con la
+   versión del cobro, relee y responde como una repetición: ninguna recibe `CONCURRENT_MODIFICATION`.
+2. La pasarela recibe **una** devolución para `rf-030`. `getPayment` sobre `ch-130` responde
+   `status: "captured"`, `refundedAmount: 8.00` y `refunds` con un solo elemento `rf-030`
+   (`amount: 8.00`, `requestedAmount: 8.00`, `status: "succeeded"`).
+3. `paymentEvents` recibe **exactamente un** `PaymentRefunded` para `rf-030`.
+
+**When**: a la vez, sobre `ch-131`, `refundPayment` con `{ "refundRequestId": "rf-031", "amount":
+5.00 }` y con `{ "refundRequestId": "rf-031", "amount": 6.00 }`.
+
+**Then**:
+4. Una responde `200` y la otra `409` con `REFUND_REQUEST_CONFLICT`. El escenario no fija cuál gana.
+5. `getPayment` sobre `ch-131` tiene una sola devolución `rf-031`, con el `requestedAmount` de la
+   petición que respondió `200`, y la pasarela ha recibido una sola devolución.
+
 ## Consultas
 
 ### FL-QRY-001: los cobros de un titular, paginados
@@ -696,16 +732,20 @@ con token), y `cus-8` con un cobro `ch-204`.
    totalPages: 2 }`: del más reciente al más antiguo, y cada elemento con la proyección completa del
    cobro.
 
-**When**: `page=1&size=2`, después `page=5&size=2`, después `customerRef=cus-9&page=0&size=2`, y
-después `page=0&size=500`.
+**When**, en este orden:
+- `GET /api/v1/payments?customerRef=cus-7&page=1&size=2`;
+- `GET /api/v1/payments?customerRef=cus-7&page=5&size=2`;
+- `GET /api/v1/payments?customerRef=cus-9&page=0&size=2`;
+- `GET /api/v1/payments?customerRef=cus-7&page=0&size=500`;
+- `GET /api/v1/payments?customerRef=cus-7`, sin `page` ni `size`.
 
 **Then**:
 2. `page=1`: `{ items: [ch-201], page: 1, size: 2, totalElements: 3, totalPages: 2 }`.
 3. `page=5`: `{ items: [], page: 5, size: 2, totalElements: 0, totalPages: 0 }`: fuera de rango es la
    página vacía canónica, aunque el titular tenga cobros en otras páginas.
 4. `cus-9` (sin cobros): `{ items: [], page: 0, size: 2, totalElements: 0, totalPages: 0 }`.
-5. `size=500`: `size: 100` en el sobre (se recorta a `maxSize`) y los tres cobros.
-6. Sin `page` ni `size`: `size: 20` (`defaultSize`).
+5. `size=500`: `size: 100` en el sobre (se recorta a `maxSize`) y los tres cobros de `cus-7`.
+6. Sin `page` ni `size`: `page: 0`, `size: 20` (`defaultSize`) y los tres cobros de `cus-7`.
 7. `ch-204` no aparece en ninguna página de `cus-7`.
 
 **Notas de determinación**: a igualdad de `createdAt`, el orden es por `id` descendente.
@@ -792,21 +832,31 @@ y que la pasarela completó por **5.00**; se envejece la marca y pasa un ciclo.
 
 **Then**:
 6. `ch-313` vuelve a `captured` con `refundedAmount: 5.00`, y la devolución `rf-021` queda en
-   `succeeded` con `amount: 5.00`: manda el importe que informa la pasarela.
+   `succeeded` con `amount: 5.00` y `requestedAmount: 6.00`: manda el importe que informa la
+   pasarela, y lo pedido se conserva.
 7. `paymentEvents` recibe **exactamente un** `PaymentRefunded` con `data` `{ paymentId,
    chargeRequestId: "ch-313", customerRef: "cus-1", refundRequestId: "rf-021", refundAmount: 5.00,
    refundedAmount: 5.00, currency: "EUR", status: "captured" }`.
+
+**When**: se repite la petición original `rf-021` sobre `ch-313` con `amount: 6.00`, y después con
+`amount: 5.00`.
+
+**Then**:
+8. Con `6.00`: status `200` con el cobro tal cual, la pasarela no recibe otra devolución y
+   `paymentEvents` no recibe otro `PaymentRefunded`: la repetición se compara con `requestedAmount`,
+   así que reintentar la petición original tras el ajuste no es un conflicto.
+9. Con `5.00`: status `409` con `REFUND_REQUEST_CONFLICT`: no es lo que se pidió.
 
 **When**: un cobro capturado `ch-314` de 10.00 EUR con una devolución `rf-022` de 4.00 ya en
 `succeeded`; se pide la devolución `rf-023` de 6.00, cuya respuesta se pierde, y la pasarela
 informa que la completó por **7.00**; se envejece la marca y pasa un ciclo.
 
 **Then**:
-8. `ch-314` pasa a `refunded` con `refundedAmount: 10.00`, y la devolución `rf-023` queda en
-   `succeeded` con `amount: 6.00`: el importe informado supera lo que quedaba por devolver, así que
+10. `ch-314` pasa a `refunded` con `refundedAmount: 10.00`, y la devolución `rf-023` queda en
+   `succeeded` con `amount: 6.00` y `requestedAmount: 6.00`: el importe informado supera lo que quedaba por devolver, así que
    se registra lo que quedaba. Lo devuelto nunca supera lo cobrado, y el cobro no se queda en
    `refunding` ni el barrido vuelve a consultarlo.
-9. `paymentEvents` recibe **exactamente un** `PaymentRefunded` con `data` `{ paymentId,
+11. `paymentEvents` recibe **exactamente un** `PaymentRefunded` con `data` `{ paymentId,
    chargeRequestId: "ch-314", customerRef: "cus-1", refundRequestId: "rf-023", refundAmount: 6.00,
    refundedAmount: 10.00, currency: "EUR", status: "refunded" }`.
 
@@ -930,8 +980,7 @@ pendiente de salir.
    `listPaymentMethods`, `setDefaultPaymentMethod` y `removePaymentMethod` responden `403`.
 3. **Con la credencial de máquina del cliente `checkout`** (sin `payment:refund`): `refundPayment`
    responde `403` (también en FL-STL-006).
-4. **Con un token emitido para otra audiencia**: `getPayment`, `getPaymentByChargeRequest` y
-   `listPaymentsByCustomer` responden `403`.
+4. **Con un token emitido para otra audiencia**: las once responden `403`.
 5. Ninguna de esas peticiones produce efecto: la pasarela de prueba no recibe nada y `paymentEvents`
    no recibe nada.
 
@@ -956,7 +1005,7 @@ pendiente de salir.
   lleva el cobro ni el medio a un estado que los rompa: cada transición vacía o estampa los campos que
   piden (lo afirman los `Then` de cada flujo, p. ej. `cancelOrigin: null` y `awaitingSince: null` en
   FL-REC-002), y el único desenlace que podía romper uno —una devolución informada por más de lo que
-  quedaba— tiene su regla y su escenario (FL-REC-002, punto 8). Provocar el `422` exigiría escribir
+  quedaba— tiene su regla y su escenario (FL-REC-002, punto 10). Provocar el `422` exigiría escribir
   en el almacén.
 - **Que los campos `personal` no aparezcan en logs ni trazas.** No es observable en caja negra por la
   API ni por `paymentEvents`: su verificación es estática, sobre el proyecto generado.

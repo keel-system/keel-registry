@@ -576,6 +576,47 @@
           ]
         },
         {
+          "name": "FL-MTH-004 · F — La pasarela acepta el medio sin resumen de tarjeta completo (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "k-m4f"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payment-methods",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerRef\": \"cus-4\",\n  \"paymentToken\": \"{{paymentToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "FL-MTH-004 · E — Reintento con la misma clave tras el 503 (201)",
           "request": {
             "method": "POST",
@@ -2177,6 +2218,159 @@
       ]
     },
     {
+      "name": "FL-STL-010 — la misma devolución a la vez",
+      "item": [
+        {
+          "name": "FL-STL-010 · A — Devolución rf-030, primera de la carrera (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-030\",\n  \"amount\": 8.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-010 · B — Devolución rf-030, segunda de la carrera (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-030\",\n  \"amount\": 8.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-010 · C — rf-031 por 5.00, a la vez que por 6.00 (200 o 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{otherPaymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-031\",\n  \"amount\": 5.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 o 409', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-STL-010 · D — rf-031 por 6.00, a la vez que por 5.00 (200 o 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{otherPaymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-031\",\n  \"amount\": 6.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 o 409', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "FL-QRY-001 — los cobros de un titular, paginados",
       "item": [
         {
@@ -2262,6 +2456,30 @@
               }
             ],
             "url": "{{baseUrl}}/api/v1/payments?customerRef=cus-7&page=0&size=500"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-QRY-001 · E — Sin paginación: defaultSize (200)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_checkout}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments?customerRef=cus-7"
           },
           "event": [
             {
@@ -2466,6 +2684,80 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REC-002 · C — Repetir la devolución original tras el ajuste del importe (200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-021\",\n  \"amount\": 6.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FL-REC-002 · D — Repetir con el importe ajustado: no es lo pedido (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_backoffice}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refunds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundRequestId\": \"rf-021\",\n  \"amount\": 5.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));"
                 ]
               }
             }
@@ -2814,7 +3106,7 @@
     },
     {
       "key": "keelVersion",
-      "value": "0.1.5"
+      "value": "0.2.1"
     },
     {
       "key": "paymentToken",
@@ -2850,6 +3142,10 @@
     },
     {
       "key": "authorizedPaymentId",
+      "value": ""
+    },
+    {
+      "key": "otherPaymentId",
       "value": ""
     }
   ]

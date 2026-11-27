@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payment
-  version: 0.1.5
+  version: 0.2.1
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -516,7 +516,7 @@ paths:
                     code: PAYMENT_NOT_FOUND
                     message: No existe un cobro con ese id.
         '409':
-          description: '`PAYMENT_NOT_CAPTURABLE` — El cobro no está en authorized, capturing ni captured.
+          description: '`PAYMENT_NOT_CAPTURABLE` — El cobro no está en authorized ni en un estado de la repetición (capturing, captured, refunding, refunded).
 
 
             `AUTHORIZATION_EXPIRED` — La pasarela ya había cancelado la autorización.
@@ -529,11 +529,11 @@ paths:
                 $ref: '#/components/schemas/Error'
               examples:
                 PAYMENT_NOT_CAPTURABLE:
-                  summary: El cobro no está en authorized, capturing ni captured.
+                  summary: El cobro no está en authorized ni en un estado de la repetición (capturing, captured, refunding, refunded).
                   value:
                     status: 409
                     code: PAYMENT_NOT_CAPTURABLE
-                    message: El cobro no está en authorized, capturing ni captured.
+                    message: El cobro no está en authorized ni en un estado de la repetición (capturing, captured, refunding, refunded).
                 AUTHORIZATION_EXPIRED:
                   summary: La pasarela ya había cancelado la autorización.
                   value:
@@ -802,12 +802,10 @@ paths:
                     code: PAYMENT_NOT_FOUND
                     message: No existe un cobro con ese id.
         '409':
-          description: '`PAYMENT_NOT_REFUNDABLE` — El cobro no está en captured (incluido el que ya tiene una devolución
-            en curso).
+          description: '`PAYMENT_NOT_REFUNDABLE` — El cobro no está en captured (incluido el que ya tiene una devolución en curso), salvo que ya exista una devolución con ese refundRequestId: esa petición se resuelve antes por la regla de la clave (el cobro tal cual o REFUND_REQUEST_CONFLICT).
 
 
-            `REFUND_REQUEST_CONFLICT` — Ya existe una devolución con ese refundRequestId con otro importe o sobre
-            otro cobro.
+            `REFUND_REQUEST_CONFLICT` — Ya existe una devolución con ese refundRequestId con otro importe pedido (requestedAmount) o sobre otro cobro.
 
 
             `CONCURRENT_MODIFICATION` — El cobro cambió mientras se procesaba la petición.'
@@ -817,17 +815,17 @@ paths:
                 $ref: '#/components/schemas/Error'
               examples:
                 PAYMENT_NOT_REFUNDABLE:
-                  summary: El cobro no está en captured (incluido el que ya tiene una devolución en curso).
+                  summary: 'El cobro no está en captured (incluido el que ya tiene una devolución en curso), salvo que ya exista una devolución con ese refundRequestId: esa petición se resuelve antes por la regla de la clave (el cobro tal cual o REFUND_REQUEST_CONFLICT).'
                   value:
                     status: 409
                     code: PAYMENT_NOT_REFUNDABLE
-                    message: El cobro no está en captured (incluido el que ya tiene una devolución en curso).
+                    message: 'El cobro no está en captured (incluido el que ya tiene una devolución en curso), salvo que ya exista una devolución con ese refundRequestId: esa petición se resuelve antes por la regla de la clave (el cobro tal cual o REFUND_REQUEST_CONFLICT).'
                 REFUND_REQUEST_CONFLICT:
-                  summary: Ya existe una devolución con ese refundRequestId con otro importe o sobre otro cobro.
+                  summary: Ya existe una devolución con ese refundRequestId con otro importe pedido (requestedAmount) o sobre otro cobro.
                   value:
                     status: 409
                     code: REFUND_REQUEST_CONFLICT
-                    message: Ya existe una devolución con ese refundRequestId con otro importe o sobre otro cobro.
+                    message: Ya existe una devolución con ese refundRequestId con otro importe pedido (requestedAmount) o sobre otro cobro.
                 CONCURRENT_MODIFICATION:
                   summary: El cobro cambió mientras se procesaba la petición.
                   value:
@@ -996,8 +994,7 @@ paths:
             el medio; el frontend debe completarla al tokenizar y volver a pedir el guardado.
 
 
-            `PAYMENT_METHOD_REJECTED` — La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza
-            el medio.
+            `PAYMENT_METHOD_REJECTED` — La pasarela no acepta el token (inválido, caducado o ya usado), rechaza el medio o lo acepta sin un resumen de tarjeta completo. Es un solo código a propósito: en los dos casos el consumidor hace lo mismo, pedir otra tarjeta; el resumen incompleto es una anomalía de la pasarela que reintentar con la misma tarjeta no arregla.
 
 
             `INVARIANT_VIOLATED` — La escritura dejaría el medio fuera de una invariante del dominio.'
@@ -1021,11 +1018,11 @@ paths:
                     message: La pasarela exige autenticar al cliente (3DS) para guardar el medio; el frontend debe
                       completarla al tokenizar y volver a pedir el guardado.
                 PAYMENT_METHOD_REJECTED:
-                  summary: La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza el medio.
+                  summary: 'La pasarela no acepta el token (inválido, caducado o ya usado), rechaza el medio o lo acepta sin un '
                   value:
                     status: 422
                     code: PAYMENT_METHOD_REJECTED
-                    message: La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza el medio.
+                    message: 'La pasarela no acepta el token (inválido, caducado o ya usado), rechaza el medio o lo acepta sin un resumen de tarjeta completo. Es un solo código a propósito: en los dos casos el consumidor hace lo mismo, pedir otra tarjeta; el resumen incompleto es una anomalía de la pasarela que reintentar con la misma tarjeta no arregla.'
         '503':
           description: '`GATEWAY_UNAVAILABLE` — La pasarela no contestó; aquí no se guardó nada y se puede reintentar
             con un token nuevo.'
@@ -1427,7 +1424,7 @@ components:
         brand:
           type: string
           maxLength: 30
-          description: Red de la tarjeta tal como la informa la pasarela (visa, mastercard…).
+          description: 'Red de la tarjeta tal como la informa la pasarela (visa, mastercard…); texto informativo, sin vocabulario cerrado: puede escribirse distinto según la pasarela.'
         last4:
           type: string
           pattern: ^[0-9]{4}$
@@ -1449,6 +1446,7 @@ components:
       - id
       - refundRequestId
       - amount
+      - requestedAmount
       - reason
       - status
       - createdAt
@@ -1465,8 +1463,15 @@ components:
         amount:
           allOf:
           - $ref: '#/components/schemas/Amount'
-          description: Importe pedido; si la pasarela informa al completarla un importe devuelto distinto, se guarda
-            el informado, sin pasar de lo que quedaba por devolver del cobro.
+          description: 'Importe de la devolución: nace igual a requestedAmount y, si la pasarela informa al completarla
+            un importe devuelto distinto, se guarda el informado, sin pasar de lo que quedaba por devolver del cobro.
+            Es lo que cuenta en refundedAmount.'
+        requestedAmount:
+          allOf:
+          - $ref: '#/components/schemas/Amount'
+          description: 'Importe que resolvió la petición al crear la devolución: el amount explícito o, si se omitió,
+            lo que quedaba por devolver. No cambia aunque la pasarela informe otro importe; contra él se compara la
+            repetición de la misma petición. En una devolución creada antes de la 0.2.0 vale su amount.'
         reason:
           type:
           - string

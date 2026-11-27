@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- keel:version 0.1.5 -->
+<!-- keel:version 0.2.1 -->
 <!--
   Panel de servicio Keel — plantilla de forma fija.
   NO edites el markup, el CSS ni el JS al generar: copia este archivo tal cual y sustituye
@@ -189,10 +189,10 @@
 const KEEL = {
   "service": {
     "name": "payment",
-    "version": "0.1.5",
+    "version": "0.2.1",
     "description": "Cobra con tarjeta, a través de una pasarela intercambiable, los importes que le piden otros servidores — autorizar, capturar, anular y devolver —, y guarda medios de pago para cobrar sin el cliente presente.",
     "domain": "commerce",
-    "generatedAt": "2026-11-26"
+    "generatedAt": "2026-11-27"
   },
   "links": [
     {
@@ -618,7 +618,7 @@ const KEEL = {
         {
           "code": "PAYMENT_NOT_CAPTURABLE",
           "http": 409,
-          "when": "El cobro no está en authorized, capturing ni captured."
+          "when": "El cobro no está en authorized ni en un estado de la repetición (capturing, captured, refunding, refunded)."
         },
         {
           "code": "AUTHORIZATION_EXPIRED",
@@ -769,10 +769,10 @@ const KEEL = {
         "exclude": []
       },
       "rules": [
-        "La clave se comprueba justo después de que el cobro exista y antes que cualquier otra guarda: si ya existe una devolución con ese refundRequestId sobre este cobro y la petición trae el mismo amount o lo omite, se devuelve el cobro en su estado actual (200) sin volver a llamar a la pasarela, esté la devolución pending, succeeded o failed; si existe con otro amount o sobre otro cobro, REFUND_REQUEST_CONFLICT. Una devolución failed no se reintenta con la misma clave: hace falta otro refundRequestId.",
-        "Dos devoluciones con el mismo refundRequestId a la vez: la que choca con la clave natural relee y aplica la regla anterior. Nunca hay una segunda devolución ni una segunda llamada a la pasarela.",
+        "La clave se comprueba justo después de que el cobro exista y antes que cualquier otra guarda: si ya existe una devolución con ese refundRequestId sobre este cobro y la petición trae un amount igual a su requestedAmount o lo omite, se devuelve el cobro en su estado actual (200) sin volver a llamar a la pasarela, esté la devolución pending, succeeded o failed; si existe con otro amount o sobre otro cobro, REFUND_REQUEST_CONFLICT. La comparación es contra requestedAmount, no contra el amount que haya informado la pasarela al completarla: repetir la petición original tras un ajuste del importe no es un conflicto. Una devolución failed no se reintenta con la misma clave: hace falta otro refundRequestId.",
+        "Dos devoluciones con el mismo refundRequestId a la vez: la que pierde, choque con la clave natural o con la versión del cobro al pasarlo a refunding, relee el cobro; si ya tiene una devolución con ese refundRequestId, aplica la regla anterior (el cobro tal cual, o REFUND_REQUEST_CONFLICT si trae un amount distinto del requestedAmount de la ganadora), y solo si no la tiene responde CONCURRENT_MODIFICATION. Nunca hay una segunda devolución ni una segunda llamada a la pasarela.",
         "amount no puede tener más decimales que los de la moneda del cobro.",
-        "Se crea la devolución en pending y el cobro pasa a refunding, con awaitingSince estampado, antes de llamar a la pasarela.",
+        "Se crea la devolución en pending, con amount y requestedAmount iguales al importe resuelto (el pedido o, si se omitió, lo que queda por devolver), y el cobro pasa a refunding, con awaitingSince estampado, antes de llamar a la pasarela.",
         "Si la pasarela devuelve, se aplica markRefunded; si no contesta, el cobro se queda en refunding y lo resuelve el barrido.",
         "Si la pasarela rechaza, la devolución pasa a failed, el cobro vuelve a captured con awaitingSince vacío, se publica PaymentActionRejected y responde REFUND_REJECTED.",
         "Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan.",
@@ -787,7 +787,7 @@ const KEEL = {
         {
           "code": "PAYMENT_NOT_REFUNDABLE",
           "http": 409,
-          "when": "El cobro no está en captured (incluido el que ya tiene una devolución en curso)."
+          "when": "El cobro no está en captured (incluido el que ya tiene una devolución en curso), salvo que ya exista una devolución con ese refundRequestId: esa petición se resuelve antes por la regla de la clave (el cobro tal cual o REFUND_REQUEST_CONFLICT)."
         },
         {
           "code": "AMOUNT_SCALE_INVALID",
@@ -802,7 +802,7 @@ const KEEL = {
         {
           "code": "REFUND_REQUEST_CONFLICT",
           "http": 409,
-          "when": "Ya existe una devolución con ese refundRequestId con otro importe o sobre otro cobro."
+          "when": "Ya existe una devolución con ese refundRequestId con otro importe pedido (requestedAmount) o sobre otro cobro."
         },
         {
           "code": "REFUND_REJECTED",
@@ -1360,6 +1360,7 @@ const KEEL = {
         "Solo un guardado con éxito queda registrado bajo la Idempotency-Key. Si la operación termina en error (tope alcanzado, la pasarela rechaza, exige autenticar o no contesta), la clave queda libre: una petición posterior con la misma clave vuelve a ejecutarse, con el mismo paymentToken o con otro, y no recibe IDEMPOTENCY_KEY_IN_PROGRESS ni IDEMPOTENCY_KEY_REUSED.",
         "Si el titular no tiene Wallet, se crea con este primer medio.",
         "El medio se guarda solo si la pasarela lo acepta; guarda su referencia opaca y el resumen de la tarjeta.",
+        "Si la pasarela acepta el medio pero su resumen de tarjeta no trae brand, last4, expMonth o expYear (o alguno no cumple sus cotas), aquí no se guarda nada y se responde PAYMENT_METHOD_REJECTED: un medio sin ese resumen no se puede mostrar al titular ni saber si caducó. El medio puede quedar guardado en la pasarela sin registro aquí, uno por intento, como tras un timeout; nunca se cobra.",
         "El medio queda por defecto si makeDefault es true o si el titular no tenía ningún medio active; el anterior por defecto deja de serlo.",
         "El paymentToken no se guarda; solo viaja a la pasarela.",
         "Guardar dos veces la misma tarjeta crea dos medios: el servicio no reconoce tarjetas iguales. Un timeout de la pasarela puede dejar el medio guardado allí sin registro aquí; nunca se cobra."
@@ -1383,7 +1384,7 @@ const KEEL = {
         {
           "code": "PAYMENT_METHOD_REJECTED",
           "http": 422,
-          "when": "La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza el medio."
+          "when": "La pasarela no acepta el token (inválido, caducado o ya usado), rechaza el medio o lo acepta sin un resumen de tarjeta completo. Es un solo código a propósito: en los dos casos el consumidor hace lo mismo, pedir otra tarjeta; el resumen incompleto es una anomalía de la pasarela que reintentar con la misma tarjeta no arregla."
         },
         {
           "code": "GATEWAY_UNAVAILABLE",
@@ -1839,7 +1840,7 @@ const KEEL = {
             "type": "Amount",
             "required": true,
             "list": false,
-            "description": "Importe de esta devolución."
+            "description": "Importe devuelto según la pasarela (el amount de la devolución tras completarse, recortado a lo que quedaba), no el pedido."
           },
           {
             "name": "refundedAmount",
@@ -1925,7 +1926,7 @@ const KEEL = {
   },
   "domain": {
     "diagrams": {
-      "domain": "classDiagram\n  direction LR\n  namespace PaymentAggregate {\n    class Payment {\n      <<raíz>>\n      id: uuid · id, generado\n      chargeRequestId: RequestReference · clave natural, único, requerido\n      customerRef: CustomerRef · requerido, personal\n      amount: Amount · requerido\n      currency: CurrencyCode · requerido\n      status: PaymentStatus · default pending\n      gatewayPaymentId: string\n      awaitingSince: timestamp\n      failureReason: FailureReason\n      customerAction: json\n      actionRequiredSince: timestamp\n      cancelOrigin: enum\n      paymentMethodId: uuid\n      refundedAmount: decimal · calculado\n      createdAt: timestamp · generado\n      updatedAt: timestamp · generado\n    }\n    class Refund {\n      id: uuid · id, generado\n      refundRequestId: RequestReference · clave natural, único, requerido\n      amount: Amount · requerido\n      reason: string · personal\n      status: RefundStatus · default pending\n      createdAt: timestamp · generado\n      updatedAt: timestamp · generado\n    }\n  }\n  namespace WalletAggregate {\n    class Wallet {\n      <<raíz>>\n      id: uuid · id, generado\n      customerRef: CustomerRef · clave natural, único, requerido, personal\n    }\n    class PaymentMethod {\n      id: uuid · id, generado\n      gatewayMethodRef: string · requerido, personal, sensible\n      card: CardDetails · requerido, personal\n      isDefault: boolean · default false\n      status: PaymentMethodStatus · default active\n      expired: boolean · calculado\n    }\n  }\n  class PaymentStatus {\n    <<enumeration>>\n    pending\n    actionRequired\n    authorized\n    capturing\n    canceling\n    captured\n    refunding\n    refunded\n    canceled\n    failed\n  }\n  class FailureReason {\n    <<enumeration>>\n    declined\n    insufficientFunds\n    expiredCard\n    authenticationFailed\n    fraudSuspected\n    invalidPaymentMethod\n    notReceived\n    processingError\n  }\n  class RefundStatus {\n    <<enumeration>>\n    pending\n    succeeded\n    failed\n  }\n  class PaymentMethodStatus {\n    <<enumeration>>\n    active\n    removed\n  }\n  class CardDetails {\n    <<value object>>\n    brand: string · requerido\n    last4: string · requerido\n    expMonth: int · requerido\n    expYear: int · requerido\n  }\n  Payment \"1\" *-- \"*\" Refund : refunds\n  Refund \"*\" --> \"1\" Payment : payment\n  Wallet \"1\" *-- \"*\" PaymentMethod : paymentMethods\n  PaymentMethod \"*\" --> \"1\" Wallet : wallet\n  note for Payment \"checks: requires awaitingSince · when field=status in=pending,actionRequired,capturing,canceling,refunding | forbids awaitingSince · unless field=status in=pending,actionRequired,capturing,canceling,refunding | requires cancelOrigin · when field=status in=canceling | forbids cancelOrigin · unless field=status in=canceling | requires failureReason · when field=status in=failed | forbids failureReason · unless field=status in=failed | requires customerAction · when field=status in=actionRequired | requires customerAction · when field=cancelOrigin in=actionRequired | forbids customerAction · unless field=status in=actionRequired,canceling | forbids customerAction · when field=cancelOrigin in=authorized | requires actionRequiredSince · when field=status in=actionRequired | requires actionRequiredSince · when field=cancelOrigin in=actionRequired | forbids actionRequiredSince · unless field=status in=actionRequired,canceling | forbids actionRequiredSince · when field=cancelOrigin in=authorized | field refundedAmount · op lte · than amount | field refundedAmount · op eq · than amount · when field=status in=refunded | field refundedAmount · op ne · than amount · unless field=status in=refunded\"\n  note for PaymentMethod \"checks: field isDefault · op eq · value false · when field=status in=removed\"",
+      "domain": "classDiagram\n  direction LR\n  namespace PaymentAggregate {\n    class Payment {\n      <<raíz>>\n      id: uuid · id, generado\n      chargeRequestId: RequestReference · clave natural, único, requerido\n      customerRef: CustomerRef · requerido, personal\n      amount: Amount · requerido\n      currency: CurrencyCode · requerido\n      status: PaymentStatus · default pending\n      gatewayPaymentId: string\n      awaitingSince: timestamp\n      failureReason: FailureReason\n      customerAction: json\n      actionRequiredSince: timestamp\n      cancelOrigin: enum\n      paymentMethodId: uuid\n      refundedAmount: decimal · calculado\n      createdAt: timestamp · generado\n      updatedAt: timestamp · generado\n    }\n    class Refund {\n      id: uuid · id, generado\n      refundRequestId: RequestReference · clave natural, único, requerido\n      amount: Amount · requerido\n      requestedAmount: Amount · requerido\n      reason: string · personal\n      status: RefundStatus · default pending\n      createdAt: timestamp · generado\n      updatedAt: timestamp · generado\n    }\n  }\n  namespace WalletAggregate {\n    class Wallet {\n      <<raíz>>\n      id: uuid · id, generado\n      customerRef: CustomerRef · clave natural, único, requerido, personal\n    }\n    class PaymentMethod {\n      id: uuid · id, generado\n      gatewayMethodRef: string · requerido, personal, sensible\n      card: CardDetails · requerido, personal\n      isDefault: boolean · default false\n      status: PaymentMethodStatus · default active\n      expired: boolean · calculado\n    }\n  }\n  class PaymentStatus {\n    <<enumeration>>\n    pending\n    actionRequired\n    authorized\n    capturing\n    canceling\n    captured\n    refunding\n    refunded\n    canceled\n    failed\n  }\n  class FailureReason {\n    <<enumeration>>\n    declined\n    insufficientFunds\n    expiredCard\n    authenticationFailed\n    fraudSuspected\n    invalidPaymentMethod\n    notReceived\n    processingError\n  }\n  class RefundStatus {\n    <<enumeration>>\n    pending\n    succeeded\n    failed\n  }\n  class PaymentMethodStatus {\n    <<enumeration>>\n    active\n    removed\n  }\n  class CardDetails {\n    <<value object>>\n    brand: string · requerido\n    last4: string · requerido\n    expMonth: int · requerido\n    expYear: int · requerido\n  }\n  Payment \"1\" *-- \"*\" Refund : refunds\n  Refund \"*\" --> \"1\" Payment : payment\n  Wallet \"1\" *-- \"*\" PaymentMethod : paymentMethods\n  PaymentMethod \"*\" --> \"1\" Wallet : wallet\n  note for Payment \"checks: requires awaitingSince · when field=status in=pending,actionRequired,capturing,canceling,refunding | forbids awaitingSince · unless field=status in=pending,actionRequired,capturing,canceling,refunding | requires cancelOrigin · when field=status in=canceling | forbids cancelOrigin · unless field=status in=canceling | requires failureReason · when field=status in=failed | forbids failureReason · unless field=status in=failed | requires customerAction · when field=status in=actionRequired | requires customerAction · when field=cancelOrigin in=actionRequired | forbids customerAction · unless field=status in=actionRequired,canceling | forbids customerAction · when field=cancelOrigin in=authorized | requires actionRequiredSince · when field=status in=actionRequired | requires actionRequiredSince · when field=cancelOrigin in=actionRequired | forbids actionRequiredSince · unless field=status in=actionRequired,canceling | forbids actionRequiredSince · when field=cancelOrigin in=authorized | field refundedAmount · op lte · than amount | field refundedAmount · op eq · than amount · when field=status in=refunded | field refundedAmount · op ne · than amount · unless field=status in=refunded\"\n  note for Refund \"checks: field amount · op eq · than requestedAmount · unless field=status in=succeeded\"\n  note for PaymentMethod \"checks: field isDefault · op eq · value false · when field=status in=removed\"",
       "notes": [],
       "lifecycles": [
         {
@@ -2176,7 +2177,16 @@ const KEEL = {
             "flags": [
               "requerido"
             ],
-            "description": "Importe pedido; si la pasarela informa al completarla un importe devuelto distinto, se guarda el informado, sin pasar de lo que quedaba por devolver del cobro."
+            "description": "Importe de la devolución: nace igual a requestedAmount y, si la pasarela informa al completarla un importe devuelto distinto, se guarda el informado, sin pasar de lo que quedaba por devolver del cobro. Es lo que cuenta en refundedAmount."
+          },
+          {
+            "name": "requestedAmount",
+            "type": "Amount",
+            "list": false,
+            "flags": [
+              "requerido"
+            ],
+            "description": "Importe que resolvió la petición al crear la devolución: el amount explícito o, si se omitió, lo que quedaba por devolver. No cambia aunque la pasarela informe otro importe; contra él se compara la repetición de la misma petición. En una devolución creada antes de la 0.2.0 vale su amount."
           },
           {
             "name": "reason",
@@ -2222,6 +2232,7 @@ const KEEL = {
         "invariants": [
           "El status de una devolución lo gobierna la raíz: nace en pending al entrar el cobro en refunding, y pasa a succeeded o failed en el mismo cambio en que el cobro sale de refunding.",
           "Una devolución en succeeded o failed no vuelve a cambiar de status.",
+          "El requestedAmount de una devolución no cambia después de crearla.",
           "Los decimales del amount de una devolución no superan los de la moneda del cobro.",
           "La suma de los amount de las devoluciones succeeded y pending de un cobro nunca supera el amount del cobro."
         ]

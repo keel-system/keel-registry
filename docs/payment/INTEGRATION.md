@@ -1,6 +1,6 @@
 ---
 service: payment
-version: 0.1.5
+version: 0.2.1
 domain: commerce
 basePath: /api/v1
 m2mAuth:
@@ -204,7 +204,7 @@ Toda operación puede responder además, sin que su tabla lo repita:
 | paymentMethodId | uuid \| null | Medio guardado con el que se cobró; `null` si fue con token. |
 | refundedAmount | decimal | Suma de las devoluciones `succeeded`. |
 | createdAt, updatedAt | timestamp | |
-| refunds | lista de `Refund` | De la más antigua a la más reciente. Cada una: `id`, `refundRequestId`, `amount`, `reason` (dato personal), `status` (`pending`, `succeeded`, `failed`), `createdAt`, `updatedAt`, `paymentId`. |
+| refunds | lista de `Refund` | De la más antigua a la más reciente. Cada una: `id`, `refundRequestId`, `amount` (lo devuelto: el que informa la pasarela al completarla), `requestedAmount` (lo que pidió la petición; no cambia), `reason` (dato personal), `status` (`pending`, `succeeded`, `failed`), `createdAt`, `updatedAt`, `paymentId`. |
 
 ```json
 {
@@ -341,7 +341,7 @@ reciente al más antiguo (`createdAt` desc, `id` desc). Un titular sin cobros de
 | Código | HTTP | Cuándo | Acción recomendada |
 |---|---|---|---|
 | PAYMENT_NOT_FOUND | 404 | No existe un cobro con ese id. | No reintentar. |
-| PAYMENT_NOT_CAPTURABLE | 409 | El cobro no está en `authorized` (ni ya capturándose o capturado). | No reintentar; consulta el estado. |
+| PAYMENT_NOT_CAPTURABLE | 409 | El cobro no está en `authorized` ni en un estado de la repetición (`capturing`, `captured`, `refunding`, `refunded`). | No reintentar; consulta el estado. |
 | AUTHORIZATION_EXPIRED | 409 | La pasarela ya había cancelado la autorización; el cobro queda `canceled`. | No reintentar; pide un cobro nuevo. |
 | CAPTURE_REJECTED | 422 | La pasarela rechazó la captura; el cobro vuelve a `authorized`. | Se puede volver a intentar más tarde. |
 | CONCURRENT_MODIFICATION | 409 | Otra petición tuya cambió el cobro a la vez. | Consultar el cobro y decidir. |
@@ -372,7 +372,7 @@ Anula un cobro `authorized` o uno que espera el 3DS (`actionRequired`).
 |---|---|
 | Endpoint | `POST /api/v1/payments/{id}/refunds` |
 | Acceso | `service` — scope `payment:refund` |
-| Idempotencia | sí — por `refundRequestId` (permanente). La misma devolución, con el mismo `amount` o sin él, devuelve el cobro tal cual. Una devolución `failed` no se reintenta con la misma clave: usa otra. |
+| Idempotencia | sí — por `refundRequestId` (permanente). La misma devolución, con el mismo `amount` que pediste (se compara con `requestedAmount`, no con lo que informó la pasarela) o sin él, devuelve el cobro tal cual, también si dos peticiones con la misma clave llegan a la vez. Una devolución `failed` no se reintenta con la misma clave: usa otra. |
 | Éxito | `200` con el cobro (`captured` si queda saldo, `refunded` si se devolvió todo, `refunding` si la pasarela no contestó) |
 
 **Request**
@@ -390,8 +390,8 @@ Anula un cobro `authorized` o uno que espera el 3DS (`actionRequired`).
 | Código | HTTP | Cuándo | Acción recomendada |
 |---|---|---|---|
 | PAYMENT_NOT_FOUND | 404 | No existe un cobro con ese id. | No reintentar. |
-| REFUND_REQUEST_CONFLICT | 409 | El `refundRequestId` ya existe con otro importe o sobre otro cobro. | No reintentar; usa otra clave. |
-| PAYMENT_NOT_REFUNDABLE | 409 | El cobro no está en `captured` (incluido el que ya tiene una devolución en curso). | No reintentar; espera al desenlace de la devolución en curso. |
+| REFUND_REQUEST_CONFLICT | 409 | El `refundRequestId` ya existe con otro importe pedido (`requestedAmount`) o sobre otro cobro. | No reintentar; usa otra clave. |
+| PAYMENT_NOT_REFUNDABLE | 409 | El cobro no está en `captured` (incluido el que ya tiene una devolución en curso). Una petición cuyo `refundRequestId` ya existe no llega aquí: se resuelve antes como repetición o `REFUND_REQUEST_CONFLICT`. | No reintentar; espera al desenlace de la devolución en curso. |
 | AMOUNT_SCALE_INVALID | 400 | `amount` tiene más decimales que los de la moneda del cobro. | Corregir input. |
 | REFUND_AMOUNT_EXCEEDED | 422 | `amount` supera lo que queda por devolver. | Corregir input. |
 | REFUND_REJECTED | 422 | La pasarela rechazó la devolución; queda `failed` y el cobro vuelve a `captured`. | Reintentar con **otro** `refundRequestId`. |
@@ -420,7 +420,7 @@ Anula un cobro `authorized` o uno que espera el 3DS (`actionRequired`).
 | Campo | Tipo | Notas |
 |---|---|---|
 | id | uuid | Es lo que mandas como `paymentMethodId` al cobrar. |
-| card | objeto | `brand`, `last4`, `expMonth`, `expYear`. Nunca el número. |
+| card | objeto | `brand` (texto informativo de la pasarela, sin vocabulario cerrado), `last4`, `expMonth`, `expYear`; siempre los cuatro. Nunca el número. |
 | isDefault | boolean | |
 | status | enum | `active`, `removed` |
 | expired | boolean | La tarjeta caducó (antes del mes en curso, UTC). |
@@ -440,7 +440,7 @@ Anula un cobro `authorized` o uno que espera el 3DS (`actionRequired`).
 | IDEMPOTENCY_KEY_IN_PROGRESS | 409 | Otra petición con la misma clave está en curso. | Reintentar con la misma clave en unos segundos. |
 | PAYMENT_METHOD_LIMIT_REACHED | 422 | El titular ya tiene 10 medios `active`. | No reintentar; retira uno antes. |
 | PAYMENT_METHOD_AUTHENTICATION_REQUIRED | 422 | La pasarela exige autenticar al cliente (3DS) para guardarlo. | Completa la autenticación al tokenizar y pide el guardado con un token nuevo. |
-| PAYMENT_METHOD_REJECTED | 422 | La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza el medio. | Corregir input: token nuevo u otro medio. |
+| PAYMENT_METHOD_REJECTED | 422 | La pasarela no acepta el token (inválido, caducado o ya usado), rechaza el medio o lo acepta sin un resumen de tarjeta completo. | Corregir input: pedir otra tarjeta (con la misma, un resumen incompleto se repite). |
 | GATEWAY_UNAVAILABLE | 503 | La pasarela no contestó; aquí no se guardó nada. | Reintentable con un token nuevo; la misma clave vale, porque el error no la consume. |
 | CONCURRENT_MODIFICATION | 409 | El Wallet cambió a la vez. | Reintentar. |
 | INVARIANT_VIOLATED | 422 | La escritura dejaría el medio fuera de una invariante del dominio (error del framework; ninguna operación declarada llega a provocarlo). | No reintentar; avisa al dueño del servicio. |
@@ -636,7 +636,7 @@ La pasarela completó una devolución. Emitido por `markRefunded`.
 | chargeRequestId | string | requerido |
 | customerRef | string | requerido |
 | refundRequestId | string | requerido |
-| refundAmount | decimal | requerido; importe de esta devolución (el que informa la pasarela, sin pasar de lo que quedaba por devolver) |
+| refundAmount | decimal | requerido; importe devuelto según la pasarela (el `amount` de la devolución tras completarse, sin pasar de lo que quedaba por devolver), no el pedido |
 | refundedAmount | decimal | requerido; total devuelto del cobro tras ella |
 | currency | string | requerido |
 | status | enum | requerido; `refunded` si se devolvió entero, `captured` si queda saldo |

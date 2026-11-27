@@ -1,6 +1,6 @@
 # Manual de uso por actor de payment
 
-> specs/payment v0.1.5. Generado con `keel describe payment --manual`: no se edita, se cambia el diseño y se vuelve a generar.
+> specs/payment v0.2.1. Generado con `keel describe payment --manual`: no se edita, se cambia el diseño y se vuelve a generar.
 
 ## Actores
 
@@ -96,7 +96,7 @@ Captura entero el importe de un cobro autorizado.
 | Error | HTTP | Cuándo |
 |---|---|---|
 | `PAYMENT_NOT_FOUND` | 404 | No existe un cobro con ese id. |
-| `PAYMENT_NOT_CAPTURABLE` | 409 | El cobro no está en authorized, capturing ni captured. |
+| `PAYMENT_NOT_CAPTURABLE` | 409 | El cobro no está en authorized ni en un estado de la repetición (capturing, captured, refunding, refunded). |
 | `AUTHORIZATION_EXPIRED` | 409 | La pasarela ya había cancelado la autorización. |
 | `CAPTURE_REJECTED` | 422 | La pasarela rechazó la captura por otro motivo. |
 | `CONCURRENT_MODIFICATION` | 409 | El cobro cambió mientras se procesaba la petición. |
@@ -130,10 +130,10 @@ Devuelve todo o parte de lo que queda por devolver de un cobro capturado.
 
 - Tipo: command · `POST /api/v1/payments/{id}/refunds`
 - Cambia de estado: Payment: captured → refunding; Payment: refunding → captured
-- Regla: La clave se comprueba justo después de que el cobro exista y antes que cualquier otra guarda: si ya existe una devolución con ese refundRequestId sobre este cobro y la petición trae el mismo amount o lo omite, se devuelve el cobro en su estado actual (200) sin volver a llamar a la pasarela, esté la devolución pending, succeeded o failed; si existe con otro amount o sobre otro cobro, REFUND_REQUEST_CONFLICT. Una devolución failed no se reintenta con la misma clave: hace falta otro refundRequestId.
-- Regla: Dos devoluciones con el mismo refundRequestId a la vez: la que choca con la clave natural relee y aplica la regla anterior. Nunca hay una segunda devolución ni una segunda llamada a la pasarela.
+- Regla: La clave se comprueba justo después de que el cobro exista y antes que cualquier otra guarda: si ya existe una devolución con ese refundRequestId sobre este cobro y la petición trae un amount igual a su requestedAmount o lo omite, se devuelve el cobro en su estado actual (200) sin volver a llamar a la pasarela, esté la devolución pending, succeeded o failed; si existe con otro amount o sobre otro cobro, REFUND_REQUEST_CONFLICT. La comparación es contra requestedAmount, no contra el amount que haya informado la pasarela al completarla: repetir la petición original tras un ajuste del importe no es un conflicto. Una devolución failed no se reintenta con la misma clave: hace falta otro refundRequestId.
+- Regla: Dos devoluciones con el mismo refundRequestId a la vez: la que pierde, choque con la clave natural o con la versión del cobro al pasarlo a refunding, relee el cobro; si ya tiene una devolución con ese refundRequestId, aplica la regla anterior (el cobro tal cual, o REFUND_REQUEST_CONFLICT si trae un amount distinto del requestedAmount de la ganadora), y solo si no la tiene responde CONCURRENT_MODIFICATION. Nunca hay una segunda devolución ni una segunda llamada a la pasarela.
 - Regla: amount no puede tener más decimales que los de la moneda del cobro.
-- Regla: Se crea la devolución en pending y el cobro pasa a refunding, con awaitingSince estampado, antes de llamar a la pasarela.
+- Regla: Se crea la devolución en pending, con amount y requestedAmount iguales al importe resuelto (el pedido o, si se omitió, lo que queda por devolver), y el cobro pasa a refunding, con awaitingSince estampado, antes de llamar a la pasarela.
 - Regla: Si la pasarela devuelve, se aplica markRefunded; si no contesta, el cobro se queda en refunding y lo resuelve el barrido.
 - Regla: Si la pasarela rechaza, la devolución pasa a failed, el cobro vuelve a captured con awaitingSince vacío, se publica PaymentActionRejected y responde REFUND_REJECTED.
 - Regla: Si al aplicar el desenlace el cobro ya salió de su estado en vuelo por otra vía (el aviso de la pasarela o el barrido), se relee y se responde el cobro tal como esté, sin error; CONCURRENT_MODIFICATION queda para dos peticiones del consumidor que se cruzan.
@@ -142,10 +142,10 @@ Devuelve todo o parte de lo que queda por devolver de un cobro capturado.
 | Error | HTTP | Cuándo |
 |---|---|---|
 | `PAYMENT_NOT_FOUND` | 404 | No existe un cobro con ese id. |
-| `PAYMENT_NOT_REFUNDABLE` | 409 | El cobro no está en captured (incluido el que ya tiene una devolución en curso). |
+| `PAYMENT_NOT_REFUNDABLE` | 409 | El cobro no está en captured (incluido el que ya tiene una devolución en curso), salvo que ya exista una devolución con ese refundRequestId: esa petición se resuelve antes por la regla de la clave (el cobro tal cual o REFUND_REQUEST_CONFLICT). |
 | `AMOUNT_SCALE_INVALID` | 400 | amount tiene más decimales que los de la moneda del cobro. |
 | `REFUND_AMOUNT_EXCEEDED` | 422 | amount supera lo que queda por devolver. |
-| `REFUND_REQUEST_CONFLICT` | 409 | Ya existe una devolución con ese refundRequestId con otro importe o sobre otro cobro. |
+| `REFUND_REQUEST_CONFLICT` | 409 | Ya existe una devolución con ese refundRequestId con otro importe pedido (requestedAmount) o sobre otro cobro. |
 | `REFUND_REJECTED` | 422 | La pasarela rechazó la devolución. |
 | `CONCURRENT_MODIFICATION` | 409 | El cobro cambió mientras se procesaba la petición. |
 | `INVALID_STATE_TRANSITION` | 409 | La entidad no está en captured, refunding. (lo pone el generador) |
@@ -296,6 +296,7 @@ Guarda en el Wallet del titular el medio de pago que representa un token de la p
 - Regla: Solo un guardado con éxito queda registrado bajo la Idempotency-Key. Si la operación termina en error (tope alcanzado, la pasarela rechaza, exige autenticar o no contesta), la clave queda libre: una petición posterior con la misma clave vuelve a ejecutarse, con el mismo paymentToken o con otro, y no recibe IDEMPOTENCY_KEY_IN_PROGRESS ni IDEMPOTENCY_KEY_REUSED.
 - Regla: Si el titular no tiene Wallet, se crea con este primer medio.
 - Regla: El medio se guarda solo si la pasarela lo acepta; guarda su referencia opaca y el resumen de la tarjeta.
+- Regla: Si la pasarela acepta el medio pero su resumen de tarjeta no trae brand, last4, expMonth o expYear (o alguno no cumple sus cotas), aquí no se guarda nada y se responde PAYMENT_METHOD_REJECTED: un medio sin ese resumen no se puede mostrar al titular ni saber si caducó. El medio puede quedar guardado en la pasarela sin registro aquí, uno por intento, como tras un timeout; nunca se cobra.
 - Regla: El medio queda por defecto si makeDefault es true o si el titular no tenía ningún medio active; el anterior por defecto deja de serlo.
 - Regla: El paymentToken no se guarda; solo viaja a la pasarela.
 - Regla: Guardar dos veces la misma tarjeta crea dos medios: el servicio no reconoce tarjetas iguales. Un timeout de la pasarela puede dejar el medio guardado allí sin registro aquí; nunca se cobra.
@@ -305,7 +306,7 @@ Guarda en el Wallet del titular el medio de pago que representa un token de la p
 | `IDEMPOTENCY_KEY_REQUIRED` | 400 | La petición no trae la cabecera Idempotency-Key. |
 | `PAYMENT_METHOD_LIMIT_REACHED` | 422 | El titular ya tiene 10 medios active. |
 | `PAYMENT_METHOD_AUTHENTICATION_REQUIRED` | 422 | La pasarela exige autenticar al cliente (3DS) para guardar el medio; el frontend debe completarla al tokenizar y volver a pedir el guardado. |
-| `PAYMENT_METHOD_REJECTED` | 422 | La pasarela no acepta el token (inválido, caducado o ya usado) o rechaza el medio. |
+| `PAYMENT_METHOD_REJECTED` | 422 | La pasarela no acepta el token (inválido, caducado o ya usado), rechaza el medio o lo acepta sin un resumen de tarjeta completo. Es un solo código a propósito: en los dos casos el consumidor hace lo mismo, pedir otra tarjeta; el resumen incompleto es una anomalía de la pasarela que reintentar con la misma tarjeta no arregla. |
 | `GATEWAY_UNAVAILABLE` | 503 | La pasarela no contestó; aquí no se guardó nada y se puede reintentar con un token nuevo. |
 | `CONCURRENT_MODIFICATION` | 409 | El Wallet cambió mientras se procesaba la petición. |
 

@@ -1,5 +1,5 @@
 reviewedBy: keel-gap-sweep
-reviewedAt: 0.1.4
+reviewedAt: 0.2.0
 coverage:
 - class: 1
   units:
@@ -247,9 +247,10 @@ findings:
     con la misma clave una devolución que quedó failed la reintenta o devuelve el cobro sin más.'
   severity: gap
   state: decided
-  reason: 'Una petición que omite amount casa con la devolución ya registrada con esa clave; la repetición devuelve
-    el cobro sea cual sea el estado de la devolución. Una devolución failed no se reintenta con la misma clave:
-    hace falta otro refundRequestId.'
+  reason: 'Una petición que omite amount casa con la devolución ya registrada con esa clave, y una que lo trae se
+    compara con su requestedAmount (v0.2.0), que no cambia aunque la pasarela informe otro importe; la repetición
+    devuelve el cobro sea cual sea el estado de la devolución. Una devolución failed no se reintenta con la misma
+    clave: hace falta otro refundRequestId.'
 - class: 2
   unit: savePaymentMethod
   what: No se dice si PAYMENT_METHOD_LIMIT_REACHED se comprueba antes de llamar a la pasarela; si va después, la
@@ -272,7 +273,8 @@ findings:
   severity: gap
   state: decided
   reason: Refund.amount es el importe pedido hasta que la pasarela completa la devolución; entonces se guarda el
-    importe informado (description del campo y rule de markRefunded).
+    importe informado (description del campo y rule de markRefunded), y es el que suma refundedAmount. Lo pedido
+    se conserva aparte en Refund.requestedAmount (v0.2.0), inmutable, que es contra lo que se compara la repetición.
 - class: 4
   unit: requestCharge
   what: El aviso de la pasarela puede aplicar markAuthorized/markActionRequired antes que la respuesta síncrona;
@@ -589,3 +591,68 @@ findings:
     página vacía lleva totalElements 0 y totalPages 0, también fuera de rango y aunque el listado tenga elementos en
     otras páginas. El defecto era del escenario, que se corrige en v0.1.4 con page y size los pedidos. Ninguna otra
     aserción paginada de payment cae fuera de rango.
+- class: 4
+  unit: refundPayment
+  what: 'Dos refundPayment con el mismo refundRequestId sobre el mismo cobro escriben el mismo agregado (Refund
+    vive dentro de Payment y optimisticLocking es all): el perdedor puede chocar con la versión del cobro al pasar
+    a refunding antes que con la clave natural, y el diseño solo dice qué hacer cuando choca con la clave; para
+    el choque de versión la rule asigna CONCURRENT_MODIFICATION 409, que contradice OBL-IDEM-RACE-CODE («el
+    consumidor nunca ve un 409 por su propio reintento») y deja sin decidir si la repetición se compara con el
+    requestedAmount del ganador.'
+  severity: gap
+  state: decided
+  reason: 'Decidido (v0.2.0): la rule de la carrera en refundPayment cubre también el choque por versión del cobro. La que pierde relee y, si la devolución con esa clave existe, responde como repetición contra el requestedAmount de la ganadora; CONCURRENT_MODIFICATION solo si no existe. Lo prueba FL-STL-010, y la 3.9 se reafirma con la carrera en su porqué.'
+- class: 3
+  unit: Refund
+  what: 'Que amount y requestedAmount valen lo mismo al crear la devolución, y que solo markRefunded (al pasar a
+    succeeded) puede separarlos, vive solo en la prosa de refundPayment y markRefunded; cabe en checks y Refund no
+    declara ninguno, así que la entidad no lo hace cumplir y una escritura que reescriba amount en pending o failed
+    no la para nada.'
+  severity: risk
+  state: decided
+  reason: 'Decidido (v0.2.0): Refund declara el check { field: amount, op: eq, than: requestedAmount, unless: status in [succeeded] }. La inmutabilidad de requestedAmount se queda en invariants.'
+- class: 14
+  unit: Refund
+  what: 'requestedAmount es required, sin default ni regla para las devoluciones que ya existen: un despliegue que
+    venga de 0.1.x tiene Refund sin ese valor, y el diseño no dice con qué se rellena; de ello depende si repetir
+    una petición antigua cuya devolución ajustó la pasarela da 200 o REFUND_REQUEST_CONFLICT.'
+  severity: risk
+  state: decided
+  reason: 'Decidido (v0.2.0): la description de requestedAmount dice que en una devolución creada antes de la 0.2.0 vale su amount.'
+- class: 7
+  unit: publishing.PaymentRefunded
+  what: 'Con dos importes en Refund, refundAmount («Importe de esta devolución») no dice si es Refund.amount (el
+    informado por la pasarela, recortado a lo que quedaba) o requestedAmount; y el evento no lleva requestedAmount,
+    así que un consumidor que omitió amount no puede saber por el evento si la pasarela devolvió menos de lo que
+    se resolvió.'
+  severity: risk
+  state: decided
+  reason: 'Decidido (v0.2.0): refundAmount es lo devuelto según la pasarela (Refund.amount tras completarse), y lo dice su description. El evento no gana requestedAmount: lo pedido lo conoce el consumidor, que es quien lo pidió, y lo ve en getPayment.'
+- class: 2
+  unit: savePaymentMethod
+  what: 'PAYMENT_METHOD_REJECTED cubre ahora dos guardas con reacción distinta para el cliente: la pasarela no acepta
+    el token (otro token puede funcionar) y la pasarela acepta el medio pero sin resumen completo (otro token de la
+    misma tarjeta lo reproducirá, y cada intento deja otro medio huérfano en la pasarela, de forma determinista y no
+    solo tras un timeout). El consumidor no puede distinguirlos, y un 422 culpa a la petición de un defecto del dato
+    de la pasarela.'
+  severity: risk
+  state: decided
+  reason: 'Decidido (v0.2.0): el código se comparte a propósito. En los dos casos el consumidor hace lo mismo, pedir otra tarjeta, y el when lo deja escrito. La regla dice que el huérfano en la pasarela puede repetirse en cada intento.'
+- class: 18
+  unit: savePaymentMethod
+  what: 'La regla nueva hace que las cotas de CardDetails decidan si se guarda un medio que la pasarela aceptó, pero
+    brand es texto libre «tal como la informa la pasarela» (visa, Visa, VISA, american_express…) con solo maxLength
+    30: la misma tarjeta sale con brand distinto según la pasarela elegida al generar, y la cota puede rechazar en
+    una pasarela lo que en otra se guarda.'
+  severity: risk
+  state: decided
+  reason: 'Aceptado (v0.2.0): brand se queda en texto informativo de la pasarela y lo dice su description. Lo único que decide si un medio se guarda es que venga con maxLength 30, y eso se cumple en cualquier pasarela. Cerrarlo en un enum cambiaría el tipo de un campo de salida (major) para ganar poco.'
+- class: 16
+  unit: '3.9'
+  what: 'Todas las entradas de structural salvo 3.2 refundPayment pasan de since 0.1.x a 0.2.0 con chosen y reason
+    idénticos, y nada en el registro dice que el diseñador las reconfirmara para esta versión. 3.9
+    (optimisticLocking all) es justo la que la carrera de refundPayment con la misma clave pone en juego, y su
+    reason no la menciona; tampoco OBL-IDEM-RACE-CODE.'
+  severity: risk
+  state: decided
+  reason: 'Decidido (v0.2.0): el diseñador confirmó en la sesión de /keel-evolve que todas las entradas de structural y decisions siguen vigentes, y el since sube a 0.2.0 tal como pide el proceso. Sobre la 3.9 se volvió a preguntar con la carrera de refundPayment a la vista (clase 4): se mantiene all, y su porqué ya menciona la excepción de la repetición.'

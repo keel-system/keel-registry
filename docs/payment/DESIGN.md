@@ -1,6 +1,6 @@
 # payment — Documento de diseño
 
-> specs/payment v0.1.5. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
+> specs/payment v0.2.1. Diseño cerrado; el porqué de las decisiones se entrevistó al cerrarlo.
 
 ## 1. Propósito y alcance
 
@@ -49,6 +49,7 @@ classDiagram
       id: uuid · id, generado
       refundRequestId: RequestReference · clave natural, único, requerido
       amount: Amount · requerido
+      requestedAmount: Amount · requerido
       reason: string · personal
       status: RefundStatus · default pending
       createdAt: timestamp · generado
@@ -117,6 +118,7 @@ classDiagram
   Wallet "1" *-- "*" PaymentMethod : paymentMethods
   PaymentMethod "*" --> "1" Wallet : wallet
   note for Payment "checks: requires awaitingSince · when field=status in=pending,actionRequired,capturing,canceling,refunding | forbids awaitingSince · unless field=status in=pending,actionRequired,capturing,canceling,refunding | requires cancelOrigin · when field=status in=canceling | forbids cancelOrigin · unless field=status in=canceling | requires failureReason · when field=status in=failed | forbids failureReason · unless field=status in=failed | requires customerAction · when field=status in=actionRequired | requires customerAction · when field=cancelOrigin in=actionRequired | forbids customerAction · unless field=status in=actionRequired,canceling | forbids customerAction · when field=cancelOrigin in=authorized | requires actionRequiredSince · when field=status in=actionRequired | requires actionRequiredSince · when field=cancelOrigin in=actionRequired | forbids actionRequiredSince · unless field=status in=actionRequired,canceling | forbids actionRequiredSince · when field=cancelOrigin in=authorized | field refundedAmount · op lte · than amount | field refundedAmount · op eq · than amount · when field=status in=refunded | field refundedAmount · op ne · than amount · unless field=status in=refunded"
+  note for Refund "checks: field amount · op eq · than requestedAmount · unless field=status in=succeeded"
   note for PaymentMethod "checks: field isDefault · op eq · value false · when field=status in=removed"
 ```
 
@@ -195,15 +197,18 @@ Ciclo de vida:
 cobro en ellos *antes* de llamar a la pasarela. Así una respuesta perdida no se repite a ciegas, dos
 acciones incompatibles no llegan las dos a la pasarela, y quien consulta ve que hay algo en curso.
 
-**`Refund`** — `refundRequestId` (único), `amount`, `reason` (**personal**), `status` (`pending`, `succeeded`,
-`failed`), `createdAt`/`updatedAt`. Su estado lo gobierna la raíz: cambia en el mismo paso en que el
-cobro entra o sale de `refunding`.
+**`Refund`** — `refundRequestId` (único), `amount`, `requestedAmount`, `reason` (**personal**), `status`
+(`pending`, `succeeded`, `failed`), `createdAt`/`updatedAt`. Su estado lo gobierna la raíz: cambia en el
+mismo paso en que el cobro entra o sale de `refunding`. `requestedAmount` es lo que resolvió la
+petición (el importe explícito o lo que quedaba) y no cambia; `amount` nace igual y, al completarse,
+toma el importe que informa la pasarela. Es `amount` lo que suma en `refundedAmount` (v0.2.0).
 
 **`Wallet`** — `customerRef` (único, **personal**).
 
 **`PaymentMethod`** — `gatewayMethodRef` (**sensitive** y **personal**: nunca sale del servicio ni
 llega a un log), `card` (**personal**; resumen `CardDetails` que informa la pasarela al guardar —
-`payments.savePaymentMethod.cardDetails`—, porque el input solo trae el token),
+`payments.savePaymentMethod.cardDetails`—, porque el input solo trae el token; si llega incompleto,
+el medio no se guarda (v0.2.0); `brand` es texto informativo de la pasarela),
 `isDefault`, `status` (`active` → `removed`, terminal), `expired` (**computed**: caducidad anterior
 al mes en curso, UTC).
 
@@ -230,8 +235,13 @@ El resto siguen en prosa.
   no puede ser el preferente.
 - **La clave se comprueba antes que cualquier otra guarda**: repetir un cobro o una devolución con
   el mismo contenido devuelve lo ya hecho sin volver a la pasarela; con otro contenido,
-  `CHARGE_REQUEST_CONFLICT` / `REFUND_REQUEST_CONFLICT`. Dos peticiones idénticas a la vez convergen en
-  un solo cobro.
+  `CHARGE_REQUEST_CONFLICT` / `REFUND_REQUEST_CONFLICT`. En la devolución, el importe se compara con
+  `requestedAmount`, no con lo que informó la pasarela. Dos peticiones idénticas a la vez convergen en
+  un solo cobro o una sola devolución, también si la que pierde choca con la versión del cobro.
+- *(check)* El `amount` de una devolución es igual a su `requestedAmount` salvo en `succeeded`, y
+  `requestedAmount` no cambia después de crearla.
+- Un medio se guarda solo con el resumen de tarjeta completo (`brand`, `last4`, `expMonth`,
+  `expYear`). Si la pasarela lo acepta sin él, responde `PAYMENT_METHOD_REJECTED` y no se guarda nada.
 - Un rechazo de la pasarela no es un error de `requestCharge`: el cobro se devuelve en `failed` con su
   motivo. En captura, anulación y devolución el rechazo sí responde error (`CAPTURE_REJECTED`,
   `CANCEL_REJECTED`, `REFUND_REJECTED`; `onRejected: { error }` en la capa `payments`) y el cobro vuelve
@@ -251,7 +261,7 @@ Toda la superficie es **servidor-a-servidor** (`defaultAudience: services`), baj
 | `requestCharge` | `POST /payments` → `201` | Autoriza un cobro con un token (cliente presente) o con un medio guardado (cliente ausente). Responde el cobro en `authorized`, `actionRequired`, `failed` o `pending`. Idempotente por `chargeRequestId`. |
 | `capturePayment` | `POST /payments/{id}/capture` | Captura el importe entero. Idempotente por estado. |
 | `cancelPayment` | `POST /payments/{id}/cancel` | Anula un cobro autorizado o que espera el 3DS. Idempotente por estado. |
-| `refundPayment` | `POST /payments/{id}/refunds` | Devuelve una parte o todo lo que queda. Idempotente por `refundRequestId`. |
+| `refundPayment` | `POST /payments/{id}/refunds` | Devuelve una parte o todo lo que queda. Idempotente por `refundRequestId`, comparando contra el importe pedido. |
 | `getPayment` | `GET /payments/{id}` | El cobro con sus devoluciones. |
 | `getPaymentByChargeRequest` | `GET /payments/by-charge-request/{chargeRequestId}` | Lo mismo, por la clave del consumidor. |
 | `listPaymentsByCustomer` | `GET /payments?customerRef=` | Paginado 20/100, del más reciente al más antiguo. |
@@ -260,7 +270,7 @@ Toda la superficie es **servidor-a-servidor** (`defaultAudience: services`), baj
 
 | Operación | Endpoint | Qué hace |
 |---|---|---|
-| `savePaymentMethod` | `POST /payment-methods` → `201` | Guarda el medio de un token; el primero queda por defecto. Exige `Idempotency-Key` (24 h); un error no la consume. |
+| `savePaymentMethod` | `POST /payment-methods` → `201` | Guarda el medio de un token, solo si la pasarela da el resumen completo de la tarjeta; el primero queda por defecto. Exige `Idempotency-Key` (24 h); un error no la consume. |
 | `listPaymentMethods` | `GET /payment-methods?customerRef=` | Los medios `active`, el preferente primero. Sin paginar (≤ 10). |
 | `setDefaultPaymentMethod` | `POST /payment-methods/{id}/default` | Marca el preferente. |
 | `removePaymentMethod` | `DELETE /payment-methods/{id}?customerRef=` → `204` | Lo retira; no se vuelve a cobrar. |
@@ -327,7 +337,14 @@ Fuente: `specs/payment/decisions.yaml` (estructurales y aceptadas) y `specs/paym
 - `capturePayment` / `cancelPayment`: **idempotentes por estado** frente a una cabecera o a un `409`
   en el reintento. La transición irrepetible impide la doble llamada y nada caduca.
 - `refundPayment`: una entidad `Refund` con **`refundRequestId` único** frente a un importe
-  acumulado, que devolvería dos veces al reintentar.
+  acumulado, que devolvería dos veces al reintentar. Desde v0.2.0 la repetición se compara con
+  **`requestedAmount`**, lo pedido, y no con el importe que informó la pasarela. El motivo: tras un
+  ajuste del importe, el consumidor que reintentaba legítimamente su petición original recibía un
+  `409`. *Descartado*: dejar escrito que el conflicto es lo esperado. Las devoluciones anteriores a
+  la 0.2.0 toman `requestedAmount = amount`. Si dos peticiones con la misma clave chocan por la
+  versión del cobro, la que pierde también relee y responde como repetición: el bloqueo optimista
+  (§3.9) no puede convertir el propio reintento del consumidor en un `CONCURRENT_MODIFICATION`
+  (hallazgo de la generación .NET, v0.1.5).
 - `savePaymentMethod`: **`Idempotency-Key` obligatoria, 24 h**, porque el token es de un solo uso.
   Solo un guardado con éxito queda bajo la clave (v0.1.1): tras un rechazo, un 3DS pendiente o una
   pasarela que no contestó, reintentar con la misma clave vuelve a ejecutar, que es lo que prometen
@@ -387,6 +404,15 @@ lo que quedaba se topa, en vez de romper el check en una operación interna y de
   viajan.
 - **Moneda por petición** con escala ISO 4217, frente a una moneda fija por despliegue: un diseño de
   registry no debe fijar el mercado.
+- **Un resumen de tarjeta incompleto es un rechazo** (v0.2.0), no un medio con campos vacíos. Un medio
+  sin `last4` ni caducidad no se puede mostrar al titular, y no se sabe si caducó. *Descartado*:
+  volver opcionales esos campos, que rompía a quien ya los leía. Comparte el código
+  `PAYMENT_METHOD_REJECTED` a propósito, porque el consumidor hace lo mismo en los dos casos: pedir
+  otra tarjeta. Cada intento puede dejar un medio huérfano en la pasarela, que nunca se cobra.
+  (Hallazgo de la generación .NET, v0.1.5.)
+- **`brand` sin vocabulario cerrado**: es texto informativo de la pasarela y puede escribirse
+  distinto según la que se elija. *Descartado*: un enum `CardBrand`, que cambiaba el tipo de un
+  campo de salida (major) para ganar poco.
 - **Tarjetas caducadas visibles** (`expired: true`) en vez de ocultas, para no tener un titular que
   ve 8 tarjetas y no puede guardar la novena.
 
@@ -430,7 +456,8 @@ major para cualquier cambio de lo estable.
 - **Límites heredados de la capa `payments` del DSL.** Retirar un medio no lo desvincula en la
   pasarela, y guardar un medio no admite 3DS (`PAYMENT_METHOD_AUTHENTICATION_REQUIRED`: el frontend
   autentica al tokenizar). Un timeout al guardar puede dejar el medio en la pasarela sin registro
-  aquí; nunca se cobra.
+  aquí; nunca se cobra. Lo mismo pasa cuando la pasarela acepta el medio sin un resumen de tarjeta
+  completo.
 - **Sin retención.** Un cobro es un registro contable y vive indefinidamente, y el Wallet con él. No
   hay operación para borrar o anonimizar los datos de un titular (v0.1.3: aceptado, evolución minor).
 
@@ -446,10 +473,11 @@ cuando hace falta multi-aplicación, cobro por evento o captura parcial.
 
 ## Cobertura de comportamiento
 
-`specs/payment/validation-scenarios.md`: 31 flujos que cubren las 18 operaciones, todos los códigos
+`specs/payment/validation-scenarios.md`: 32 flujos que cubren las 18 operaciones, todos los códigos
 de error y todos los estados. Incluyen las carreras de idempotencia, el outbox con el canal caído y
 con el relay rendido, el rescate del barrido (que no vuelve a consultar un cobro cuya marca acaba de
-renovar), el reintento de un guardado fallido con la misma clave, la devolución informada por más de
-lo que quedaba, el clúster de dos réplicas y la autorización por scope. Sin escenario, con su motivo:
+renovar), el reintento de un guardado fallido con la misma clave, el resumen de tarjeta incompleto, la
+devolución informada por más de lo que quedaba, la repetición de una devolución cuyo importe ajustó la
+pasarela, la misma devolución a la vez, el clúster de dos réplicas y la autorización por scope. Sin escenario, con su motivo:
 los `checks` como `422`, los campos `personal` fuera de los logs y el historial (verificación
 estática).

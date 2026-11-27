@@ -44,7 +44,7 @@ types:
   CardDetails:
     description: Resumen visible de una tarjeta guardada; nunca incluye el número completo.
     fields:
-      brand:    { type: string, required: true, constraints: { maxLength: 30 }, description: "Red de la tarjeta tal como la informa la pasarela (visa, mastercard…)." }
+      brand:    { type: string, required: true, constraints: { maxLength: 30 }, description: "Red de la tarjeta tal como la informa la pasarela (visa, mastercard…); texto informativo, sin vocabulario cerrado: puede escribirse distinto según la pasarela." }
       last4:    { type: string, required: true, constraints: { pattern: "^[0-9]{4}$" } }
       expMonth: { type: int, required: true, constraints: { min: 1, max: 12 } }
       expYear:  { type: int, required: true, constraints: { min: 2000, max: 2100 } }
@@ -120,16 +120,20 @@ entities:
     fields:
       id:              { type: uuid, id: true, generated: true }
       refundRequestId: { type: RequestReference, required: true, unique: true, description: Clave de negocio de la devolución; dos peticiones con la misma son la misma devolución. }
-      amount:          { type: Amount, required: true, description: "Importe pedido; si la pasarela informa al completarla un importe devuelto distinto, se guarda el informado, sin pasar de lo que quedaba por devolver del cobro." }
+      amount:          { type: Amount, required: true, description: "Importe de la devolución: nace igual a requestedAmount y, si la pasarela informa al completarla un importe devuelto distinto, se guarda el informado, sin pasar de lo que quedaba por devolver del cobro. Es lo que cuenta en refundedAmount." }
+      requestedAmount: { type: Amount, required: true, description: "Importe que resolvió la petición al crear la devolución: el amount explícito o, si se omitió, lo que quedaba por devolver. No cambia aunque la pasarela informe otro importe; contra él se compara la repetición de la misma petición. En una devolución creada antes de la 0.2.0 vale su amount." }
       reason:          { type: string, personal: true, constraints: { maxLength: 200 }, description: "Motivo libre que informa el consumidor, para su propio rastro." }
       status:          { type: RefundStatus, default: pending }
       createdAt:       { type: timestamp, generated: true }
       updatedAt:       { type: timestamp, generated: true }
     relations:
       payment: { entity: Payment, cardinality: many-to-one, required: true, description: Cobro al que pertenece. }
+    checks:
+      - { field: amount, op: eq, than: requestedAmount, unless: { field: status, in: [succeeded] } }   # solo el desenlace de la pasarela los separa
     invariants:
       - "El status de una devolución lo gobierna la raíz: nace en pending al entrar el cobro en refunding, y pasa a succeeded o failed en el mismo cambio en que el cobro sale de refunding."
       - Una devolución en succeeded o failed no vuelve a cambiar de status.
+      - El requestedAmount de una devolución no cambia después de crearla.
       - Los decimales del amount de una devolución no superan los de la moneda del cobro.
       - La suma de los amount de las devoluciones succeeded y pending de un cobro nunca supera el amount del cobro.
 

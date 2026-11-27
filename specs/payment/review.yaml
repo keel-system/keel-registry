@@ -1,190 +1,185 @@
 reviewedBy: keel-design-review
-reviewedAt: 0.1.3
+reviewedAt: 0.2.0
 findings:
 - id: REV-DOMAIN-VAGUE-INVARIANT
-  scope: domain.entities.Refund.invariants
-  verdict: fixed
-  note: 'Corregido por decisión del diseñador: la invariante de Refund se reescribió como «la suma de los amount
-    de las devoluciones succeeded y pending de un cobro nunca supera el amount del cobro», que se decide mirando
-    el estado actual. El momento de pedirla lo cubre REFUND_AMOUNT_EXCEEDED en refundPayment.'
+  scope: domain.entities.Refund.invariants, domain.entities.Payment.invariants
+  verdict: ok
+  note: >-
+    Las invariantes de Refund se deciden mirando el estado actual o un cambio concreto: la nueva «El
+    requestedAmount de una devolución no cambia después de crearla» nombra el campo y la condición, y la de la
+    suma («la suma de los amount de las devoluciones succeeded y pending de un cobro nunca supera el amount del
+    cobro») sigue usando amount, que es lo que de verdad se devolvió. Las de Payment que quedan en prosa
+    (titularidad del medio, una sola devolución pending y solo en refunding, moneda inmutable, decimales ISO 4217)
+    son verificables. Observación menor, sin hallazgo: la description de Refund.amount empieza por «Importe
+    pedido», y desde v0.2.0 el importe pedido que no cambia es requestedAmount; el resto de la frase deja claro
+    que amount es el importe resuelto y después el informado, así que no hay dos lecturas.
 - id: REV-DOMAIN-ENUM-NO-LIFECYCLE
   scope: domain.entities.Refund, domain.entities.PaymentMethod
   verdict: accepted
-  note: 'Aceptado por el diseñador. Refund y PaymentMethod son entidades internas, y su máquina de estados se declaró
-    primero y se quitó después porque CHK-DOMAIN-INNER-LIFECYCLE la señala como doble dueño del agregado. Su estado
-    lo gobierna la raíz: una devolución nace en pending y pasa a succeeded o failed en el mismo cambio en que Payment
-    sale de refunding (transiciones declaradas en refundPayment, markRefunded y sweepPendingPayments); un medio
-    pasa de active a removed solo por removePaymentMethod sobre su Wallet. Las invariantes de ambas entidades fijan
-    que los estados finales son terminales.'
+  note: >-
+    Refund.status (RefundStatus) y PaymentMethod.status (PaymentMethodStatus) no tienen lifecycle. El propio
+    diseño explica por qué en prosa: «El status de una devolución lo gobierna la raíz: nace en pending al entrar
+    el cobro en refunding, y pasa a succeeded o failed en el mismo cambio en que el cobro sale de refunding» y
+    «El status de un medio lo gobierna su Wallet: pasa de active a removed al retirarlo, y removed es terminal».
+    Son entidades internas y un lifecycle propio lo marcaría CHK-DOMAIN-INNER-LIFECYCLE. Las transiciones las
+    ejecutan refundPayment, markRefunded y sweepPendingPayments (Refund) y removePaymentMethod (PaymentMethod).
+    Nada de v0.2.0 cambia esto.
 - id: REV-DOMAIN-INVARIANT-IS-TRANSITION
   scope: domain.entities.Refund.invariants, domain.entities.PaymentMethod.invariants
   verdict: accepted
-  note: 'Mismo motivo que REV-DOMAIN-ENUM-NO-LIFECYCLE: las tres invariantes describen la máquina de las entidades
-    internas, que la gobierna su raíz porque el detector de entidad interna con lifecycle propio impide declararla.
-    Decidido por el diseñador.'
-- id: REV-DOMAIN-INVARIANT-PROSE
-  scope: domain.entities.Payment.invariants, domain.entities.PaymentMethod.invariants
-  verdict: fixed
   note: >-
-    Corregido en v0.1.3 (decidido por el diseñador): las ocho pasan a checks en Payment y PaymentMethod, y
-    keel validate los acepta todos, también refundedAmount lte amount. Las de abajo que se quedan en prosa,
-    siguen en invariants. Hallazgo original: ninguna entidad declaraba checks y ocho invariantes en prosa caben en el vocabulario. Payment:
-    (1) awaitingSince si y solo si status en [pending, actionRequired, capturing, canceling, refunding]
-    -> requires awaitingSince when status in [...] + forbids awaitingSince unless status in [...];
-    (3) cancelOrigin si y solo si canceling -> requires/forbids con when/unless status in [canceling];
-    (5) failureReason si y solo si failed -> requires/forbids con status in [failed];
-    (2) customerAction y (4) actionRequiredSince, presentes en actionRequired o en canceling con cancelOrigin
-    actionRequired: no hay conjunción en when, pero cabe con cuatro checks por campo apoyados en (3):
-    requires when status in [actionRequired], requires when cancelOrigin in [actionRequired], forbids unless
-    status in [actionRequired, canceling], forbids when cancelOrigin in [authorized] (cancelOrigin es un enum
-    de la propia entidad);
-    (7) refundedAmount nunca supera amount -> { field: refundedAmount, op: lte, than: amount };
-    (8) refunded si y solo si refundedAmount igual a amount -> op eq when status in [refunded] y op ne unless
-    status in [refunded] (refundedAmount nunca es ausente: vale cero sin devoluciones).
-    PaymentMethod: «un medio removed nunca tiene isDefault a true» -> { field: isDefault, op: eq, value: false,
-    when: { field: status, in: [removed] } }.
-    Se quedan en prosa con razón: la titularidad de paymentMethodId (cruza al agregado Wallet), la moneda
-    inmutable (no es un estado sino un cambio), los decimales según ISO 4217 de amount y de Refund.amount
-    (tabla externa), «como mucho una devolución pending y solo en refunding», la suma de devoluciones
-    succeeded+pending de Refund, el tope de 10 medios active y el único default active de Wallet (cuentan o
-    suman hijas filtradas por status, y computed solo da sum/count sin filtro; el default único ya lo
-    sostiene el índice parcial de persistence), y las que describen la máquina de Refund y PaymentMethod
-    (aceptadas en REV-DOMAIN-INVARIANT-IS-TRANSITION). Salidas: pasar esas ocho a checks (rotas responden
-    422 INVARIANT_VIOLATED, o el error que se nombre, que entonces hay que declarar en las operaciones que
-    escriben la entidad y cubrir con escenario), con /keel-evolve; o aceptarlas en prosa con el motivo.
-    Nota: el check de (7) compara un computed en prosa; si CHK-DOMAIN-CHECK-* lo rechaza por eso o por
-    comparar Amount con decimal, esa invariante se queda en prosa.
+    Mismo motivo que REV-DOMAIN-ENUM-NO-LIFECYCLE: tres invariantes describen la máquina de las entidades
+    internas (Refund: «lo gobierna la raíz…» y «succeeded o failed no vuelve a cambiar»; PaymentMethod: «pasa
+    de active a removed… removed es terminal»), y el diseño explica en ellas que la gobierna su raíz. La nueva
+    de v0.2.0, «El requestedAmount de una devolución no cambia después de crearla», no es una transición de
+    estado sino una regla de inmutabilidad de un campo, como la de la moneda de Payment: no entra en este id.
 - id: REV-DOMAIN-COMPUTED-NOT-DERIVABLE
-  scope: domain.entities.Payment.fields.refundedAmount
+  scope: domain.entities.Payment.fields.refundedAmount, domain.entities.PaymentMethod.fields.expired
   verdict: ok
-  note: refundedAmount = suma de Refund.amount con status succeeded; Payment tiene la relación refunds one-to-many
-    y Refund tiene amount y status, todo dentro del agregado Payment.
+  note: >-
+    refundedAmount = suma de Refund.amount con status succeeded: Payment tiene refunds one-to-many y Refund
+    tiene amount y status dentro del agregado. Con v0.2.0 sigue sumando amount (el importe informado por la
+    pasarela, que es lo devuelto), no requestedAmount, y es lo correcto para el check refundedAmount lte amount.
+    expired sale de card.expYear y card.expMonth, y v0.2.0 garantiza que ambos existan siempre (savePaymentMethod
+    rechaza un resumen incompleto).
+- id: REV-DOMAIN-INVARIANT-PROSE
+  scope: domain.entities.Refund.invariants, domain.entities.Payment.invariants, domain.entities.Wallet.invariants
+  verdict: ok
+  note: >-
+    Las presencias por estado y las comparaciones de Payment ya son checks (awaitingSince, cancelOrigin,
+    failureReason, customerAction, actionRequiredSince, refundedAmount contra amount), y PaymentMethod tiene el
+    de isDefault en removed. La invariante nueva de Refund (requestedAmount no cambia) habla de un cambio, no de
+    un estado: el vocabulario de checks (requires, forbids, op contra campo o literal) no la expresa, igual que la
+    moneda inmutable de Payment. Tampoco hay comparación fija entre requestedAmount y amount que pasar a check:
+    markRefunded puede dejar amount por encima o por debajo del pedido. El resto en prosa sigue con razón: cruza
+    agregados (titularidad), depende de tabla externa (ISO 4217) o cuenta/suma hijas filtradas por status.
 - id: REV-DOMAIN-PROMISED-STATE
-  scope: use-cases.operations.cancelPayment, use-cases.operations.sweepPendingPayments
-  verdict: fixed
-  note: 'Corregido por decisión del diseñador: Payment gana cancelOrigin (enum authorized | actionRequired, solo
-    en canceling), que cancelPayment y el barrido anotan al entrar en canceling; customerAction se conserva durante
-    la anulación de un cobro que venía de actionRequired, y el invariante lo admite. La vuelta tras un rechazo va
-    al estado de cancelOrigin con customerAction intacto.'
-- id: REV-DOMAIN-PARTIAL-WRITER
-  scope: domain.entities.Payment.lifecycle (actionRequired, authorized, captured)
-  verdict: fixed
-  note: 'Corregido por decisión del diseñador: la vuelta a actionRequired conserva customerAction (no se vació al
-    entrar en canceling) y renueva awaitingSince; el barrido vacía awaitingSince al devolver un cobro a authorized
-    o captured. markFailed y markCanceled vacían además cancelOrigin.'
-- id: REV-USECASES-INTERNAL-REPEAT
+  scope: use-cases.operations.refundPayment, use-cases.operations.savePaymentMethod
   verdict: ok
-  note: 'Commands sin bloque idempotency: capturePayment y cancelPayment son idempotentes por estado (structural
-    3.2); refundPayment lo frena la naturalKey refundRequestId de Refund en persistence; los mark* devuelven sin
-    hacer nada si el cobro ya no está en el estado de origen; setDefaultPaymentMethod («si ya era el preferente,
-    no cambia nada») y removePaymentMethod («ya removed no hace nada») fijan en vez de sumar. Ningún efecto interno
-    se acumula con un reintento.'
+  note: >-
+    Lo que promete v0.2.0 la entidad lo puede representar. refundPayment compara la repetición «contra
+    requestedAmount, no contra el amount que haya informado la pasarela»: Refund.requestedAmount (Amount,
+    required) existe, lo escribe la rule de creación («con amount y requestedAmount iguales al importe resuelto»)
+    y ninguna otra operación lo toca (markRefunded solo reescribe amount). savePaymentMethod promete que con un
+    resumen incompleto «aquí no se guarda nada»: no hay estado intermedio que representar, y CardDetails exige
+    brand, last4, expMonth y expYear, así que un medio guardado siempre tiene el resumen que listPaymentMethods y
+    expired necesitan. Las promesas de anulación (cancelOrigin, customerAction conservado) siguen sostenidas por
+    los checks de Payment.
+- id: REV-PERSONAL-CLASSIFICATION
+  scope: domain.entities
+  verdict: ok
+  note: >-
+    Marcados personal: Payment.customerRef, Wallet.customerRef, PaymentMethod.gatewayMethodRef (además
+    sensitive), PaymentMethod.card y Refund.reason, y customerRef/reason en inputs y payloads. El campo nuevo
+    Refund.requestedAmount es un importe, no habla de una persona, como amount. El resto (chargeRequestId,
+    refundRequestId, gatewayPaymentId, customerAction, failureReason, estados, fechas) no identifica al titular.
+- id: REV-DOMAIN-PARTIAL-WRITER
+  scope: domain.entities.Payment.lifecycle, domain.entities.Refund.fields.status
+  verdict: ok
+  note: >-
+    failed lo escribe siempre markFailed con failureReason obligatorio (desde la petición, la anulación o el
+    barrido). La vuelta a authorized, actionRequired o captured tras un rechazo tiene las mismas reglas de
+    vaciado y renovación en cancelPayment, capturePayment, refundPayment y el barrido. canceled no guarda el
+    motivo en la entidad por ninguna de sus vías (requested viaja solo en PaymentCanceled), así que es simétrico
+    y lo conserva audit.history de Payment. Refund failed tampoco lleva motivo por ninguna vía (rechazo en
+    refundPayment o en el barrido). v0.2.0 no añade vías nuevas a ningún estado: savePaymentMethod con resumen
+    incompleto no escribe nada.
+- id: REV-USECASES-INTERNAL-REPEAT
+  scope: use-cases.operations
+  verdict: ok
+  note: >-
+    refundPayment sigue frenado por la naturalKey refundRequestId de Refund (persistence, REFUND_REQUEST_CONFLICT),
+    y v0.2.0 lo refuerza: la repetición se compara contra requestedAmount, que no cambia, así que reintentar la
+    petición original tras un ajuste de importe de la pasarela devuelve el cobro en vez de un 409 que el
+    consumidor no sabría leer. capturePayment y cancelPayment son idempotentes por estado; los mark* no hacen nada
+    fuera de su estado de origen; setDefaultPaymentMethod y removePaymentMethod fijan. savePaymentMethod tiene
+    client-key, y su rama nueva (resumen incompleto) no guarda nada y deja la clave libre, sin efecto interno que
+    se acumule; el posible medio huérfano en la pasarela está dicho en la rule («nunca se cobra»).
 - id: REV-USECASES-GUARD-ORDER
-  scope: use-cases.operations.requestCharge, use-cases.operations.refundPayment
-  verdict: fixed
-  note: 'Corregido por decisión del diseñador: (1) la fuente de un cobro con token se compara por su clase, no por
-    el valor; (2) en requestCharge, capturePayment, cancelPayment y refundPayment la repetición se comprueba antes
-    que cualquier otra guarda, así que un medio retirado después no cambia la respuesta del reintento; (3) en refundPayment,
-    una petición que omite amount casa con la devolución ya registrada con esa clave.'
+  scope: use-cases.operations.refundPayment, use-cases.operations.savePaymentMethod, use-cases.operations.requestCharge
+  verdict: ok
+  note: >-
+    refundPayment: PAYMENT_NOT_FOUND, después la clave («justo después de que el cobro exista y antes que
+    cualquier otra guarda»), y solo entonces escala, estado y REFUND_AMOUNT_EXCEEDED. Comparar contra
+    requestedAmount es implementable porque el dato está en la Refund ya leída por la clave; una repetición con
+    amount de escala inválida da REFUND_REQUEST_CONFLICT y no AMOUNT_SCALE_INVALID, consecuencia determinista
+    del orden declarado. savePaymentMethod: clave de idempotencia, tope de 10 «antes de llamar a la pasarela»,
+    llamada, y después la comprobación del resumen, que solo puede ir tras la respuesta: el orden es el único
+    posible. requestCharge sin cambios: la repetición antes que la precondición del medio.
 - id: REV-API-DELETE-BODY
   scope: api.endpoints.removePaymentMethod
   verdict: ok
-  note: El único DELETE (removePaymentMethod) declara successStatus 204 y la operación tiene output void.
+  note: El único DELETE (removePaymentMethod) declara successStatus 204 y la operación tiene output "void".
 - id: REV-SEC-M2M-AUDIENCE
   scope: security.authentication.serviceAuth
   verdict: ok
-  note: 'serviceAuth declara validateAudience true con audience payment: un token emitido para otro servicio del
-    mismo servidor de autenticación no vale aquí.'
+  note: >-
+    serviceAuth declara validateAudience true con audience payment: un token emitido para otro servicio del
+    mismo servidor de autenticación no vale aquí.
 - id: REV-MSG-MISSING-CHANNEL
   scope: messaging.publishing.events
   verdict: ok
-  note: Los siete eventos (PaymentAuthorized, PaymentActionRequired, PaymentCaptured, PaymentFailed, PaymentCanceled,
-    PaymentRefunded, PaymentActionRejected) declaran channel paymentEvents, que es un canal lógico declarado en
-    channels. No hay suscripciones.
+  note: >-
+    Los siete eventos (PaymentAuthorized, PaymentActionRequired, PaymentCaptured, PaymentFailed, PaymentCanceled,
+    PaymentRefunded, PaymentActionRejected) declaran channel paymentEvents, canal lógico declarado en channels. No
+    hay suscripciones.
+- id: REV-HISTORY-SCOPE
+  scope: persistence.audit.history
+  verdict: ok
+  note: >-
+    history: [Payment, Wallet] cubre las dos raíces persistidas: Payment mueve dinero (y con él sus Refund,
+    incluido el nuevo requestedAmount), y Wallet guarda datos personales y la autorización de cobro sin el
+    titular. Que nadie lo lea por la API está aceptado en decisions.yaml (OBL-HISTORY-UNREAD para las dos).
 - id: REV-PERSIST-MISSING-INDEX
-  scope: persistence.entities.Refund
-  verdict: fixed
-  note: 'Corregido por decisión del diseñador: Refund declara indexes [[payment, createdAt]], que sirve a las devoluciones
-    del cobro en su orden, al cálculo de refundedAmount y a las guardas de refundPayment y markRefunded.'
+  scope: persistence.entities
+  verdict: ok
+  note: >-
+    Payment: naturalKey chargeRequestId (getPaymentByChargeRequest, repetición), [status, awaitingSince] (barrido)
+    y [customerRef, createdAt] (listPaymentsByCustomer). Refund: naturalKey refundRequestId (la búsqueda de la
+    repetición, que ahora lee requestedAmount de esa misma fila) e [payment, createdAt]. Wallet: naturalKey
+    customerRef. PaymentMethod: [wallet, status] y el único parcial del default. v0.2.0 no añade ninguna consulta.
 - id: REV-PAYMENTS-AMOUNT-SOURCE
   scope: payments.charge.amount
   verdict: accepted
-  note: 'Aceptado por el diseñador y ahora explícito: Payment.amount y una rule de requestCharge dicen que el importe
-    lo fija el servidor consumidor, que es de confianza, y que el servicio no le pone tope ni lo contrasta con nada.'
+  note: >-
+    El importe viaja en el input de requestCharge y nada lo contrasta. Lo explica el propio diseño: Payment.amount
+    («Lo fija el servidor consumidor, que es de confianza: el servicio no lo contrasta con nada») y la rule de
+    requestCharge («El importe lo fija el servidor consumidor, que es de confianza; el servicio no le pone tope ni
+    lo contrasta con nada»), con un único público M2M (security.serviceClients checkout y backoffice).
 - id: REV-PAYMENTS-CARD-DATA
+  scope: use-cases.operations, messaging.publishing.events
   verdict: ok
-  note: 'Las fuentes de pago entran como referencias opacas: paymentToken (token de un solo uso del componente de
-    la pasarela, «no se guarda»), paymentMethodId (uuid propio) y savePaymentMethod.paymentToken. CardDetails (brand,
-    last4, expMonth, expYear) sale de la pasarela y solo aparece en salidas, nunca en un input; gatewayMethodRef
-    es sensitive y se excluye de todas las salidas. Ningún payload de evento lleva datos de tarjeta.'
+  note: >-
+    Las fuentes de pago entran como referencias opacas: paymentToken (no se guarda) y paymentMethodId en
+    requestCharge, paymentToken en savePaymentMethod. CardDetails (brand, last4, expMonth, expYear) solo llega
+    de la pasarela y solo sale en outputs; la regla nueva de v0.2.0 lo valida a la vuelta de la pasarela y
+    rechaza sin guardar si está incompleto, sin pedirlo nunca al consumidor. gatewayMethodRef es sensitive y se
+    excluye de todas las salidas. Ningún payload de evento lleva datos de tarjeta.
 - id: REV-PAYMENTS-SAVED-OWNERSHIP
   scope: use-cases.operations.requestCharge.preconditions
   verdict: ok
-  note: 'La titularidad la atan el invariante de Payment («si el cobro tiene paymentMethodId, el medio pertenece
-    al Wallet cuyo customerRef es el del cobro») y la precondición de requestCharge («el medio existe, está active
-    y pertenece al Wallet de customerRef»), con 422 PAYMENT_METHOD_UNAVAILABLE sin distinguir el motivo. Que customerRef
-    lo ponga el consumidor y no se ate al llamante está aceptado en decisions.yaml (OBL-CALLER-IDENTITY): una sola
-    aplicación consumidora.'
+  note: >-
+    La titularidad la atan la invariante de Payment («si el cobro tiene paymentMethodId, el medio pertenece al
+    Wallet cuyo customerRef es el del cobro») y la precondición de requestCharge («el medio existe, está active y
+    pertenece al Wallet de customerRef»), con 422 PAYMENT_METHOD_UNAVAILABLE sin distinguir el motivo;
+    setDefaultPaymentMethod y removePaymentMethod responden PAYMENT_METHOD_NOT_FOUND igual. Que customerRef lo
+    ponga el consumidor está aceptado en decisions.yaml (OBL-CALLER-IDENTITY).
 - id: REV-PAYMENTS-FAILED-RECORD
   scope: use-cases.operations.requestCharge
   verdict: ok
-  note: 'Los rechazos previos a la pasarela (medio inexistente, retirado o ajeno; fuente ausente o doble) son precondiciones
-    con error de petición (PAYMENT_METHOD_UNAVAILABLE 422, PAYMENT_SOURCE_INVALID 400): no se crea cobro failed,
-    así que la rule «si se cobra con un medio guardado, el cobro anota su paymentMethodId» no llega a chocar con
-    el invariante de titularidad. En el fallo de la pasarela y en el notReceived del barrido el cobro ya existe
-    con su paymentMethodId, como pide la doctrina. Queda el orden entre esa precondición y la repetición del cobro,
-    recogido en REV-USECASES-GUARD-ORDER.'
+  note: >-
+    Los rechazos previos a la pasarela (medio inexistente, retirado o ajeno; fuente ausente o doble) son
+    precondiciones con error de petición (PAYMENT_METHOD_UNAVAILABLE 422, PAYMENT_SOURCE_INVALID 400): no se crea
+    cobro failed, así que «el cobro anota su paymentMethodId» no choca con la titularidad. En el fallo de la
+    pasarela y en el notReceived del barrido el cobro ya existe con su paymentMethodId. Sin cambios en v0.2.0.
 - id: REV-PAYMENTS-RECONCILE-INFLIGHT-NOTFOUND
   scope: use-cases.operations.sweepPendingPayments
   verdict: ok
-  note: 'Dicho por separado para cada estado. payments.keel.yaml declara capture.inFlight capturing, void.inFlight
-    canceling y refund.inFlight refunding, con reconciliation.sweep sweepPendingPayments. En el barrido, la rule
-    «Un cobro en pending que la pasarela no conoce se da por fallido con failureReason notReceived» se limita a
-    pending, y la siguiente cubre los estados en vuelo: «si la pasarela dice que una acción en vuelo fue rechazada,
-    o que nunca la recibió, el cobro vuelve al estado del que salió (cancelOrigin en una anulación; una devolución
-    pasa a failed) y se publica PaymentActionRejected», con el vaciado de cancelOrigin y awaitingSince. Las
-    transitions lo respaldan (capturing→authorized, canceling→authorized|actionRequired, refunding→captured), y
-    markFailed no admite capturing ni refunding, así que no hay lectura que dé por fallido un cobro ya
-    autorizado o capturado. Lo decidieron dos entradas de gaps.yaml (class 1 Refund y class 18 capture, state
-    decided) y lo comprueba FL-REC-002 (pasos 4 y 5: anulación y devolución que la pasarela no recibió). Matiz
-    sin consecuencia de diseño: la rule habla de la acción que la pasarela «nunca recibió» y no del cobro entero
-    desconocido; en un estado en vuelo el cobro tiene gatewayPaymentId y ya existió allí, así que la única
-    lectura que deja el texto es la vuelta al origen.'
-- id: REV-PERSONAL-CLASSIFICATION
-  scope: domain.entities.PaymentMethod.fields.gatewayMethodRef
-  verdict: fixed
   note: >-
-    Corregido en v0.1.3 (decidido por el diseñador): gatewayMethodRef pasa a personal junto a sensitive, y
-    customerRef y reason llevan también la marca en los inputs de use-cases y en los payloads de messaging.
-    Hallazgo original: Las cuatro marcas cubren lo que nombra o describe al titular (Payment.customerRef, Wallet.customerRef,
-    PaymentMethod.card, Refund.reason). Queda sin marcar PaymentMethod.gatewayMethodRef (string, required,
-    sensitive): es el identificador persistente de la tarjeta de esa persona en la pasarela, y con él la
-    pasarela devuelve al titular y su número completo; es dato personal aunque sea opaco, igual que customerRef.
-    sensitive solo lo saca de outputs y eventos; personal es lo que garantiza que no acabe en un log ni en una
-    traza (p. ej. al registrar la llamada de cobro con medio guardado) y lo que vaciaría una futura retención
-    then: anonymize del Wallet (decisions.yaml la deja como evolución minor), que sin la marca conservaría
-    intacta la referencia con la que se puede volver a cobrar a esa tarjeta. El resto se miró y no es de una
-    persona: chargeRequestId y refundRequestId (claves de petición del consumidor), gatewayPaymentId (id de la
-    transacción), customerAction (acción 3DS opaca y transitoria, que se vacía al salir de actionRequired),
-    failureReason y los importes. Salidas: marcar gatewayMethodRef personal: true (patch, junto a sensitive),
-    o aceptarlo en decisions.yaml con el motivo.
-- id: REV-HISTORY-SCOPE
-  scope: persistence.audit.history (Wallet)
-  verdict: fixed
-  note: >-
-    Corregido en v0.1.3 (decidido por el diseñador): history: [Payment, Wallet], con OBL-HISTORY-UNREAD
-    aceptada también para Wallet. Hallazgo original: De las dos raíces persistidas, Payment está en audit.history y es la que mueve dinero (cobro y
-    devoluciones). Wallet no está, y cumple dos de los criterios: guarda datos personales (customerRef,
-    PaymentMethod.card) y es la autorización para cobrar sin el titular presente (requestCharge con
-    paymentMethodId). Ante una disputa de un cobro con medio guardado, las preguntas son de Wallet, no
-    de Payment: quién guardó esa tarjeta y cuándo, si era el medio por defecto en el momento del cobro
-    y quién lo cambió, y si se había retirado antes. Hoy nada lo responde: audit.timestamps es declared
-    y solo Payment declara createdAt/updatedAt, así que PaymentMethod no tiene fecha de alta ni de
-    retirada; authorship all guarda solo el último autor de cada fila (setDefaultPaymentMethod pisa al
-    de savePaymentMethod); y el estado removed conserva la fila pero no el instante. decisions.yaml
-    (structural 3.9b, OBL-HISTORY-UNREAD) justifica el historial de Payment y no dice nada de Wallet.
-    Lo que no se guardó desde el principio no se reconstruye. Salidas: (a) history: [Payment, Wallet]
-    (gatewayMethodRef, sensitive, no entra; card y customerRef sí, y seguirán una futura retention
-    anonymize del Wallet), ampliando OBL-HISTORY-UNREAD a persistence.audit.history.Wallet; o
-    (b) aceptarlo en decisions.yaml con el motivo, p. ej. que la disputa la resuelve la pasarela con su
-    propio registro del mandato del medio guardado.
+    notReceived se limita a pending («Un cobro en pending que la pasarela no conoce se da por fallido con
+    failureReason notReceived»); para capturing, canceling y refunding la rule siguiente dice que, si la acción
+    fue rechazada o la pasarela nunca la recibió, el cobro vuelve al estado del que salió (cancelOrigin en una
+    anulación; la devolución pasa a failed) y se publica PaymentActionRejected. Las transitions del barrido lo
+    respaldan (capturing→authorized, canceling→authorized|actionRequired, refunding→captured) y markFailed no
+    admite capturing ni refunding. Sin cambios en v0.2.0; la Refund que pasa a failed conserva su requestedAmount,
+    así que una repetición posterior de la misma petición sigue respondiendo el cobro sin conflicto.
